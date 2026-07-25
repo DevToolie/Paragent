@@ -155,7 +155,7 @@ committed on purpose: they are fixtures, and `assertNoLiteralSecrets` runs on ev
 
 ## What is real vs stubbed today
 
-The section a new agent needs most. Blunt, and current as of `6ad7151`.
+The section a new agent needs most. Blunt, and current as of `605c384` + ADR-0007.
 
 | # | What looks wired but is not | Evidence in code | Consequence | Issue |
 | --- | --- | --- | --- | --- |
@@ -165,7 +165,7 @@ The section a new agent needs most. Blunt, and current as of `6ad7151`.
 | 4 | **`versions.json` is a placeholder, not the matrix.** One entry, `id: "pending-b1@placeholder"` | `experiments/gate-v1/versions.json` | The gate harness walks one fake version while `scripts/testbed/matrix.json` holds the real eight ADR-0003 pins. The two files are unconnected | [#26](https://github.com/DevToolie/Paragent/issues/26) |
 | 5 | **The cache has a write path only.** No read path, no persistence — the only `CacheStore` in the tree is `{ write(_row) { /* sink */ } }`; no `writeFile`/`appendFile` anywhere in `src/cache/` | `src/cache/pipeline.ts:125`; `src/cache/write.ts` | Nothing can be replayed *from* cache. There is no cache hit, so there is no cache hit-rate | [#63](https://github.com/DevToolie/Paragent/issues/63) |
 | 6 | **Confidence never moves.** `confidence`, `success_count`, `failure_count` are written as `0` and never updated by any code path | `src/compiler/compile.ts:85-87`; `src/cache/pipeline.ts:91` | PRD §5.3's self-invalidating, self-healing cache does not exist. The fields are shape, not behaviour | [#64](https://github.com/DevToolie/Paragent/issues/64) |
-| 7 | **Bundle → cache and bundle → runner are unwired** (the two dashed edges above) | no import of `src/cache/` outside `src/cache/` and `tests/`; no `CompiledTrajectoryBundle` → `CompiledProgram` adapter | The chain is only end-to-end on paper. Each hop is unit-tested; the seam between them is not | [#52](https://github.com/DevToolie/Paragent/issues/52) |
+| 7 | **Bundle → cache and bundle → runner are unwired *in the runtime*** (the two dashed edges above) | no import of `src/cache/` outside `src/cache/` and `tests/`; the `CompiledTrajectoryBundle` → `CompiledProgram` adapter lives in `tests/integration/pipeline.test.ts`, deliberately not in `src/` | Narrower than it was: since [#52](https://github.com/DevToolie/Paragent/issues/52) the seam **is** exercised end to end by the integration test, which caught a real compiler bug on its first run. What is still missing is a *product* path — nothing outside a test walks bundle → cache → replay | [#62](https://github.com/DevToolie/Paragent/issues/62), [#63](https://github.com/DevToolie/Paragent/issues/63) |
 | 8 | **Cache hit-rate is missing from §9.** `buildGateReport` returns seven sections; hit-rate is not one of them — and could not be computed anyway, given stub 5 | `src/metrics/aggregate.ts:282-291` | One §9 secondary metric cannot be reported at all | [#67](https://github.com/DevToolie/Paragent/issues/67) |
 
 What **is** real, and should not be re-litigated: the testbed boots and seeds a pinned Grafana
