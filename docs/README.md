@@ -8,10 +8,10 @@ updated: 2026-07-25
 confidence: HIGH
 supersedes: null
 sources_verified: true
-# Index updated 2026-07-25: C4 adversary-report linked
+# Index updated 2026-07-25: C5 DECISION FAIL + ADR-0004
 ---
 
-# docs/ ? map
+# docs/ — map
 
 Live index. Update this file when you add or supersede a document.
 
@@ -22,6 +22,7 @@ Live index. Update this file when you add or supersede a document.
 | [ADR-0001 TypeScript + Node + Playwright](decisions/ADR-0001-typescript-node-playwright.md) | accepted | B0 | 2026-07-24 |
 | [ADR-0002 Repo privacy ALL-PRIVATE](decisions/ADR-0002-repo-privacy.md) | accepted | B0 | 2026-07-24 |
 | [ADR-0003 Grafana OSS test-bed](decisions/ADR-0003-testbed-grafana-oss.md) | accepted | B1 | 2026-07-25 |
+| [ADR-0004 Track-2 vertical FAIL](decisions/ADR-0004-vertical-track2-fail.md) | accepted | C5 | 2026-07-25 |
 
 ## PRD / briefs
 
@@ -47,7 +48,7 @@ Live index. Update this file when you add or supersede a document.
 | [freight-carrier-customs-portals.md](research/vertical-search/freight-carrier-customs-portals.md) | draft (C3) | C3 | 2026-07-24 |
 | [regulatory-government-filing-portals.md](research/vertical-search/regulatory-government-filing-portals.md) | draft (C3) | C3 | 2026-07-24 |
 | [adversary-report.md](research/vertical-search/adversary-report.md) | draft (C4) | C4 | 2026-07-25 |
-| DECISION.md | pending Wave 3 C5 | C5 | ? |
+| [DECISION.md](research/vertical-search/DECISION.md) | accepted FAIL (C5) | C5 | 2026-07-25 |
 
 ## Gate (Track 1)
 
@@ -76,6 +77,6 @@ See [`../contracts/`](../contracts/) ? trajectory, assertion, cache-row, metrics
 
 ## Open questions / what I could not verify
 
-- Gate number and vertical lock do not exist yet — do not invent them in this index.
-- C4 adversary-report is attack-only — C5 DECISION.md still pending.
+- Track-1 gate number (replay-validity) does not exist yet — do not invent it in this index.
+- Track-2 vertical lock: **FAIL** (C5) — no surface locked; see DECISION.md + ADR-0004.
 
