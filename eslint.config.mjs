@@ -15,6 +15,11 @@ export default tseslint.config(
       globals: {
         console: "readonly",
         process: "readonly",
+        // Node 20 globals used by the test-bed CI smoke assertion.
+        Buffer: "readonly",
+        URL: "readonly",
+        fetch: "readonly",
+        setTimeout: "readonly",
       },
     },
   },

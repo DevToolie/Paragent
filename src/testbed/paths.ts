@@ -36,3 +36,16 @@ export function runtimeProvisioningDir(versionId: string): string {
 export function sanitizeVersion(versionId: string): string {
   return versionId.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
+
+/**
+ * Compose project names are stricter than filesystem paths: lowercase
+ * alphanumerics, hyphens and underscores only, starting with a letter or digit.
+ * Dots are legal in a directory name but rejected by `docker compose -p`, so
+ * `11.0.0` has to become `11-0-0`.
+ */
+export function composeProjectSlug(versionId: string): string {
+  return versionId
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-")
+    .replace(/^[^a-z0-9]+/, "");
+}

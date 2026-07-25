@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { parseArgs } from "../../src/testbed/args.js";
 import { PACKAGE } from "../../src/testbed/constants.js";
+import { buildComposeEnv } from "../../src/testbed/docker.js";
 import {
   getVersion,
   loadMatrix,
   testdataTypeFor,
 } from "../../src/testbed/matrix.js";
+import { composeProjectSlug } from "../../src/testbed/paths.js";
 
 describe("testbed matrix", () => {
   it("exposes package id", () => {
@@ -30,6 +32,26 @@ describe("testbed matrix", () => {
     expect(testdataTypeFor("10.0.13")).toBe("grafana-testdata-datasource");
     expect(testdataTypeFor("11.0.0")).toBe("grafana-testdata-datasource");
     expect(testdataTypeFor("13.0.3")).toBe("grafana-testdata-datasource");
+  });
+});
+
+describe("compose project name", () => {
+  // `docker compose -p paragent-tb-11.0.0` is rejected outright: project names
+  // allow no dots. Every matrix id has them, so the slug must strip them.
+  it("produces a compose-legal slug for every matrix version", () => {
+    for (const v of loadMatrix().versions) {
+      const env = buildComposeEnv({
+        versionId: v.id,
+        imageTag: v.image_tag,
+        provisioningDir: "/tmp/provisioning",
+      });
+      expect(env.COMPOSE_PROJECT_NAME).toMatch(/^[a-z0-9][a-z0-9_-]*$/);
+    }
+  });
+
+  it("maps dots to hyphens", () => {
+    expect(composeProjectSlug("11.0.0")).toBe("11-0-0");
+    expect(composeProjectSlug("9.5.21")).toBe("9-5-21");
   });
 });
 
