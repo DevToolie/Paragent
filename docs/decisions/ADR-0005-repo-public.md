@@ -123,6 +123,21 @@ secret hygiene is the only line of defence:
 enabled at the repo level, and `npm run test:canary` blocks tenant strings reaching
 pool-eligible cache rows. None of those may be weakened.
 
+**What is not available, verified 2026-07-25.** Secret scanning **non-provider patterns** and
+**validity checks** cannot be enabled on this org. Both require GitHub Secret Protection /
+Advanced Security; `DevToolie` is on the **free** plan with
+`maximum_advanced_security_committers: 0` and `purchased_advanced_security_committers: null`.
+
+This failure mode is worth recording because it is silent: `PATCH /repos/{owner}/{repo}` with
+`security_and_analysis.secret_scanning_non_provider_patterns.status = "enabled"` returns
+**HTTP 200 with the field still `disabled`** — no error. Attaching an org code-security
+configuration that sets them also reports `status: "attached"` while the effective repo
+setting stays `disabled`. Anyone verifying by reading the configuration rather than the
+repo's effective `security_and_analysis` would wrongly conclude the control is on.
+
+Basic secret scanning and push protection **are** free for public repositories and are on. The
+gap is only the advanced detectors.
+
 **Forecloses:** any expectation of confidentiality for material already in this repository.
 
 ## Reversal cost
@@ -137,9 +152,10 @@ general change of heart about openness.
 
 ## Open questions / what I could not verify
 
-- Secret scanning **non-provider patterns** and **validity checks** are both currently
-  `disabled`. Now that public exposure is permanent, enabling them is cheap defence in depth;
-  not done in this ADR because it is an org/repo settings change, not a code change.
+- Whether to purchase GitHub Secret Protection to get non-provider patterns and validity
+  checks (see Consequences — attempted and blocked by entitlement, not by configuration).
+  Founder call; a cost question, not a technical one. Until then the merge-blocking
+  `npm run secret-scan` and the free provider-pattern scanning are the whole control set.
 - Whether `docs/pitch/` material being public creates any securities-communication concern is
   a founder/counsel question, outside this ADR. Related sizing work is issue #36.
 - Whether third-party research citations in `docs/research/` raise any issue when public —

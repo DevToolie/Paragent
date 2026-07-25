@@ -123,6 +123,8 @@ to be broken by someone moving fast:
   number is softer than it looks and the memo must say so (issue #61).
 - Which document controls the kill line — PRD §9's four-part gate or the pivot brief's single
   ~50% (issue #68).
-- Whether to enable secret-scanning non-provider patterns and validity checks, both currently
-  disabled — cheap defence in depth now that public exposure is permanent
-  ([ADR-0005](./decisions/ADR-0005-repo-public.md)).
+- Whether to buy GitHub Secret Protection. Secret-scanning non-provider patterns and validity
+  checks are **entitlement-blocked**, not merely unconfigured — the org is on the free plan.
+  Note the trap recorded in [ADR-0005](./decisions/ADR-0005-repo-public.md): GitHub returns
+  HTTP 200 and leaves the setting `disabled`, so verify controls by reading the repo's
+  effective `security_and_analysis`, never by reading a configuration.

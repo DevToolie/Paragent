@@ -142,5 +142,6 @@ precondition); M5 and M7 can run in parallel; M6 is blocked on the M4 gate numbe
 - Root README Track 2/3 status lines are still stale (INTEGRITY-AUDIT D-04) — tracked as issue #54.
 - Founder post-Track-1 choice (intermediary reframe vs shut search) — C5 next action; not decided in docs.
 - Measured gate number — still unset; do not invent.
-- Secret-scanning non-provider patterns and validity checks are disabled at the repo level;
-  now that public exposure is permanent (ADR-0005), enabling them is unresolved defence in depth.
+- Whether to buy GitHub Secret Protection. Non-provider patterns and validity checks are
+  entitlement-blocked on the org's free plan — attempted and verified 2026-07-25, see
+  [ADR-0005](decisions/ADR-0005-repo-public.md) Consequences. Founder cost call.
