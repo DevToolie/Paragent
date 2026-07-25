@@ -1,3 +1,15 @@
+---
+title: "A6 — ToS overlay (observability vendors)"
+doc_type: research
+status: killed
+owner: A6
+created: 2026-07-24
+updated: 2026-07-24
+confidence: HIGH
+supersedes: null
+sources_verified: true
+---
+
 # A6 — Terms of Service & Automation Posture Review
 
 **Role:** Terms-of-service and automation-posture reviewer  
@@ -313,4 +325,9 @@ Unlike Datadog and Grafana, Sentry’s current ToS/AUP **do not contain an expli
 12. https://sentry.io/legal/aup/  
 13. https://docs.sentry.io/api/  
 14. https://mcp.sentry.dev  
-15. https://sentry.io/robots.txt  
+15. https://sentry.io/robots.txt
+
+## Open questions / what I could not verify
+
+- Pre-standard Week-0 artifact: see docs/INTEGRITY-AUDIT.md for evidence-table shape gaps vs CONTRIBUTING.
+- Follow-ups after this FAIL are owned by Track 2 / C5 — not reopened here.

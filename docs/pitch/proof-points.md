@@ -8,6 +8,7 @@ updated: 2026-07-25
 confidence: HIGH
 supersedes: null
 sources_verified: true
+# D2 cross-link refresh 2026-07-25 (PRD/pivot/C5)
 ---
 
 # Proof points — claim register
@@ -38,7 +39,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | A6 | Stack is TypeScript + Node + Playwright | (supporting; deck mechanism context) | PROVEN | [ADR-0001](../decisions/ADR-0001-typescript-node-playwright.md) |
 | A7 | Repo privacy mode ALL-PRIVATE; still no secrets in git | (supporting; ToS/privacy posture) | PROVEN | [ADR-0002](../decisions/ADR-0002-repo-privacy.md); [README.md](../../README.md) |
 | A8 | `pool_eligible` / fail-closed pooling fields exist on cache-row schema | narrative, deck 15, one-pager | PROVEN (schema) | [cache-row.schema.json](../../contracts/cache-row.schema.json) |
-| A9 | Full PRD §6 privacy boundary spec / PRD v0.2 text | narrative, deck 15, one-pager | PENDING | Files `docs/prd/PRD-trajectory-cache-v0.2.md` and `pivot-brief-v0.3.md` **absent from tree** at draft (2026-07-25); only [prd/README.md](../prd/README.md) placeholder |
+| A9 | Full PRD §6 privacy boundary spec / PRD v0.2 text | narrative, deck 15, one-pager | PROVEN (docs in tree) | [PRD-trajectory-cache-v0.2.md](../prd/PRD-trajectory-cache-v0.2.md) §6; [boundary-spec.md](../privacy/boundary-spec.md); D1 draft absence note obsolete (D2 2026-07-25) |
 | A10 | Wave-1 pitch is draft; finalize after C5 | narrative frontmatter, deck 9, one-pager | ASSUMED (process) | Wave pack Agent D1; vertical lock pending C5 |
 
 ---
@@ -81,13 +82,13 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 
 | ID | Claim | Appears in | Status | Source |
 | --- | --- | --- | --- | --- |
-| D1 | Target work where laborer is COUNTERPARTY to software's customer: no API/bulk tools/roadmap sympathy permanently; multiplicity across portals creates frequency | narrative, deck 7, one-pager, objections §1 | ASSUMED | Wave-2 shared context; founder pivot framing; `pivot-brief-v0.3.md` **missing from tree** |
+| D1 | Target work where laborer is COUNTERPARTY to software's customer: no API/bulk tools/roadmap sympathy permanently; multiplicity across portals creates frequency | narrative, deck 7, one-pager, objections §1 | ASSUMED (thesis); PROVEN as written pivot; **Track-2 FAIL** | [pivot-brief-v0.3.md](../prd/pivot-brief-v0.3.md) §2–3; falsified as lockable wedge by [DECISION.md](../research/vertical-search/DECISION.md) (C5 FAIL 2026-07-25) |
 | D2 | Counterparty claim is falsifiable by Track 2 (API/EDI/intermediary) | narrative, deck 8, objections §7 | ASSUMED (method) | Wave pack Agents C4–C5 |
-| D3 | Vertical not locked; search in progress | narrative, deck 9, one-pager, all docs front matter | PROVEN (as current status) | [README.md](../../README.md) Track 2; C5 not run |
-| D4 | Two orthogonal tracks: (1) churn survival on self-hosted OSS; (2) commercial vertical search; neither waits | narrative, deck 19, objections §9 | ASSUMED (operating plan) | Wave-2 shared context; [README.md](../../README.md) status table |
+| D3 | Vertical not locked; Wave-2 surfaces FAIL | narrative, deck 9, one-pager | PROVEN | [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) — no lock; search of that shape closed pending Track-1 |
+| D4 | Two orthogonal tracks: (1) churn survival on self-hosted OSS; (2) commercial vertical search; neither waits | narrative, deck 19, objections §9 | PROVEN (as plan text) | [pivot-brief-v0.3.md](../prd/pivot-brief-v0.3.md) §4; Track 2 now FAIL per C5 |
 | D5 | Track 1 version-bump churn is a proxy for organic production churn | narrative | ASSUMED (honesty requirement) | Wave pack / B1 brief; B1 docs may elaborate when merged |
 | D6 | Second consecutive vertical FAIL implicates the thesis, not only anchor selection | narrative kill table, objections §7 | ASSUMED (decision rule) | Wave pack Agent C5 gate text |
-| D7 | "Two failed censuses" as present fact | objections §7 (explicitly rejected) | PROVEN correction | Only Week-0 FAIL exists; second census PENDING C5 |
+| D7 | Two consecutive vertical FAILs (Week-0 + Track-2) | objections §7 (was rejected at D1 write) | PROVEN (as of C5) | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) + [DECISION.md](../research/vertical-search/DECISION.md) — D1 objections text may still deny this; see INTEGRITY-AUDIT |
 
 ---
 
@@ -152,12 +153,10 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | Item | Blocked on |
 | --- | --- |
 | All performance / replay / cost figures | Track 1 measurement |
-| §9 numeric kill thresholds | PRD v0.2 in tree + Track 1 |
-| Vertical lock + nominated first task | C5 `DECISION.md` |
-| Pivot brief / PRD text cross-links | Founder drop of `pivot-brief-v0.3.md` + `PRD-trajectory-cache-v0.2.md` |
-| Per-surface ToS + bot-detection | Track 2 scouts + counsel |
-| Privacy boundary-spec narrative | B5 + PRD §6 |
-| Whether A7 remains lead after C1–C5 | C5 |
+| Measured gate number (vs PRD §9 *proposed* thresholds) | Track 1 — see INTEGRITY-AUDIT |
+| Vertical lock + nominated first task | **Closed for Wave-2** — C5 FAIL; no lock ([DECISION.md](../research/vertical-search/DECISION.md)) |
+| Founder post-Track-1 choice (sell-to-intermediary vs shut search) | Track-1 number + founder 3-day box per C5 |
+| Per-surface ToS + bot-detection | Counsel (still flagged) |
 | 48h wall-clock confirmation | Founder |
 | Competitor roadmap primary sources | Optional diligence pass |
 | Raise ask dollars / instrument | Founder |
@@ -166,6 +165,6 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 
 ## Open questions / what I could not verify
 
-- Whether parent agent briefly had PRD files on disk that were never committed — they are absent from `origin/main` and this branch at write time.
-- Uncommitted Track-2 scout files in other agents' working trees are **out of scope** for this register until merged; pitch must not lock on them.
+- D1 “PRD absent” / “C5 pending” rows corrected where matched; residual pitch prose may lag — see INTEGRITY-AUDIT.
+- Objections §7 may still say only one FAIL exists; C5 is now the second — contradiction surfaced, not auto-rewritten in full.
 - Any claim that appears in a future deck design beyond this outline needs a new proof-points row before use.

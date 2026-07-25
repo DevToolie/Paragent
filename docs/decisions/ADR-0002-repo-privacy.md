@@ -18,10 +18,10 @@ accepted
 
 ## Context
 
-`DevToolie/Paragent` was **public**. Wave-2 packs instruct agents to write
-vertical research, kill criteria, and pitch material. Publishing that in the
-open discloses wedge, surfaces under evaluation, and falsification standards
-before any of it is built.
+**Triggered by:** `DevToolie/Paragent` was **public** while Wave-2 packs
+instruct agents to write vertical research, kill criteria, and pitch material.
+Publishing that in the open discloses wedge, surfaces under evaluation, and
+falsification standards before any of it is built.
 
 Founder choice required before Wave 2:
 

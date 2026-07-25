@@ -1,0 +1,47 @@
+name: PR title
+
+# Squash merges take the PR title as the commit subject (squash_merge_commit_title
+# is PR_TITLE), so the title is what ends up in main's history. Keep it
+# Conventional Commits, per CONTRIBUTING.md.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: conventional-commit title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate
+        env:
+          # Via env, never inlined into the script: a PR title is untrusted input.
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          pattern='^(feat|fix|docs|chore|refactor|perf|test|build|ci|revert|style)(\([a-z0-9._/-]+\))?!?: .+'
+          if printf '%s' "$TITLE" | grep -qE "$pattern"; then
+            echo "ok: $TITLE"
+            exit 0
+          fi
+          cat <<'EOF' >&2
+          PR title is not a Conventional Commit.
+
+            <type>[(scope)][!]: <subject>
+
+          Allowed types: feat fix docs chore refactor perf test build ci revert style
+          Use ! for a breaking change, e.g. feat(compiler)!: drop v0.1 bundles
+
+          Examples:
+            feat(recorder): capture aria snapshot per step
+            fix(cache): honour taint on nested values
+            docs(gate): record week-1 churn run
+          EOF
+          echo "Got: $TITLE" >&2
+          exit 1

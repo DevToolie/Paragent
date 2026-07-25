@@ -1,3 +1,15 @@
+---
+title: "A7 — Backup vertical scout notes"
+doc_type: research
+status: killed
+owner: A7
+created: 2026-07-24
+updated: 2026-07-24
+confidence: MED
+supersedes: null
+sources_verified: true
+---
+
 # A7 — Backup vertical: vendor security-review / TPRM portals
 
 **Role:** Backup-vertical scout  
@@ -147,3 +159,8 @@ Public free surfaces are thin:
 - “ProcessUnity GRX third party submit assessment API respondent” → **no API found** in public GRX docs for third-party respondent submit  
 - “Whistic Terraform provider” / “Conveyor Terraform provider” / “SafeBase Terraform provider” / “OneTrust Terraform provider registry” → **no Terraform provider found**  
 - “OneTrust free trial sandbox TPM” / “ProcessUnity free trial sandbox” → **no public self-serve sandbox found**
+
+## Open questions / what I could not verify
+
+- Pre-standard Week-0 artifact: see docs/INTEGRITY-AUDIT.md for evidence-table shape gaps vs CONTRIBUTING.
+- Follow-ups after this FAIL are owned by Track 2 / C5 — not reopened here.

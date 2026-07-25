@@ -1,0 +1,47 @@
+# Categories for GitHub's auto-generated release notes.
+# Docs: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+
+changelog:
+  exclude:
+    labels:
+      - stale
+      - duplicate
+      - invalid
+      - wontfix
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking-change
+
+    - title: Gate results
+      labels:
+        - gate
+
+    - title: Privacy boundary
+      labels:
+        - privacy-boundary
+        - security
+
+    - title: Features
+      labels:
+        - enhancement
+
+    - title: Fixes
+      labels:
+        - bug
+
+    - title: Documentation
+      labels:
+        - documentation
+
+    - title: Decisions
+      labels:
+        - proposal
+
+    - title: Dependencies
+      labels:
+        - dependencies
+
+    - title: Other changes
+      labels:
+        - "*"

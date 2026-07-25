@@ -1,3 +1,15 @@
+---
+title: "A5 — Frequency & pain evidence"
+doc_type: research
+status: killed
+owner: A5
+created: 2026-07-24
+updated: 2026-07-24
+confidence: MED
+supersedes: null
+sources_verified: true
+---
+
 # A5 — Frequency & Pain Evidence
 
 **Role:** Independent evidence-gatherer for frequency and pain (not browser-only, not scoring).  
@@ -136,3 +148,8 @@ Tasks with the thinnest external frequency/pain signal (closest to pure “no ev
 ---
 
 *Enumerator: A5 (frequency & pain). Access date: 2026-07-24.*
+
+## Open questions / what I could not verify
+
+- Pre-standard Week-0 artifact: see docs/INTEGRITY-AUDIT.md for evidence-table shape gaps vs CONTRIBUTING.
+- Follow-ups after this FAIL are owned by Track 2 / C5 — not reopened here.

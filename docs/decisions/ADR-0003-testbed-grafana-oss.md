@@ -18,10 +18,13 @@ accepted
 
 ## Context
 
+**Triggered by:** [pivot-brief-v0.3.md](../prd/pivot-brief-v0.3.md) Track 1 —
+measure churn survival without a design partner or third-party SaaS ToS (Week-0
+A6 already HIGH for Datadog/Grafana Cloud consoles).
+
 Track-1 needs a **self-hosted** console where we can pin Docker image tags per
 released version, seed deterministic state, and treat version upgrades as
-**accelerated UI churn** for trajectory survival experiments. No third-party
-SaaS ToS, no design partner required.
+**accelerated UI churn** for trajectory survival experiments.
 
 Criteria (must all hold):
 
