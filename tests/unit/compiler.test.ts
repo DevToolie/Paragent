@@ -46,6 +46,72 @@ describe("tenant literal heuristics", () => {
   });
 });
 
+describe("click assertion target", () => {
+  const fingerprint = (url: string, landmarks: string[]) => ({
+    url_template: url,
+    title_template: "Fixture",
+    dom_digest: "digest",
+    visible_landmarks: landmarks,
+    network_idle: true,
+  });
+
+  const clickStep = (from: string, to: string) => ({
+    step_index: 0,
+    intent: "Submit login form",
+    action: { type: "click" as const },
+    locator_candidates: [
+      { strategy: "role_name" as const, rank: 0, role: "button", name: "Log in" },
+    ],
+    pre_state: fingerprint(from, ["main", "form"]),
+    post_state: fingerprint(to, ["main", "form"]),
+    timing_ms: { started_offset_ms: 0, duration_ms: 5 },
+    assertion_hint: {
+      suggested_type: "element-visible",
+      observed_signals: ["click target resolved"],
+    },
+  });
+
+  const wrap = (step: ReturnType<typeof clickStep>): Trajectory => ({
+    schema_version: "1.0.0",
+    trajectory_id: "traj-click",
+    site_key: "fixture@local",
+    task_key: "click-task",
+    recorded_at: "2026-07-25T00:00:00.000Z",
+    base_url_template: "http://{host}:{port}/app",
+    provenance: {
+      recorder: "test",
+      agent_model: "human",
+      testbed_version: "fixture-v1",
+    },
+    parameters: { host: "string", port: "integer" },
+    steps: [step],
+  });
+
+  it("uses the destination URL, not the clicked control, when a click navigates", () => {
+    // Regression: the clicked control is routinely hidden by the very
+    // transition being asserted (login submit hides the login form), so
+    // "the button I clicked is still visible" is both weak and often false.
+    const bundle = compileTrajectory(
+      wrap(clickStep("http://{host}:{port}/app", "http://{host}:{port}/app#home")),
+      { compiledAt: "2026-07-25T00:00:00.000Z" },
+    );
+    const assertion = bundle.rows[0]!.assertion;
+    expect(assertion.type).toBe("url-matches");
+    expect(assertion.strength).toBe("strong");
+    expect(assertion.target?.url_template).toBe("http://{host}:{port}/app#home");
+  });
+
+  it("still asserts the control for a click that does not navigate", () => {
+    const bundle = compileTrajectory(
+      wrap(clickStep("http://{host}:{port}/app", "http://{host}:{port}/app")),
+      { compiledAt: "2026-07-25T00:00:00.000Z" },
+    );
+    const assertion = bundle.rows[0]!.assertion;
+    expect(assertion.type).toBe("element-visible");
+    expect(assertion.target?.locator?.role).toBe("button");
+  });
+});
+
 describe("compileTrajectory example", () => {
   it("emits one asserted cache-row per step with no tenant literals", async () => {
     const trajPath = path.join(
