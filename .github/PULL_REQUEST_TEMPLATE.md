@@ -24,7 +24,8 @@
 
 ## Hard rules
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md). All four must hold:
+See [CONTRIBUTING.md](https://github.com/DevToolie/Paragent/blob/main/CONTRIBUTING.md).
+All four must hold:
 
 - [ ] **No secrets.** No credentials, cookies, session/storage dumps, `.env`,
       tokens, customer or design-partner names, or third-party portal content.
@@ -32,7 +33,8 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md). All four must hold:
       `[PENDING TRACK-1]` until measured.
 - [ ] **Claims are sourced.** Research docs carry URL + access date.
 - [ ] **Docs ship with the code**, carrying the standard YAML frontmatter, and
-      [docs/README.md](../docs/README.md) is updated if a document was added.
+      [docs/README.md](https://github.com/DevToolie/Paragent/blob/main/docs/README.md)
+      is updated if a document was added.
 
 ## Contracts
 
