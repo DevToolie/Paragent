@@ -24,11 +24,22 @@ on SaaS observability config, especially where the person doing the work is the
 Week-0 census (**observability config**): **FAIL** — 2 survivors of 70; archived under
 `docs/research/census-week0/`.
 
-## Privacy
+## Public repo — write accordingly
 
-This repository is **private** (ADR-0002). Still: never commit credentials,
-cookies, session state, `.env` files, tokens, customer names, or third-party
-portal content. Secret-scanning CI is merge-blocking.
+This repository is **public and intended to be**
+([ADR-0005](docs/decisions/ADR-0005-repo-public.md), superseding ADR-0002). The research,
+the PRD, the pitch pack, and both FAIL memos are all readable by anyone. Assume a
+competitor, a candidate, and an investor will read whatever you add.
+
+That is a constraint on tone, never on honesty — findings are not softened
+([CONTRIBUTING.md](./CONTRIBUTING.md) rule 4).
+
+With no confidentiality boundary left, secret hygiene is the only line of defence. Never
+commit credentials, cookies, session state, `.env` files, tokens, customer or
+design-partner names, or third-party portal content. `npm run secret-scan` is
+merge-blocking in CI, GitHub secret scanning with push protection is enabled, and
+`npm run test:canary` blocks tenant strings reaching pool-eligible cache rows. None of
+these may be weakened.
 
 ## Quick start
 

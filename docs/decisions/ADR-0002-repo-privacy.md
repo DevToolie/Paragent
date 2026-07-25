@@ -1,20 +1,27 @@
 ---
 title: "ADR-0002 — Repository privacy (ALL-PRIVATE)"
 doc_type: adr
-status: accepted
+status: superseded
 owner: B0
 created: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-25
 confidence: HIGH
 supersedes: null
+superseded_by: docs/decisions/ADR-0005-repo-public.md
 sources_verified: true
 ---
 
 # ADR-0002 — Repository privacy (ALL-PRIVATE)
 
+> **SUPERSEDED 2026-07-25 by [ADR-0005](./ADR-0005-repo-public.md).** The repository is
+> **public** and is intended to be. The decision below is retained as the historical record;
+> do not act on it. Note in particular that ADR-0005 **explicitly waives** the strip-or-move
+> precondition stated in this document's Reversal-cost section — that precondition was never
+> satisfied.
+
 ## Status
 
-accepted
+superseded
 
 ## Context
 

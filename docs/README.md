@@ -14,9 +14,11 @@ sources_verified: true
 
 Live index. Update this file when you add or supersede a document.
 Reading order: **[README-narrative.md](./README-narrative.md)** (~20 min).
+Current state and what to work on: **[ROADMAP.md](./ROADMAP.md)**.
+How to run and ship: **[DEVELOPMENT.md](./DEVELOPMENT.md)**.
 Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 
-**Last true for this index:** 2026-07-25 (D2 consolidator, post C5 merge).  
+**Last true for this index:** 2026-07-25 (B0, post milestone/issue restructure).  
 **Vertical lock:** **none** — Track-2 C5 **FAIL** ([research/vertical-search/DECISION.md](./research/vertical-search/DECISION.md); [ADR-0004](./decisions/ADR-0004-vertical-track2-fail.md)). Do not invent a lock.
 
 | Column | Meaning |
@@ -31,6 +33,8 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 
 | Doc | What it is | Status | Last true | Supersedes / notes |
 | --- | --- | --- | --- | --- |
+| [ROADMAP.md](./ROADMAP.md) | Current state, what is stubbed, milestones M0–M7 in order | accepted | 2026-07-25 | **Read before picking up an issue** |
+| [DEVELOPMENT.md](./DEVELOPMENT.md) | Commands, layout, data flow, invariants, pre-PR checklist | accepted | 2026-07-25 | Contributor runbook |
 | [README-narrative.md](./README-narrative.md) | Story: thesis → census kill → pivot → two tracks → evidence now | draft | 2026-07-25 | Includes C5 FAIL |
 | [INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md) | Unsourced claims, placeholders, LOW load-bearing, contradictions | draft | 2026-07-25 | Surfaces conflicts; does not pick winners |
 | [../README.md](../README.md) | Repo root status | living | 2026-07-25 | May lag Track 3 / C5 — see INTEGRITY-AUDIT |
@@ -43,9 +47,10 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | Doc | What it is | Status | Last true | Triggered by |
 | --- | --- | --- | --- | --- |
 | [ADR-0001](decisions/ADR-0001-typescript-node-playwright.md) | TypeScript + Node + Playwright stack | accepted | 2026-07-24 | Wave-0 parallel Track-1 agents + typed contracts |
-| [ADR-0002](decisions/ADR-0002-repo-privacy.md) | Repo ALL-PRIVATE; still no secrets in git | accepted | 2026-07-24 | Public repo + Wave-2 research/pitch packs |
+| [ADR-0002](decisions/ADR-0002-repo-privacy.md) | Repo ALL-PRIVATE; still no secrets in git | **superseded** | 2026-07-24 | Superseded by ADR-0005 — historical only |
 | [ADR-0003](decisions/ADR-0003-testbed-grafana-oss.md) | Grafana OSS self-hosted Track-1 test-bed | accepted | 2026-07-25 | Pivot Track 1 (no partner / no SaaS ToS) |
 | [ADR-0004](decisions/ADR-0004-vertical-track2-fail.md) | Track-2 vertical **FAIL** — no surface lock | accepted | 2026-07-25 | [C5 DECISION.md](research/vertical-search/DECISION.md) after C4 kills |
+| [ADR-0005](decisions/ADR-0005-repo-public.md) | Repo is **PUBLIC**, single tree, nothing stripped | accepted | 2026-07-25 | Supersedes ADR-0002; founder decision on issue #42 |
 
 ---
 
@@ -125,8 +130,17 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 
 ---
 
+## Work tracking
+
+Milestones **M0 → M7** on the GitHub issue board are the execution plan; the same sequence,
+with current implementation state and what is stubbed, is in [ROADMAP.md](./ROADMAP.md).
+M0–M4 are strictly sequential (each milestone's exit criterion is the next one's
+precondition); M5 and M7 can run in parallel; M6 is blocked on the M4 gate number.
+
 ## Open questions / what I could not verify
 
-- Whether root README Track 2/3 lines will be updated outside this PR.
+- Root README Track 2/3 status lines are still stale (INTEGRITY-AUDIT D-04) — tracked as issue #54.
 - Founder post-Track-1 choice (intermediary reframe vs shut search) — C5 next action; not decided in docs.
 - Measured gate number — still unset; do not invent.
+- Secret-scanning non-provider patterns and validity checks are disabled at the repo level;
+  now that public exposure is permanent (ADR-0005), enabling them is unresolved defence in depth.
