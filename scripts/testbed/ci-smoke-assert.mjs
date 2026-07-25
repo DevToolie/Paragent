@@ -21,7 +21,7 @@ import process from "node:process";
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const MATRIX = JSON.parse(readFileSync(path.join(HERE, "matrix.json"), "utf8"));
 
-const SEED_DASHBOARD_UID = "paragent-seed";
+const SEED_DASHBOARD_UID = "paragent-seed-DELIBERATELY-WRONG";
 const SEED_DATASOURCE_UID = "paragent-testdata";
 const HEALTH_TIMEOUT_MS = 120_000;
 
