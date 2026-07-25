@@ -37,9 +37,12 @@ Live index. Update this file when you add or supersede a document.
 
 ## Research — vertical search (Track 2)
 
-| Doc | Status | Owner |
-| --- | --- | --- |
-| `research/vertical-search/` | empty — Wave 1 C1–C3 | C1–C5 |
+| Doc | Status | Owner | Last true |
+| --- | --- | --- | --- |
+| C1 surfaces | see PR #10 (`track2/c1-surfaces`) | C1 | 2026-07-24 |
+| [freight-carrier-customs-portals.md](research/vertical-search/freight-carrier-customs-portals.md) | draft (C3 scout) | C3 | 2026-07-24 |
+| [regulatory-government-filing-portals.md](research/vertical-search/regulatory-government-filing-portals.md) | draft (C3 scout) | C3 | 2026-07-24 |
+| Remaining C2 surfaces | pending | C2 | — |
 
 ## Gate (Track 1)
 
