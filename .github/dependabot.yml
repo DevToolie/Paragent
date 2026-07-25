@@ -1,10 +1,67 @@
+# Dependabot version updates.
+# Security updates arrive regardless of the `ignore` rules below.
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
 version: 2
 updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - javascript
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: scope
+    groups:
+      dev-tooling:
+        applies-to: version-updates
+        patterns:
+          - "@eslint/*"
+          - "@types/*"
+          - eslint
+          - typescript
+          - typescript-eslint
+          - tsx
+          - vitest
+        update-types:
+          - minor
+          - patch
+      contracts-validation:
+        applies-to: version-updates
+        patterns:
+          - ajv
+          - ajv-formats
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Playwright ships the browser build that gate measurements run against, so a
+      # major bump changes churn results. Bump it deliberately in its own PR
+      # alongside experiments/gate-v1/versions.json. Security updates still land.
+      - dependency-name: playwright
+        update-types:
+          - version-update:semver-major
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github_actions
+    commit-message:
+      prefix: "chore(actions)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
