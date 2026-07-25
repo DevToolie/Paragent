@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Grafana</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; background: #111217; color: #d8d9da; }
+      main { max-width: 360px; margin: 4rem auto; }
+      label { display: block; margin: 0.75rem 0 0.25rem; }
+      input { width: 100%; padding: 0.5rem; box-sizing: border-box; }
+      button { margin-top: 1rem; width: 100%; padding: 0.6rem; }
+      nav a { color: #6e9fff; margin-right: 1rem; }
+      .dash-list { list-style: none; padding: 0; }
+      .dash-list li { padding: 0.5rem 0; border-bottom: 1px solid #2a2d33; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <main role="main">
+      <section id="login-view" aria-label="Login">
+        <h1>Grafana</h1>
+        <form id="login-form" role="form">
+          <label for="username">Username</label>
+          <input id="username" name="user" type="text" data-testid="username-input" autocomplete="username" />
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" data-testid="password-input" autocomplete="current-password" />
+          <button type="submit" data-testid="login-button">Log in</button>
+        </form>
+      </section>
+      <section id="app-view" hidden aria-label="Application">
+        <header role="banner">
+          <nav role="navigation" aria-label="Primary">
+            <a href="#home" data-testid="nav-home">Home</a>
+            <a href="#dashboards" data-testid="nav-dashboards">Dashboards</a>
+          </nav>
+        </header>
+        <div id="home-panel"><h1>Home</h1><p>Welcome</p></div>
+        <div id="dashboards-panel" hidden>
+          <h1>Dashboards</h1>
+          <ul class="dash-list" data-testid="dashboards-list" role="list">
+            <li role="listitem">General / Home</li>
+            <li role="listitem">Demo / Overview</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+    <script>
+      const loginView = document.getElementById("login-view");
+      const appView = document.getElementById("app-view");
+      const homePanel = document.getElementById("home-panel");
+      const dashPanel = document.getElementById("dashboards-panel");
+      document.getElementById("login-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        loginView.hidden = true;
+        appView.hidden = false;
+        document.title = "Grafana - Home";
+        history.replaceState(null, "", "#home");
+      });
+      document.querySelector('[data-testid="nav-dashboards"]').addEventListener("click", (e) => {
+        e.preventDefault();
+        homePanel.hidden = true;
+        dashPanel.hidden = false;
+        document.title = "Grafana - Dashboards";
+        history.replaceState(null, "", "#dashboards");
+      });
+      document.querySelector('[data-testid="nav-home"]').addEventListener("click", (e) => {
+        e.preventDefault();
+        dashPanel.hidden = true;
+        homePanel.hidden = false;
+        document.title = "Grafana - Home";
+        history.replaceState(null, "", "#home");
+      });
+    </script>
+  </body>
+</html>

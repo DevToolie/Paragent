@@ -1,0 +1,12 @@
+# Base TestData datasource. Overlay rewrite sets `type` per Grafana major
+# (<10 → testdata, ≥10 → grafana-testdata-datasource).
+# https://grafana.com/docs/grafana/latest/datasources/testdata/configure/
+apiVersion: 1
+
+datasources:
+  - name: Paragent TestData
+    uid: paragent-testdata
+    type: grafana-testdata-datasource
+    access: proxy
+    isDefault: true
+    editable: false

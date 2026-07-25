@@ -15,6 +15,11 @@ const pairs = [
   ["contracts/cache-row.schema.json", "contracts/examples/cache-row.example.json"],
 ];
 
+/** Extra trajectory artifacts that must stay schema-valid (B2 gate recordings). */
+const extraTrajectories = [
+  "experiments/gate-v1/trajectories/grafana-fixture-login-dashboards.json",
+];
+
 async function loadJson(rel) {
   return JSON.parse(await readFile(path.join(ROOT, rel), "utf8"));
 }
@@ -34,6 +39,21 @@ async function main() {
       process.exit(1);
     }
     console.log(`ok: ${exampleRel}`);
+  }
+
+  const trajSchema = await loadJson("contracts/trajectory.schema.json");
+  // Reuse validator compiled from the pairs loop when available; else compile once.
+  const validateTraj =
+    ajv.getSchema("https://paragent.dev/contracts/trajectory.schema.json") ??
+    ajv.compile(trajSchema);
+  for (const rel of extraTrajectories) {
+    const example = await loadJson(rel);
+    if (!validateTraj(example)) {
+      console.error(`INVALID: ${rel} against trajectory.schema.json`);
+      console.error(validateTraj.errors);
+      process.exit(1);
+    }
+    console.log(`ok: ${rel}`);
   }
 
   const metricsSchema = await loadJson("contracts/metrics.schema.json");

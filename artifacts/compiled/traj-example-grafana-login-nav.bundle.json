@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0.0",
+  "bundle_kind": "compiled_trajectory",
+  "source_trajectory_id": "traj-example-grafana-login-nav",
+  "site_key": "grafana-oss@example",
+  "task_key": "open-dashboards-list",
+  "compiled_at": "2026-07-25T00:00:00.000Z",
+  "compiler": {
+    "version": "0.1.0-b3",
+    "notes": "One CacheRow per step; locator_fallback_chain in B2 preference order; assertions synthesized from post_state (+ hints). pool_eligible fail-closed.",
+    "input_path": "contracts/examples/trajectory.example.json"
+  },
+  "rows": [
+    {
+      "schema_version": "1.0.0",
+      "row_id": "cache-grafana-oss@example-open-dashboards-list-0",
+      "site_key": "grafana-oss@example",
+      "task_key": "open-dashboards-list",
+      "step_index": 0,
+      "compiled_action": {
+        "type": "navigate",
+        "locator_fallback_chain": [],
+        "param_refs": [
+          "host",
+          "port"
+        ],
+        "url_template": "http://{host}:{port}/login"
+      },
+      "assertion": {
+        "schema_version": "1.0.0",
+        "assertion_id": "assert-open-dashboards-list-step-0",
+        "type": "element-visible",
+        "strength": "strong",
+        "target": {
+          "locator": {
+            "strategy": "role_name",
+            "role": "form"
+          }
+        },
+        "expected": {
+          "visible": true
+        },
+        "timeout_ms": 5000,
+        "failure_classification": "assertion_failed",
+        "notes": "Presence of the login/control surface after navigate is strong evidence we reached the intended page (chrome locator, not tenant content)."
+      },
+      "confidence": 0,
+      "success_count": 0,
+      "failure_count": 0,
+      "last_verified_at": "2026-07-25T00:00:00.000Z",
+      "pool_eligible": true,
+      "pool_ineligible_reason": null,
+      "flow_topology": {
+        "next_action_type": "fill",
+        "landmark": "main"
+      }
+    },
+    {
+      "schema_version": "1.0.0",
+      "row_id": "cache-grafana-oss@example-open-dashboards-list-1",
+      "site_key": "grafana-oss@example",
+      "task_key": "open-dashboards-list",
+      "step_index": 1,
+      "compiled_action": {
+        "type": "fill",
+        "locator_fallback_chain": [
+          {
+            "strategy": "role_name",
+            "role": "textbox",
+            "name": "Username",
+            "tenant_scoped": false
+          },
+          {
+            "strategy": "label",
+            "label": "Username",
+            "tenant_scoped": false
+          },
+          {
+            "strategy": "testid",
+            "testid": "username-input",
+            "tenant_scoped": false
+          },
+          {
+            "strategy": "structural",
+            "structural_path": "main > form > input:nth-of-type(1)",
+            "tenant_scoped": false
+          }
+        ],
+        "param_refs": [
+          "username"
+        ]
+      },
+      "assertion": {
+        "schema_version": "1.0.0",
+        "assertion_id": "assert-open-dashboards-list-step-1",
+        "type": "element-visible",
+        "strength": "weak",
+        "target": {
+          "locator": {
+            "strategy": "role_name",
+            "role": "textbox",
+            "name": "Username"
+          }
+        },
+        "expected": {
+          "visible": true
+        },
+        "timeout_ms": 5000,
+        "failure_classification": "assertion_failed",
+        "notes": "Fill/select cannot assert the typed value (values are param slots, never stored). Visibility of the target control is only weakly consistent with a successful fill."
+      },
+      "confidence": 0,
+      "success_count": 0,
+      "failure_count": 0,
+      "last_verified_at": "2026-07-25T00:00:00.000Z",
+      "pool_eligible": true,
+      "pool_ineligible_reason": null,
+      "flow_topology": {
+        "prev_action_type": "navigate",
+        "landmark": "main"
+      }
+    }
+  ]
+}
