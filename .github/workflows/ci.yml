@@ -47,6 +47,11 @@ jobs:
       - name: Unit tests
         run: npx vitest run tests/unit
 
+      # Exercises the seams between packages: record -> compile -> cache-write
+      # -> replay, against a loopback fixture. No Docker, no model, no egress.
+      - name: Integration tests
+        run: npx vitest run tests/integration
+
   # Boots ONE pinned matrix version on the runner's Docker daemon so a broken
   # src/testbed/ Docker path cannot merge green. The full 8-version matrix stays
   # in the gate run — eight image pulls per PR is not a smoke test.

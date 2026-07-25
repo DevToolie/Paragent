@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B3
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-26
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -84,10 +84,30 @@ typed holes** — never tenant literals.
 | --- | --- | --- | --- |
 | 1 | Toast / success / notification in hint signals | `text-matches` | strong (template `{success_message}`) |
 | 2 | Count / rows / items in hint signals | `count-equals` | **weak** (structured count not in fingerprint yet) |
-| 3 | Hint `element-visible`, new landmarks, or fill/click target | `element-visible` | strong for navigate→login surface; **weak** for fill/select |
-| 4 | `pre_state.url_template ≠ post_state.url_template` | `url-matches` | strong for navigate/click navigations |
-| 5 | `post_state.network_idle === true` | `network-idle` | **weak** |
-| 6 | Nothing else | `custom` (`post_digest_changed_or_stable`) | **weak** |
+| 3 | **`click` that changed `url_template`** | `url-matches` | **strong** — see the rule below |
+| 4 | Hint `element-visible`, new landmarks, or fill/click target | `element-visible` | strong for navigate→login surface; **weak** for fill/select |
+| 5 | `pre_state.url_template ≠ post_state.url_template` | `url-matches` | strong for navigate/click navigations |
+| 6 | `post_state.network_idle === true` | `network-idle` | **weak** |
+| 7 | Nothing else | `custom` (`post_digest_changed_or_stable`) | **weak** |
+
+### Navigating clicks never assert the clicked control
+
+A `click` whose `url_template` changed skips the `element-visible` branch entirely
+(priority 3 above) and is asserted on its **destination**.
+
+The reason is that the alternative is not merely weak, it is usually **wrong**. A click that
+transitions the page routinely hides the surface the control lived on — submitting a login
+form, closing a modal, navigating away — so "the button I clicked is still visible" is a
+post-condition the step itself falsifies.
+
+The `post_state` landmark fallback does not rescue it: `visible_landmarks` is collected by
+walking the DOM **without a visibility filter**, so a landmark that has just been hidden is
+still listed. The name overpromises; treat it as *landmark roles present*, not *visible*.
+
+Found by [`tests/integration/pipeline.test.ts`](../../tests/integration/pipeline.test.ts) on
+its first run: replaying a compiled login step timed out waiting for the submit button to be
+visible after it had been clicked. Pinned by the `click assertion target` cases in
+`tests/unit/compiler.test.ts`.
 
 **Strength rule:** `strong` = unambiguous proof the step achieved its purpose;
 `weak` = consistent with success but also with several failures. Weak is allowed
@@ -133,8 +153,9 @@ Options: `--out <path>`, `--no-validate`, `--help`.
 5. **Visual / screenshot diffs** — out of scope for Phase-1 contracts.
 6. **Cross-frame / shadow DOM** — no trajectory signal.
 7. **Auth session validity** — cookies/storage excluded from compiler input by construction; cannot assert “still logged in” from trajectory fields alone.
-8. **B2 live recordings** — no path found for `track1/b2-recorder` at compile time; example trajectory only.
-9. **B5 allowlist** — chrome label / role sets here are provisional; do not treat `pool_eligible: true` as final pool admission.
+8. **Element visibility after an action** — the trajectory records no post-action visibility for the acted-on control, which is why a navigating click has to be inferred from the URL rather than observed directly. A non-navigating click that hides its own control (a modal close with no route change) is still mis-asserted. Fixing it properly means the recorder capturing post-action visibility, which is a `trajectory.schema.json` change and therefore an ADR.
+9. **B2 live recordings** — no path found for `track1/b2-recorder` at compile time; example trajectory only.
+10. **B5 allowlist** — chrome label / role sets here are provisional; do not treat `pool_eligible: true` as final pool admission.
 
 ## Sources
 

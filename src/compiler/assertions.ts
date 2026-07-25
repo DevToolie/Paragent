@@ -174,7 +174,27 @@ export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
         step.action.type,
       ));
 
-  if (wantsElement) {
+  /**
+   * A click that changes the URL is evidenced by where it landed, not by the
+   * control that was clicked.
+   *
+   * Asserting the clicked control is still visible is frequently *false*: the
+   * transition routinely hides the surface the control lived on (submitting a
+   * login form, closing a modal, navigating away). The post_state landmark
+   * fallback does not rescue it either — `visible_landmarks` is collected by
+   * walking the DOM without a visibility filter, so a hidden landmark still
+   * appears there.
+   *
+   * Falling through to `url-matches` is both correct and stronger: the branch
+   * below labels a URL-changing click `strong`.
+   *
+   * Caught by tests/integration/pipeline.test.ts, which replayed a compiled
+   * login step against the fixture and timed out waiting for the submit button
+   * to stay visible after it had been clicked.
+   */
+  const clickChangedUrl = step.action.type === "click" && urlChanged(step);
+
+  if (wantsElement && !clickChangedUrl) {
     const landmarkPick =
       pickPreferredLandmark(newLandmarks(step)) ??
       (preferHintElement
