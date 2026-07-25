@@ -86,7 +86,7 @@ Six surfaces scouted (search space): security questionnaires, healthcare payers,
 - Week-0 FAIL + 51 FULLY_API — A8/A4.
 - Track-2 FAIL: **2 / 75** survivors, **0 DURABLE** surfaces, no lock — C5 / C4 / ADR-0004.
 - Wrong thesis C5 names: counterparty shape alone ≠ durable empty browser-only market — rails or intermediaries absorb high-frequency jobs ([DECISION.md](./research/vertical-search/DECISION.md) kill-list narrative).
-- Stack / privacy mode / Grafana OSS bed — ADR-0001–0003.
+- Stack / Grafana OSS bed / public-repo posture — ADR-0001, ADR-0003, [ADR-0005](./decisions/ADR-0005-repo-public.md) (ADR-0002's ALL-PRIVATE claim is superseded).
 - Contracts + privacy allowlist spec — [contracts/](../contracts/), boundary-spec.
 
 ### Pending / do not invent
