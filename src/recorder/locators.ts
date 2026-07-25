@@ -89,6 +89,9 @@ export async function collectLocatorCandidates(
 
   const candidates: LocatorCandidate[] = [];
   let rank = 1;
+  // Handing out ranks through a closure keeps the counter correct however many
+  // candidates end up being pushed, including the last one.
+  const nextRank = () => rank++;
   const name = truncate(signals.accessibleName);
   const label = truncate(signals.label);
   const text = truncate(signals.text);
@@ -97,36 +100,36 @@ export async function collectLocatorCandidates(
   if (signals.role && name) {
     candidates.push({
       strategy: "role_name",
-      rank: rank++,
+      rank: nextRank(),
       role: signals.role,
       name,
       tenant_scoped: true,
     });
   }
   if (label) {
-    candidates.push({ strategy: "label", rank: rank++, label, tenant_scoped: true });
+    candidates.push({ strategy: "label", rank: nextRank(), label, tenant_scoped: true });
   }
   if (signals.testid) {
     candidates.push({
       strategy: "testid",
-      rank: rank++,
+      rank: nextRank(),
       testid: signals.testid,
       tenant_scoped: false,
     });
   }
   candidates.push({
     strategy: "structural",
-    rank: rank++,
+    rank: nextRank(),
     structural_path: signals.structuralPath,
     tenant_scoped: false,
   });
   if (text && text !== name && text !== label) {
-    candidates.push({ strategy: "text", rank: rank++, text, tenant_scoped: true });
+    candidates.push({ strategy: "text", rank: nextRank(), text, tenant_scoped: true });
   }
   if (placeholder) {
     candidates.push({
       strategy: "placeholder",
-      rank: rank++,
+      rank: nextRank(),
       name: placeholder,
       tenant_scoped: true,
     });
