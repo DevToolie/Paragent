@@ -1,8 +1,20 @@
+---
+title: "PRD — Stateful execution layer (trajectory cache) v0.2"
+doc_type: brief
+status: accepted
+owner: founder
+created: 2026-07-24
+updated: 2026-07-24
+confidence: HIGH
+supersedes: null
+sources_verified: false
+---
+
 # PRD — Stateful Execution Layer for Browser Agents
 ### (working title: *the trajectory cache*)
 
-**Status:** v0.2 — decisions made, development-ready
-**Owner:** [you]
+**Status:** v0.2 — decisions made, development-ready. **§8 selection rule superseded by** [pivot-brief-v0.3.md](./pivot-brief-v0.3.md).
+**Owner:** founder
 **Last updated:** 2026-07-24
 **Changes from v0.1:** decisions §7/§8 resolved; build plan inverted (gate harness before infrastructure); microVM demoted to Phase 2; replay-validity formally defined; privacy boundary specified as a mechanism, not a table; session-custody security added; cold-start wedge made explicit; personas + pricing hypothesis added.
 
@@ -185,3 +197,9 @@ v0.1 scheduled the gate measurement in parallel with the microVM — but the gat
 ---
 
 *Next artifact: system design — components and interfaces, the cache schema with the §6 allowlist and taint rules expressed in the tables, the canary CI test, and the Phase-1 harness spec.*
+
+## Open questions / what I could not verify
+
+- Whether §9 numeric thresholds (80% / 90% / ~50% / 70%) remain binding after two vertical FAILs, or await Track-1 measurement only.
+- §8 residual text still names Datadog / Grafana Cloud; superseded as selection by pivot + ADR-0003 / ADR-0004 — not rewritten in body.
+- Academic / competitor claims (WebCoach, Mem0, Browserbase) not re-verified in D2 pass.

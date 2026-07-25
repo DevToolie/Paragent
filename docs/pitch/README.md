@@ -12,7 +12,7 @@ sources_verified: true
 
 # docs/pitch/
 
-Wave-1 draft. Vertical **TBD / search in progress** (pending C5). Finalize after vertical adjudication. **No invented metrics** — see proof-points.
+Wave-1 draft. Vertical: **Wave-2 FAIL** ([../research/vertical-search/DECISION.md](../research/vertical-search/DECISION.md)). Update narrative after C5. **No invented metrics** — see proof-points. Story: [../README-narrative.md](../README-narrative.md). Contradictions: [../INTEGRITY-AUDIT.md](../INTEGRITY-AUDIT.md). Story context: [../README-narrative.md](../README-narrative.md). Contradictions: [../INTEGRITY-AUDIT.md](../INTEGRITY-AUDIT.md).
 
 | Doc | Role |
 | --- | --- |

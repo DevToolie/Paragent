@@ -1,3 +1,15 @@
+---
+title: "A2 — Grafana Cloud task enumerator"
+doc_type: research
+status: killed
+owner: A2
+created: 2026-07-24
+updated: 2026-07-24
+confidence: HIGH
+supersedes: null
+sources_verified: true
+---
+
 # A2 — Grafana Cloud Task Enumerator
 
 **Role:** Grafana Cloud task enumerator (Week-0 Task Census)  
@@ -101,3 +113,8 @@ These appear in official nav/docs and may be worth A4/A5 follow-up; not counted 
 ---
 
 *Enumerator: A2 (Grafana Cloud). Access date: 2026-07-24.*
+
+## Open questions / what I could not verify
+
+- Pre-standard Week-0 artifact: see docs/INTEGRITY-AUDIT.md for evidence-table shape gaps vs CONTRIBUTING.
+- Follow-ups after this FAIL are owned by Track 2 / C5 — not reopened here.
