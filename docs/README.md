@@ -52,9 +52,9 @@ Live index. Update this file when you add or supersede a document.
 
 ## Privacy
 
-| Doc | Status | Owner |
-| --- | --- | --- |
-| `privacy/boundary-spec.md` | pending B5 | B5 |
+| Doc | Status | Owner | Last true |
+| --- | --- | --- | --- |
+| [boundary-spec.md](privacy/boundary-spec.md) | review | B5 | 2026-07-24 |
 
 ## Pitch (Track 3)
 
@@ -69,3 +69,5 @@ See [`../contracts/`](../contracts/) — trajectory, assertion, cache-row, metri
 ## Open questions / what I could not verify
 
 - Gate number and vertical lock do not exist yet — do not invent them in this index.
+- Privacy boundary vocabulary may need reconciliation when PRD `�6` lands on disk
+  (see `privacy/boundary-spec.md` open questions).
