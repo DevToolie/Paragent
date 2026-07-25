@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://paragent.dev/contracts/cache-row.schema.json",
+  "title": "CacheRow",
+  "description": "One compiled step in the trajectory cache. pool_eligible is explicit and fail-closed: anything not on the B5 allowlist is tenant-scoped.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "row_id",
+    "site_key",
+    "task_key",
+    "step_index",
+    "compiled_action",
+    "assertion",
+    "confidence",
+    "success_count",
+    "failure_count",
+    "last_verified_at",
+    "pool_eligible"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "row_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "site_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "step_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "compiled_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "locator_fallback_chain"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "navigate",
+            "click",
+            "fill",
+            "select",
+            "check",
+            "uncheck",
+            "press",
+            "hover",
+            "wait",
+            "upload",
+            "custom"
+          ]
+        },
+        "param_refs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "url_template": { "type": "string" },
+        "key": { "type": "string" },
+        "custom_op": { "type": "string" },
+        "locator_fallback_chain": {
+          "type": "array",
+          "description": "Ordered locators from trajectory candidates after taint filtering.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["strategy"],
+            "properties": {
+              "strategy": {
+                "type": "string",
+                "enum": [
+                  "role_name",
+                  "label",
+                  "testid",
+                  "structural",
+                  "text",
+                  "placeholder",
+                  "css_vocab",
+                  "topology_only"
+                ]
+              },
+              "role": { "type": "string" },
+              "name": { "type": "string" },
+              "label": { "type": "string" },
+              "testid": { "type": "string" },
+              "structural_path": { "type": "string" },
+              "text": { "type": "string" },
+              "css": { "type": "string" },
+              "tenant_scoped": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "assertion": {
+      "description": "Embedded assertion object conforming to assertion.schema.json.",
+      "type": "object"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Empirical confidence from success/(success+failure); 0 if never verified."
+    },
+    "success_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failure_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_verified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pool_eligible": {
+      "type": "boolean",
+      "description": "True ONLY if row content is entirely on the positive allowlist (B5). Default false."
+    },
+    "pool_ineligible_reason": {
+      "type": ["string", "null"],
+      "description": "Required when pool_eligible=false. Null when eligible.",
+      "enum": [
+        null,
+        "tenant_locator_text",
+        "tainted_attribute",
+        "non_vocab_role",
+        "literal_in_assertion",
+        "topology_only_degraded",
+        "manual_hold",
+        "other"
+      ]
+    },
+    "flow_topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Pool-safe structural summary of the step's place in the flow.",
+      "properties": {
+        "prev_action_type": { "type": "string" },
+        "next_action_type": { "type": "string" },
+        "landmark": { "type": "string" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "pool_eligible": { "const": false } },
+        "required": ["pool_eligible"]
+      },
+      "then": {
+        "required": ["pool_ineligible_reason"],
+        "properties": {
+          "pool_ineligible_reason": {
+            "not": { "type": "null" }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "pool_eligible": { "const": true } },
+        "required": ["pool_eligible"]
+      },
+      "then": {
+        "properties": {
+          "pool_ineligible_reason": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -10,32 +10,48 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  build:
+    name: lint-typecheck-test-secrets
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
+          node-version: "20"
+          cache: npm
 
       - name: Install
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+        run: npm ci
 
-      - name: Ruff
-        run: ruff check .
+      - name: Secret scan
+        run: npm run secret-scan
 
-      - name: Mypy
-        run: mypy
+      - name: Validate contracts
+        run: npm run validate:contracts
 
-      - name: Pytest
-        run: pytest --cov=paragent --cov-report=term-missing
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npx vitest run tests/unit
+
+  canary:
+    name: privacy-canary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Privacy canary (stub fails until B5)
+        run: npm run test:canary

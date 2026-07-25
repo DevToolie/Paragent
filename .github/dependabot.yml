@@ -1,21 +1,10 @@
 version: 2
 updates:
-  - package-ecosystem: pip
-    directory: /
+  - package-ecosystem: npm
+    directory: "/"
     schedule:
       interval: weekly
-      day: monday
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies
-      - chore
-
   - package-ecosystem: github-actions
-    directory: /
+    directory: "/"
     schedule:
       interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - chore

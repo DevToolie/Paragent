@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://paragent.dev/contracts/assertion.schema.json",
+  "title": "Assertion",
+  "description": "Post-condition on a compiled step. Expected values are TEMPLATES with typed holes — never tenant literals. Repair loops MUST NOT weaken or rewrite assertions to force a pass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "assertion_id",
+    "type",
+    "strength",
+    "timeout_ms",
+    "failure_classification"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "assertion_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "element-visible",
+        "text-matches",
+        "url-matches",
+        "count-equals",
+        "network-idle",
+        "custom"
+      ]
+    },
+    "strength": {
+      "type": "string",
+      "enum": ["strong", "weak"],
+      "description": "strong = unambiguous proof the step achieved its purpose; weak = consistent with success but also with several failures. Weak must stay labelled — silent promotion is forbidden."
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What to evaluate against. Locator fields follow the same allowlist rules as trajectory locators.",
+      "properties": {
+        "locator": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "role_name",
+                "label",
+                "testid",
+                "structural",
+                "text",
+                "placeholder",
+                "css_vocab"
+              ]
+            },
+            "role": { "type": "string" },
+            "name": { "type": "string" },
+            "label": { "type": "string" },
+            "testid": { "type": "string" },
+            "structural_path": { "type": "string" },
+            "text": { "type": "string" },
+            "css": { "type": "string" }
+          }
+        },
+        "url_template": {
+          "type": "string"
+        },
+        "count_scope": {
+          "type": "string",
+          "description": "CSS/role scope for count-equals."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "TEMPLATE expectations with typed holes. Literals that look like tenant data are rejected at write time by B5.",
+      "properties": {
+        "template": {
+          "type": "string",
+          "description": "e.g. '/dashboards/{dashboard_id}' or 'Saved {resource_label}'."
+        },
+        "param_types": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "string",
+              "email",
+              "url",
+              "integer",
+              "number",
+              "boolean",
+              "enum",
+              "secret_ref",
+              "json"
+            ]
+          }
+        },
+        "regex_template": {
+          "type": "string",
+          "description": "Optional regex TEMPLATE for text-matches / url-matches."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "custom_predicate_id": {
+          "type": "string"
+        }
+      }
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 5000
+    },
+    "failure_classification": {
+      "type": "string",
+      "enum": [
+        "assertion_failed",
+        "locator_not_found",
+        "timeout",
+        "page_error",
+        "network_error",
+        "unknown"
+      ],
+      "description": "Default classification to emit when this assertion fails (runner may refine)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Why this assertion is strong/weak; known blind spots."
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "assertion_id": "assert-login-form-visible",
+  "type": "element-visible",
+  "strength": "strong",
+  "target": {
+    "locator": {
+      "strategy": "role_name",
+      "role": "textbox",
+      "name": "Username"
+    }
+  },
+  "expected": {
+    "visible": true,
+    "template": "{username_field}",
+    "param_types": {
+      "username_field": "string"
+    }
+  },
+  "timeout_ms": 5000,
+  "failure_classification": "assertion_failed",
+  "notes": "Presence of the username textbox is strong evidence we reached the login surface."
+}

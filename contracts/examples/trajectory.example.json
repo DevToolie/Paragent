@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0.0",
+  "trajectory_id": "traj-example-grafana-login-nav",
+  "site_key": "grafana-oss@example",
+  "task_key": "open-dashboards-list",
+  "recorded_at": "2026-07-24T12:00:00.000Z",
+  "base_url_template": "http://{host}:{port}",
+  "provenance": {
+    "recorder": "0.0.0-b0-example",
+    "agent_model": "human",
+    "testbed_version": "example",
+    "notes": "Synthetic example for contract consumers. No real credentials."
+  },
+  "parameters": {
+    "host": "string",
+    "port": "integer",
+    "username": "string",
+    "password": "secret_ref"
+  },
+  "steps": [
+    {
+      "step_index": 0,
+      "intent": "Open the login page",
+      "action": {
+        "type": "navigate",
+        "url_template": "http://{host}:{port}/login",
+        "param_refs": ["host", "port"]
+      },
+      "locator_candidates": [],
+      "pre_state": {
+        "url_template": "about:blank",
+        "title_template": "",
+        "dom_digest": "empty",
+        "visible_landmarks": [],
+        "network_idle": true
+      },
+      "post_state": {
+        "url_template": "http://{host}:{port}/login",
+        "title_template": "Grafana",
+        "dom_digest": "login-form-v1",
+        "visible_landmarks": ["main", "form"],
+        "network_idle": true
+      },
+      "timing_ms": {
+        "started_offset_ms": 0,
+        "duration_ms": 120
+      },
+      "assertion_hint": {
+        "suggested_type": "element-visible",
+        "observed_signals": ["login form visible"]
+      }
+    },
+    {
+      "step_index": 1,
+      "intent": "Fill username field",
+      "action": {
+        "type": "fill",
+        "param_refs": ["username"]
+      },
+      "locator_candidates": [
+        {
+          "strategy": "role_name",
+          "rank": 1,
+          "role": "textbox",
+          "name": "Username",
+          "tenant_scoped": false
+        },
+        {
+          "strategy": "label",
+          "rank": 2,
+          "label": "Username",
+          "tenant_scoped": false
+        },
+        {
+          "strategy": "testid",
+          "rank": 3,
+          "testid": "username-input",
+          "tenant_scoped": false
+        },
+        {
+          "strategy": "structural",
+          "rank": 4,
+          "structural_path": "main > form > input:nth-of-type(1)",
+          "tenant_scoped": false
+        }
+      ],
+      "pre_state": {
+        "url_template": "http://{host}:{port}/login",
+        "title_template": "Grafana",
+        "dom_digest": "login-form-v1",
+        "visible_landmarks": ["main", "form"],
+        "network_idle": true
+      },
+      "post_state": {
+        "url_template": "http://{host}:{port}/login",
+        "title_template": "Grafana",
+        "dom_digest": "login-form-v1-user-filled",
+        "visible_landmarks": ["main", "form"],
+        "network_idle": true
+      },
+      "timing_ms": {
+        "started_offset_ms": 120,
+        "duration_ms": 40
+      }
+    }
+  ]
+}

@@ -1,77 +1,65 @@
 # Paragent
 
-**Agent-first developer tooling** from [DevToolie](https://github.com/DevToolie).
+**Pre-seed.** Thesis unproven. Gate number pending. No invented metrics.
 
-Paragent is the core library for building tools that work well for AI agents *and*
-the humans supervising them.
+Paragent is a stateful execution layer for browser agents. It records an agent's
+successful trajectory through a web UI, compiles it into a deterministic
+replayable script with a post-condition assertion on every step, replays it at
+near-zero token cost, and repairs the script with a model when an assertion
+fails.
 
-> Status: early / alpha. APIs may change.
+Value is hypothesized (not yet measured) for tasks performed **repeatedly**, in
+a **browser**, where **no clean API** exists — and, after Week-0 census failure
+on SaaS observability config, especially where the person doing the work is the
+**counterparty** to the software's customer (no API roadmap sympathy).
+
+## Status
+
+| Track | Question | Status |
+| --- | --- | --- |
+| Track 1 | Do compiled trajectories survive site churn? | Harness in progress — **no gate number yet** |
+| Track 2 | Is there a vertical where the counterparty hypothesis holds? | Search in progress |
+| Track 3 | Narrative / pitch | Placeholders only until Track 1 + 2 land |
+
+Week-0 census (**observability config**): **FAIL** — 2 survivors of 70; archived under
+`docs/research/census-week0/`.
+
+## Privacy
+
+This repository is **private** (ADR-0002). Still: never commit credentials,
+cookies, session state, `.env` files, tokens, customer names, or third-party
+portal content. Secret-scanning CI is merge-blocking.
 
 ## Quick start
 
 ```bash
-# Clone
 git clone https://github.com/DevToolie/Paragent.git
 cd Paragent
-
-# Create a virtualenv and install (editable + dev tools)
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-# source .venv/bin/activate
-
-pip install -e ".[dev]"
+npm install
+npm run ci
 ```
 
-### CLI
+Contracts live in `contracts/`. Wave-1 agents build against those schemas — not
+against each other.
 
-```bash
-paragent --help
-paragent hello
-```
-
-### Library
-
-```python
-from paragent import __version__, greet
-
-print(__version__)
-print(greet("world"))
-```
-
-## Development
-
-```bash
-# Lint
-ruff check .
-
-# Type-check
-mypy
-
-# Tests
-pytest
-
-# Coverage
-pytest --cov=paragent --cov-report=term-missing
-```
-
-## Project layout
+## Layout
 
 ```
-src/paragent/     # library + CLI
-tests/            # pytest suite
-.github/workflows # CI
+contracts/           # JSON Schema — build against these
+src/testbed|recorder|compiler|runner|cache|metrics/
+experiments/gate-v1/ # throwaway gate harness
+docs/                # map: docs/README.md
+archive/             # superseded scaffolds (Python hello) + preserved history
 ```
+
+## Stack
+
+TypeScript + Node 20+ + Playwright — see [ADR-0001](docs/decisions/ADR-0001-typescript-node-playwright.md).
 
 ## Contributing
 
-See the org [contributing guide](https://github.com/DevToolie/.github/blob/main/CONTRIBUTING.md).
-By contributing, you agree to the [Code of Conduct](https://github.com/DevToolie/.github/blob/main/CODE_OF_CONDUCT.md).
-
-## Security
-
-Please report vulnerabilities privately — see [SECURITY.md](https://github.com/DevToolie/.github/blob/main/SECURITY.md).
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Branch as `track1/<agent>-<topic>` (or
+`track2/` / `track3/`). Small PRs. Document with the code.
 
 ## License
 

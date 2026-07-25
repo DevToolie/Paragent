@@ -1,0 +1,54 @@
+[
+  {
+    "schema_version": "1.0.0",
+    "metric_kind": "step",
+    "run_id": "run-example-001",
+    "site_key": "grafana-oss@example",
+    "task_key": "open-dashboards-list",
+    "step_index": 0,
+    "testbed_version": "example",
+    "outcome": "PASS",
+    "replay_valid": true,
+    "mode": "replay",
+    "cost": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "wall_clock_ms": 95
+    },
+    "assertion_strength": "strong",
+    "recorded_at": "2026-07-24T12:01:00.000Z"
+  },
+  {
+    "schema_version": "1.0.0",
+    "metric_kind": "run",
+    "run_id": "run-example-001",
+    "site_key": "grafana-oss@example",
+    "task_key": "open-dashboards-list",
+    "testbed_version": "example",
+    "task_success": true,
+    "repair_count": 0,
+    "success_with_le_2_repairs": true,
+    "steps_total": 2,
+    "steps_replay_valid": 2,
+    "self_healed": false,
+    "time_to_repair_total_ms": 0,
+    "cost_fresh": {
+      "tokens_in": 12000,
+      "tokens_out": 800,
+      "wall_clock_ms": 45000,
+      "model_id": "example-model"
+    },
+    "cost_replay": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "wall_clock_ms": 180
+    },
+    "cost_repair": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "wall_clock_ms": 0
+    },
+    "wall_clock_total_ms": 180,
+    "recorded_at": "2026-07-24T12:01:00.500Z"
+  }
+]

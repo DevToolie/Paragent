@@ -15,6 +15,11 @@ dist/
 venv/
 env/
 
+# Node
+node_modules/
+npm-debug.log*
+dist/
+
 # Tools / coverage
 .pytest_cache/
 .mypy_cache/
@@ -24,6 +29,7 @@ htmlcov/
 coverage.xml
 .tox/
 .nox/
+coverage/
 
 # IDE / OS
 .idea/
@@ -32,8 +38,18 @@ coverage.xml
 .DS_Store
 Thumbs.db
 
-# Env / secrets
+# Env / secrets — never commit real env files
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+cookies*.json
+storage-state*.json
 *.log
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

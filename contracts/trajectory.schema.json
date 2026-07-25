@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://paragent.dev/contracts/trajectory.schema.json",
+  "title": "Trajectory",
+  "description": "A recorded agent run: ordered steps with lifted parameter slots, locator candidates, fingerprints, and optional post-condition placeholders. NEVER contains literal typed values, cookies, or storage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "trajectory_id",
+    "site_key",
+    "task_key",
+    "recorded_at",
+    "base_url_template",
+    "provenance",
+    "parameters",
+    "steps"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "trajectory_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable id for this recording (uuid or slug)."
+    },
+    "site_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical site identity, e.g. grafana-oss@10.2.0 — never a tenant hostname with customer data."
+    },
+    "task_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical task identity shared across recordings of the same workflow."
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "base_url_template": {
+      "type": "string",
+      "description": "Base URL as a template with typed holes, e.g. http://{host}:{port}",
+      "minLength": 1
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Named typed slots lifted from inline values at capture time. Values are NEVER stored here — only name→type.",
+      "additionalProperties": {
+        "$ref": "#/$defs/paramType"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    }
+  },
+  "$defs": {
+    "paramType": {
+      "type": "string",
+      "enum": [
+        "string",
+        "email",
+        "url",
+        "integer",
+        "number",
+        "boolean",
+        "enum",
+        "secret_ref",
+        "json"
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recorder", "agent_model", "testbed_version"],
+      "properties": {
+        "recorder": {
+          "type": "string",
+          "description": "Recorder package version or git SHA."
+        },
+        "agent_model": {
+          "type": "string",
+          "description": "Model id used for the driving agent, or 'human' for manual capture."
+        },
+        "testbed_version": {
+          "type": "string",
+          "description": "Pinned console version under test."
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "locatorCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "rank"],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "role_name",
+            "label",
+            "testid",
+            "structural",
+            "text",
+            "placeholder",
+            "css_vocab"
+          ],
+          "description": "Preference order for compiler fallback: role_name > label > testid > structural > text."
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1 = preferred."
+        },
+        "role": {
+          "type": "string",
+          "description": "ARIA role from fixed vocabulary when strategy=role_name."
+        },
+        "name": {
+          "type": "string",
+          "description": "Accessible name TEMPLATE; may contain {param} holes, never tenant literals."
+        },
+        "label": {
+          "type": "string",
+          "description": "Associated label text TEMPLATE."
+        },
+        "testid": {
+          "type": "string",
+          "description": "data-testid value from allowlisted vocabulary only."
+        },
+        "structural_path": {
+          "type": "string",
+          "description": "Structural path (nth-child / landmark chain), no free-text attribute values."
+        },
+        "text": {
+          "type": "string",
+          "description": "Visible text TEMPLATE with typed holes."
+        },
+        "css": {
+          "type": "string",
+          "description": "CSS using only allowlisted attribute names (B5 vocabulary)."
+        },
+        "tenant_scoped": {
+          "type": "boolean",
+          "default": false,
+          "description": "True if this candidate carries free text / tainted attrs and must not pool."
+        }
+      }
+    },
+    "fingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url_template", "title_template", "dom_digest"],
+      "properties": {
+        "url_template": {
+          "type": "string",
+          "description": "URL with path/query literals replaced by typed holes where tenant-specific."
+        },
+        "title_template": {
+          "type": "string"
+        },
+        "dom_digest": {
+          "type": "string",
+          "description": "Stable hash of allowlisted structural signals (roles, landmarks, counts) — never raw HTML."
+        },
+        "visible_landmarks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "network_idle": {
+          "type": "boolean"
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "navigate",
+            "click",
+            "fill",
+            "select",
+            "check",
+            "uncheck",
+            "press",
+            "hover",
+            "wait",
+            "upload",
+            "custom"
+          ]
+        },
+        "param_refs": {
+          "type": "array",
+          "description": "Parameter slot names consumed by this action (from trajectory.parameters).",
+          "items": { "type": "string" }
+        },
+        "key": {
+          "type": "string",
+          "description": "For press actions: key name, not a secret."
+        },
+        "url_template": {
+          "type": "string",
+          "description": "For navigate: URL template with typed holes."
+        },
+        "custom_op": {
+          "type": "string",
+          "description": "Extension point id when type=custom."
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step_index",
+        "intent",
+        "action",
+        "locator_candidates",
+        "pre_state",
+        "post_state",
+        "timing_ms"
+      ],
+      "properties": {
+        "step_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "intent": {
+          "type": "string",
+          "description": "Human-readable purpose of the step (no tenant data)."
+        },
+        "action": {
+          "$ref": "#/$defs/action"
+        },
+        "locator_candidates": {
+          "type": "array",
+          "description": "Ordered alternatives for the compiler; may be empty for navigate/wait.",
+          "items": {
+            "$ref": "#/$defs/locatorCandidate"
+          }
+        },
+        "pre_state": {
+          "$ref": "#/$defs/fingerprint"
+        },
+        "post_state": {
+          "$ref": "#/$defs/fingerprint"
+        },
+        "timing_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["started_offset_ms", "duration_ms"],
+          "properties": {
+            "started_offset_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "duration_ms": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "assertion_hint": {
+          "type": "object",
+          "description": "Optional recorder hint for B3 assertion synthesis; not authoritative.",
+          "additionalProperties": false,
+          "properties": {
+            "suggested_type": {
+              "type": "string"
+            },
+            "observed_signals": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

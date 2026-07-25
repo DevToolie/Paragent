@@ -1,0 +1,36 @@
+{
+  "name": "paragent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stateful execution layer for browser agents — record, compile with assertions, replay, repair. Pre-seed; thesis unproven; gate number pending.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run tests/unit",
+    "test:watch": "vitest",
+    "test:canary": "vitest run tests/canary",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "validate:contracts": "node scripts/validate-contracts.mjs",
+    "testbed": "node --import tsx src/testbed/cli.ts",
+    "ci": "npm run secret-scan && npm run validate:contracts && npm run lint && npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@types/node": "^22.16.5",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "eslint": "^9.31.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4",
+    "tsx": "^4.20.3"
+  },
+  "dependencies": {
+    "playwright": "^1.54.1"
+  }
+}

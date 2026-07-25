@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0.0",
+  "row_id": "cache-grafana-open-dashboards-0",
+  "site_key": "grafana-oss@example",
+  "task_key": "open-dashboards-list",
+  "step_index": 0,
+  "compiled_action": {
+    "type": "navigate",
+    "url_template": "http://{host}:{port}/login",
+    "param_refs": ["host", "port"],
+    "locator_fallback_chain": []
+  },
+  "assertion": {
+    "schema_version": "1.0.0",
+    "assertion_id": "assert-login-form-visible",
+    "type": "element-visible",
+    "strength": "strong",
+    "target": {
+      "locator": {
+        "strategy": "role_name",
+        "role": "textbox",
+        "name": "Username"
+      }
+    },
+    "expected": {
+      "visible": true
+    },
+    "timeout_ms": 5000,
+    "failure_classification": "assertion_failed"
+  },
+  "confidence": 0,
+  "success_count": 0,
+  "failure_count": 0,
+  "last_verified_at": "2026-07-24T12:00:00.000Z",
+  "pool_eligible": true,
+  "pool_ineligible_reason": null,
+  "flow_topology": {
+    "next_action_type": "fill",
+    "landmark": "login"
+  }
+}

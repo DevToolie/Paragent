@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://paragent.dev/contracts/metrics.schema.json",
+  "title": "Metrics",
+  "description": "Instrumentation for PRD §9 gate metrics. Supports exact computation of: step-level replay-validity; task-level success with <=2 repairs; repair cost vs fresh-reasoning cost (tokens AND wall-clock); self-heal rate; time-to-repair. NEVER invent values — emit measured fields only.",
+  "oneOf": [
+    { "$ref": "#/$defs/stepMetric" },
+    { "$ref": "#/$defs/runMetric" }
+  ],
+  "$defs": {
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens_in", "tokens_out", "wall_clock_ms"],
+      "properties": {
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wall_clock_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model_id": {
+          "type": "string",
+          "description": "Model used for this cost bucket, if any."
+        }
+      }
+    },
+    "stepOutcome": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "ASSERTION_FAILED",
+        "LOCATOR_NOT_FOUND",
+        "TIMEOUT",
+        "PAGE_ERROR",
+        "REPAIRED_PASS",
+        "REPAIR_EXHAUSTED"
+      ]
+    },
+    "stepMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "metric_kind",
+        "run_id",
+        "site_key",
+        "task_key",
+        "step_index",
+        "testbed_version",
+        "outcome",
+        "replay_valid",
+        "mode",
+        "cost",
+        "recorded_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "metric_kind": {
+          "type": "string",
+          "const": "step"
+        },
+        "run_id": { "type": "string" },
+        "site_key": { "type": "string" },
+        "task_key": { "type": "string" },
+        "step_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "testbed_version": { "type": "string" },
+        "outcome": { "$ref": "#/$defs/stepOutcome" },
+        "replay_valid": {
+          "type": "boolean",
+          "description": "True iff first-pass replay satisfied the assertion without repair. Used for step-level replay-validity (PRD §9)."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["fresh", "replay", "repair"],
+          "description": "Which cost path produced this step attempt."
+        },
+        "cost": { "$ref": "#/$defs/cost" },
+        "repair_attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0 on first try; increments per repair. Null/omit when mode != repair."
+        },
+        "time_to_repair_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Wall-clock from failure detection to REPAIRED_PASS for this step."
+        },
+        "assertion_strength": {
+          "type": "string",
+          "enum": ["strong", "weak"]
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "runMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "metric_kind",
+        "run_id",
+        "site_key",
+        "task_key",
+        "testbed_version",
+        "task_success",
+        "repair_count",
+        "success_with_le_2_repairs",
+        "steps_total",
+        "steps_replay_valid",
+        "self_healed",
+        "cost_fresh",
+        "cost_replay",
+        "cost_repair",
+        "wall_clock_total_ms",
+        "recorded_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "metric_kind": {
+          "type": "string",
+          "const": "run"
+        },
+        "run_id": { "type": "string" },
+        "site_key": { "type": "string" },
+        "task_key": { "type": "string" },
+        "testbed_version": { "type": "string" },
+        "task_success": {
+          "type": "boolean",
+          "description": "True if every step ended PASS or REPAIRED_PASS."
+        },
+        "repair_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "success_with_le_2_repairs": {
+          "type": "boolean",
+          "description": "PRD §9 task-level success criterion: task_success AND repair_count <= 2."
+        },
+        "steps_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "steps_replay_valid": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of steps with replay_valid=true. replay-validity = steps_replay_valid / steps_total."
+        },
+        "self_healed": {
+          "type": "boolean",
+          "description": "True if any step reached REPAIRED_PASS. self-heal rate = mean(self_healed) over failing-first-pass runs."
+        },
+        "time_to_repair_total_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of per-step time_to_repair_ms for the run."
+        },
+        "cost_fresh": {
+          "$ref": "#/$defs/cost",
+          "description": "Baseline fresh-reasoning cost for this task (measured separately or on cold run)."
+        },
+        "cost_replay": {
+          "$ref": "#/$defs/cost"
+        },
+        "cost_repair": {
+          "$ref": "#/$defs/cost"
+        },
+        "wall_clock_total_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "amortized_cost_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional precomputed: (fresh + sum(repair over N) + sum(replay over N)) / N — prefer computing in the report from raw rows."
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
