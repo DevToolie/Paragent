@@ -1,0 +1,16 @@
+# File provider for the seed dashboard JSON.
+# https://grafana.com/docs/grafana/latest/administration/provisioning/
+apiVersion: 1
+
+providers:
+  - name: paragent-seed
+    orgId: 1
+    folder: Paragent
+    folderUid: paragent-folder
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json
+      foldersFromFilesStructure: false
