@@ -87,6 +87,21 @@ describe("recorder package", () => {
       expect(traj.parameters.username).toBe("string");
       expect(traj.parameters.password).toBe("secret_ref");
       expect(traj.steps.length).toBeGreaterThanOrEqual(5);
+
+      // ADR-0007: the fixture's app view is `hidden` until login, so its
+      // banner/navigation landmarks must not be reported on the login page.
+      // Before the visibility filter they were, which is what made the
+      // landmark fallback useless for assertion synthesis.
+      expect(traj.steps[0]!.post_state.visible_landmarks).toEqual([
+        "main",
+        "form",
+      ]);
+      // The login click hides the form and reveals the app chrome.
+      const loginClick = traj.steps.find(
+        (s) => s.action.type === "click" && s.post_action_target_visible === false,
+      );
+      expect(loginClick).toBeDefined();
+      expect(loginClick!.post_state.visible_landmarks).not.toContain("form");
       const fillStep = traj.steps.find((s) => s.action.type === "fill");
       expect(fillStep?.locator_candidates.length).toBeGreaterThanOrEqual(2);
       expect(fillStep?.locator_candidates[0]?.strategy).toBe("role_name");

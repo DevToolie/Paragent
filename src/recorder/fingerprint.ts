@@ -53,6 +53,15 @@ export async function captureFingerprint(
     ]);
     const roleCounts = {};
     const landmarks = [];
+    // ADR-0007: visible_landmarks must mean visible. checkVisibility() covers
+    // display:none (which the hidden attribute maps to), visibility:hidden and
+    // content-visibility. Fall back to client rects on engines without it.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Element/checkVisibility
+    // access_date: 2026-07-26
+    const isVisible = (el) => {
+      if (typeof el.checkVisibility === "function") return el.checkVisibility();
+      return el.getClientRects().length > 0;
+    };
     const implicit = (el) => {
       const tag = el.tagName;
       if (tag === "FORM") return "form";
@@ -66,8 +75,10 @@ export async function captureFingerprint(
     const walk = (el) => {
       const role = el.getAttribute("role") || implicit(el);
       if (role) {
+        // Counts stay DOM-wide on purpose (ADR-0007): they are structural, and
+        // no field name promises they are visibility-scoped.
         roleCounts[role] = (roleCounts[role] || 0) + 1;
-        if (landmarkRoles.has(role) && !landmarks.includes(role)) {
+        if (landmarkRoles.has(role) && !landmarks.includes(role) && isVisible(el)) {
           landmarks.push(role);
         }
       }

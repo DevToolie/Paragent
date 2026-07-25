@@ -176,24 +176,61 @@ export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
 
   /**
    * A click that changes the URL is evidenced by where it landed, not by the
-   * control that was clicked.
+   * control that was clicked. Computed here because the two branches below both
+   * need it, and their order matters: a navigating click that *also* hides its
+   * control (submitting a login form) is better asserted on its destination
+   * than on the disappearance, so `url-matches` keeps priority.
+   */
+  const clickChangedUrl = step.action.type === "click" && urlChanged(step);
+
+  /**
+   * ADR-0007. The step acted on a control and the recorder observed it gone
+   * afterwards, so assert exactly that: the control is no longer visible.
    *
+   * This is the case #70 could not reach. It fixed URL-changing clicks by
+   * asserting the destination, but a control that hides itself without touching
+   * the URL — dismiss, close, collapse — has no destination to assert, and the
+   * old code fell through to "the thing I clicked is still visible", which the
+   * step itself falsifies.
+   *
+   * `strong` is deliberate: for a self-hiding control the disappearance *is*
+   * the purpose of the step, and this assertion fails if the click is a no-op.
+   * The notes below bound the claim to what was actually observed.
+   */
+  if (
+    step.post_action_target_visible === false &&
+    primary !== undefined &&
+    !clickChangedUrl &&
+    ["click", "check", "uncheck", "press"].includes(step.action.type)
+  ) {
+    return {
+      schema_version: SCHEMA_VERSION,
+      assertion_id: assertionId,
+      type: "element-visible",
+      strength: "strong",
+      target: { locator: stripTenantFlagForTarget(primary) },
+      expected: { visible: false },
+      timeout_ms: 5000,
+      failure_classification: "assertion_failed",
+      notes:
+        "Recorder observed the acted-on control was no longer visible after the action (ADR-0007 post_action_target_visible=false). Asserts only that: the control is gone. Proves the step was not a no-op; proves nothing about downstream state.",
+    };
+  }
+
+  /**
    * Asserting the clicked control is still visible is frequently *false*: the
    * transition routinely hides the surface the control lived on (submitting a
-   * login form, closing a modal, navigating away). The post_state landmark
-   * fallback does not rescue it either — `visible_landmarks` is collected by
-   * walking the DOM without a visibility filter, so a hidden landmark still
-   * appears there.
+   * login form, closing a modal, navigating away).
    *
    * Falling through to `url-matches` is both correct and stronger: the branch
    * below labels a URL-changing click `strong`.
    *
    * Caught by tests/integration/pipeline.test.ts, which replayed a compiled
    * login step against the fixture and timed out waiting for the submit button
-   * to stay visible after it had been clicked.
+   * to stay visible after it had been clicked. Since ADR-0007 the
+   * non-navigating variant is caught directly by the branch above rather than
+   * inferred from the URL.
    */
-  const clickChangedUrl = step.action.type === "click" && urlChanged(step);
-
   if (wantsElement && !clickChangedUrl) {
     const landmarkPick =
       pickPreferredLandmark(newLandmarks(step)) ??

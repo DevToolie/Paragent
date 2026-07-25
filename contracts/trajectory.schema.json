@@ -288,6 +288,10 @@
               "items": { "type": "string" }
             }
           }
+        },
+        "post_action_target_visible": {
+          "type": "boolean",
+          "description": "ADR-0007. Whether the element this step acted on was still visible immediately after the action, observed with Playwright's isVisible() — the same definition the runner later asserts with. Omitted when the step acted through no locator (navigate, wait). A false value lets the compiler assert the control disappeared instead of wrongly asserting it is still visible."
         }
       }
     }
