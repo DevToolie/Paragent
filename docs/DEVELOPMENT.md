@@ -38,8 +38,9 @@ required only for the testbed; everything else runs without it.
 
 | Command | What it does | Merge-blocking |
 | --- | --- | --- |
-| `npm run ci` | secret-scan → validate:contracts → lint → typecheck → unit tests | yes |
+| `npm run ci` | secret-scan → validate:contracts → lint → typecheck → unit tests → integration tests | yes |
 | `npm run test:canary` | Privacy boundary canaries — zero tenant strings in pool-eligible rows | **yes**, separate CI job |
+| `npm run test:integration` | Whole loop on a loopback fixture: record → compile → cache-write → replay → report | yes |
 | `npm run secret-scan` | `scripts/secret-scan.mjs` over the tree | yes |
 | `npm run validate:contracts` | Ajv-validates `contracts/examples/*` against the schemas | yes |
 | `npm run lint` / `npm run typecheck` | eslint / `tsc --noEmit` | yes |
@@ -82,8 +83,9 @@ src/
   metrics/    Cost types, NDJSON emitter, PRD §9 aggregates
 experiments/gate-v1/  Throwaway gate harness — do not promote into a product API
 tests/
-  unit/       Fast, no Docker, no network
-  canary/     Privacy boundary — merge-blocking
+  unit/         Fast, no Docker, no network
+  integration/  Whole pipeline against a loopback fixture — no Docker, no model
+  canary/       Privacy boundary — merge-blocking
 scripts/      secret-scan, validate-contracts, branch protection, testbed compose
 artifacts/    Compiled bundles (committed)
 docs/         Map: docs/README.md
@@ -158,5 +160,4 @@ issues under any milestone are the template.
 
 - Whether every pinned Grafana tag boots on a given machine — unverified as of writing; see
   [ROADMAP.md](./ROADMAP.md) and issue #23.
-- Whether `npm run test:integration` and `npm run lint:docs` exist yet — they are M0 issues
-  (#52, #53). Update this runbook's command table when they land.
+- Whether `npm run lint:docs` exists yet — issue #53. Update the command table when it lands.
