@@ -53,3 +53,6 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# Gate-v1 harness outputs
+experiments/gate-v1/out/

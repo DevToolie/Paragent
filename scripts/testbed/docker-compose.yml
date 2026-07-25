@@ -1,0 +1,26 @@
+# Grafana OSS test-bed — version pinned via GRAFANA_VERSION.
+# Admin fixture credentials are YAML colon-form env (not dotenv KEY=).
+# Docs: https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/
+services:
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION}
+    ports:
+      - "${HOST_PORT}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: paragent
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_LOG_LEVEL: warn
+    volumes:
+      - ${PROVISIONING_DIR:-./provisioning}:/etc/grafana/provisioning:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://127.0.0.1:3000/api/health | grep -q 'ok' || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s

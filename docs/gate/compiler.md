@@ -1,0 +1,153 @@
+---
+title: Compiler and assertion synthesis
+doc_type: spec
+status: draft
+owner: B3
+created: 2026-07-25
+updated: 2026-07-25
+confidence: MED
+supersedes: null
+sources_verified: true
+---
+
+# Gate — Compiler (B3)
+
+Compiles a recorded **trajectory** into an executable **cache-row bundle**: one
+row per step, each with a locator fallback chain and a synthesized post-condition
+assertion. Does not run browsers (B4) and does not enforce the privacy allowlist
+authoritatively (B5) — the compiler fail-closes `pool_eligible` honestly.
+
+## Input / output
+
+| Direction | Artifact | Schema |
+| --- | --- | --- |
+| In | Trajectory JSON | `contracts/trajectory.schema.json` |
+| Out (per step) | Cache row | `contracts/cache-row.schema.json` |
+| Out (embedded) | Assertion | `contracts/assertion.schema.json` |
+| Out (bundle) | Compiled trajectory | documented below (not a contract `$id` yet) |
+
+**B2 input:** Prefer a real recording from `track1/b2-recorder` when present.
+Searched 2026-07-25: no path found for `origin/track1/b2-recorder` (searched:
+`git ls-remote --heads origin "track1/*"`, `gh pr list`). Fell back to
+`contracts/examples/trajectory.example.json`.
+
+## Bundle shape
+
+```json
+{
+  "schema_version": "1.0.0",
+  "bundle_kind": "compiled_trajectory",
+  "source_trajectory_id": "<trajectory_id>",
+  "site_key": "...",
+  "task_key": "...",
+  "compiled_at": "<ISO-8601>",
+  "compiler": { "version": "0.1.0-b3", "input_path": "...", "notes": "..." },
+  "rows": [ /* CacheRow, one per step_index */ ]
+}
+```
+
+Each `rows[i]` validates against `cache-row.schema.json`; each `rows[i].assertion`
+against `assertion.schema.json`. The wrapper is a B3 packaging convention so B4
+can load one file per compiled flow.
+
+**Worked artifact:**
+`artifacts/compiled/traj-example-grafana-login-nav.bundle.json`
+
+## Locator fallback chains
+
+Candidates from the trajectory are sorted into **B2 preference order**, then by
+recorder `rank` ascending:
+
+1. `role_name`
+2. `label`
+3. `testid`
+4. `structural`
+5. `text`
+6. `placeholder`
+7. `css_vocab`
+
+Source for the order: `contracts/trajectory.schema.json` `$defs.locatorCandidate`
+description (repo contract, accessed 2026-07-25).
+
+- Navigate / wait steps may emit an **empty** chain (valid).
+- If every candidate is tenant-tainted, the chain keeps marked locators for
+  tenant-scoped replay and appends `topology_only` (pool ineligible:
+  `topology_only_degraded`).
+
+## Assertion synthesis strategy
+
+For each step, synthesize **exactly one** post-condition from observed
+`post_state` (+ optional `assertion_hint`). Expected values are **templates with
+typed holes** — never tenant literals.
+
+| Priority | Signal | Assertion `type` | Typical strength |
+| --- | --- | --- | --- |
+| 1 | Toast / success / notification in hint signals | `text-matches` | strong (template `{success_message}`) |
+| 2 | Count / rows / items in hint signals | `count-equals` | **weak** (structured count not in fingerprint yet) |
+| 3 | Hint `element-visible`, new landmarks, or fill/click target | `element-visible` | strong for navigate→login surface; **weak** for fill/select |
+| 4 | `pre_state.url_template ≠ post_state.url_template` | `url-matches` | strong for navigate/click navigations |
+| 5 | `post_state.network_idle === true` | `network-idle` | **weak** |
+| 6 | Nothing else | `custom` (`post_digest_changed_or_stable`) | **weak** |
+
+**Strength rule:** `strong` = unambiguous proof the step achieved its purpose;
+`weak` = consistent with success but also with several failures. Weak is allowed
+and **must stay labelled** (`strength` + `notes`). Silent promotion is forbidden
+(`contracts/assertion.schema.json`).
+
+**Fill / select honesty:** typed values are parameter slots and are never stored
+in the trajectory. The compiler therefore cannot assert “value equals X”; it
+emits **weak** `element-visible` on the target control and says so in `notes`.
+
+## `pool_eligible` (fail-closed)
+
+Default posture: ineligible until checks pass.
+
+| Condition | `pool_eligible` | `pool_ineligible_reason` |
+| --- | --- | --- |
+| Topology-only degradation | `false` | `topology_only_degraded` |
+| Any `tenant_scoped` locator | `false` | `tenant_locator_text` |
+| `text` / `placeholder` free-text strategies | `false` | `tenant_locator_text` |
+| Tenant-looking literal in assertion target/expected | `false` | `literal_in_assertion` |
+| Unknown ARIA role (provisional vocab) | `false` | `non_vocab_role` |
+| Otherwise clean chrome / templates | `true` | `null` |
+
+Notes and assertion ids are compiler metadata and are **not** scanned for pooling.
+B5 remains authoritative for write-time allowlist (CONFIDENCE: MED on role
+vocabulary until B5 publishes it).
+
+## CLI
+
+```bash
+npm run compile -- --in contracts/examples/trajectory.example.json
+# writes artifacts/compiled/<trajectory_id>.bundle.json
+```
+
+Options: `--out <path>`, `--no-validate`, `--help`.
+
+## Known blind spots (cannot yet assert)
+
+1. **Typed input values** — forbidden to store; fill success is weak visibility only.
+2. **Toasts / notifications** — not in fingerprint; only via `assertion_hint` signals; message body is always a hole.
+3. **Structured counts** — no `post_state` count field; `count-equals` is placeholder-bound and weak.
+4. **Network request semantics** — `network-idle` is not “expected XHR settled”; no URL/method allowlist from B2 yet.
+5. **Visual / screenshot diffs** — out of scope for Phase-1 contracts.
+6. **Cross-frame / shadow DOM** — no trajectory signal.
+7. **Auth session validity** — cookies/storage excluded from compiler input by construction; cannot assert “still logged in” from trajectory fields alone.
+8. **B2 live recordings** — no path found for `track1/b2-recorder` at compile time; example trajectory only.
+9. **B5 allowlist** — chrome label / role sets here are provisional; do not treat `pool_eligible: true` as final pool admission.
+
+## Sources
+
+| Claim | Source | Access date |
+| --- | --- | --- |
+| Assertion types + strength semantics | `contracts/assertion.schema.json` | 2026-07-25 |
+| Cache-row + `pool_eligible` rules | `contracts/cache-row.schema.json` | 2026-07-25 |
+| Locator preference order | `contracts/trajectory.schema.json` | 2026-07-25 |
+| Ajv draft-2020-12 validator API | https://github.com/ajv-validator/ajv/blob/v8.17.1/docs/json-schema.md | 2026-07-25 |
+
+## Open questions / what I could not verify
+
+- Will B2 add structured `post_state` fields for toast text templates, item counts, and network URL patterns? No path found in contracts today (searched: `trajectory.schema.json` fingerprint + `assertion_hint` only).
+- Final B5 role / testid / CSS attribute vocabularies — compiler uses a provisional role set; CONFIDENCE: MED.
+- Whether a `compiled_trajectory` bundle schema should become a first-class contract `$id` — deferred to B0/ADR.
+- Gate replay-validity thresholds — not invented here; see Track-1 measurement (PENDING).

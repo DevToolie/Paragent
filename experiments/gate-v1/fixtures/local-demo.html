@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Local demo</title>
+  </head>
+  <body>
+    <main>
+      <h1>Local demo</h1>
+      <label for="name">Resource label</label>
+      <input id="name" type="text" value="widget" />
+      <button type="button" id="save" data-testid="save-btn">Save</button>
+      <p id="status" data-testid="status" aria-live="polite"></p>
+    </main>
+    <script>
+      document.getElementById("save").addEventListener("click", () => {
+        const label = document.getElementById("name").value || "item";
+        document.getElementById("status").textContent = "Saved " + label;
+      });
+    </script>
+  </body>
+</html>

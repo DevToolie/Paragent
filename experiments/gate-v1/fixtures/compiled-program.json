@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0.0",
+  "program_id": "local-demo-click",
+  "site_key": "local-demo",
+  "task_key": "local-demo-click",
+  "testbed_version": "pending-b1@placeholder",
+  "steps": [
+    {
+      "step_index": 0,
+      "row_id": "cache-local-demo-click-0",
+      "compiled_action": {
+        "type": "navigate",
+        "url_template": "{base_url}",
+        "param_refs": ["base_url"],
+        "locator_fallback_chain": []
+      },
+      "assertion": {
+        "schema_version": "1.0.0",
+        "assertion_id": "assert-local-demo-heading",
+        "type": "element-visible",
+        "strength": "strong",
+        "target": {
+          "locator": {
+            "strategy": "role_name",
+            "role": "heading",
+            "name": "Local demo"
+          }
+        },
+        "expected": {
+          "visible": true
+        },
+        "timeout_ms": 5000,
+        "failure_classification": "assertion_failed",
+        "notes": "Heading proves the local fixture loaded."
+      }
+    },
+    {
+      "step_index": 1,
+      "row_id": "cache-local-demo-click-1",
+      "compiled_action": {
+        "type": "click",
+        "locator_fallback_chain": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Save",
+            "tenant_scoped": false
+          },
+          {
+            "strategy": "testid",
+            "testid": "save-btn",
+            "tenant_scoped": false
+          }
+        ]
+      },
+      "assertion": {
+        "schema_version": "1.0.0",
+        "assertion_id": "assert-local-demo-saved",
+        "type": "text-matches",
+        "strength": "strong",
+        "target": {
+          "locator": {
+            "strategy": "testid",
+            "testid": "status"
+          }
+        },
+        "expected": {
+          "template": "Saved {resource_label}",
+          "param_types": {
+            "resource_label": "string"
+          }
+        },
+        "timeout_ms": 5000,
+        "failure_classification": "assertion_failed",
+        "notes": "Status text uses a typed hole — no tenant literal."
+      }
+    }
+  ]
+}

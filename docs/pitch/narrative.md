@@ -1,0 +1,80 @@
+---
+title: Pitch narrative (Wave 1 draft)
+doc_type: pitch
+status: draft
+owner: D1
+created: 2026-07-25
+updated: 2026-07-25
+confidence: MED
+supersedes: null
+sources_verified: true
+---
+
+# Paragent — pitch narrative (Wave 1 draft)
+
+Vertical: **search in progress** (pending Track 2 / C5). No vertical is locked in this draft. Finalize after C5.
+
+## The insight (falsifiable)
+
+A SaaS vendor builds an API for whatever **its paying customers** do repeatedly. Week-0 tested that claim on observability config and falsified the first anchor: of 70 candidate tasks across Datadog, Grafana Cloud, and Sentry, **51 were FULLY_API** with cited REST/Terraform paths, and only **2 survivors** cleared all four gates — below the FAIL threshold of ≤2 survivors ([`docs/research/census-week0/A8-DECISION.md`](../research/census-week0/A8-DECISION.md), decision date 2026-07-24; FULLY_API count from [`A4-adversary.md`](../research/census-week0/A4-adversary.md), access_date 2026-07-24 per A8).
+
+Structural reading of that kill list: **high-frequency** and **permanently browser-only** are nearly mutually exclusive **when the laborer is the vendor's customer** ([`docs/research/census-week0/README.md`](../research/census-week0/README.md); A8 decision narrative).
+
+**Pivot hypothesis (unproven):** invert the relationship. Target work where the person doing it is the **counterparty** to the software's customer — no API, no bulk tools, no roadmap sympathy, permanently, because the portal owner has no incentive to reduce *their* labor; frequency accrues because one worker faces **many** portals (shared Wave-2 context; founder pivot framing). This claim is falsifiable by Track 2: if C4/C5 find that every candidate surface is already API'd, EDI'd, or owned by an intermediary, the thesis fails — not merely the first vertical.
+
+## The proof of process
+
+We lead with a failure. Before building a product on observability console RPA, we ran an adversary census and **killed our own anchor**: FAIL, 2/70 survivors, no single-vendor concentration of 4+, no Grafana free-tier gate task ([A8](../research/census-week0/A8-DECISION.md)). The 51-item FULLY_API kill list is the asset — it is what a competent diligence process would eventually discover, produced **before** we wrote the execution layer ([A4](../research/census-week0/A4-adversary.md); A8 §"Tasks killed by A4").
+
+Operating narrative in the Wave pack frames this as roughly a 48-hour self-falsification cycle. **ASSUMED** as pack framing; the dated, citable fact is the FAIL memo of 2026-07-24. For a solo founder facing "why hasn't a funded team done this," disciplined self-kill is stronger than a polished first story.
+
+## The mechanism — compilation, not compression
+
+Paragent is a **stateful execution layer** for browser agents ([repo README](../../README.md)):
+
+1. **Record** a successful trajectory through a web UI.
+2. **Compile** it into a deterministic replayable script with a **post-condition assertion on every step**.
+3. **Replay** at near-zero token cost (**[PENDING TRACK-1]** — not measured).
+4. **Repair** with a model when an assertion fails, then recompile that step.
+
+Contracts already name the measurable fields for step-level replay-validity, task success with ≤2 repairs, repair vs fresh cost (tokens and wall-clock), self-heal rate, and time-to-repair ([`contracts/metrics.schema.json`](../../contracts/metrics.schema.json)). **No gate number exists yet.** Any amortized-cost or "near-free" claim in investor materials remains **[PENDING TRACK-1]**.
+
+The product bet (ASSUMED until measured): compilation amortizes reasoning across repeats; snapshot-compression approaches stay flat on every run. Track 1 measures churn survival on self-hosted OSS version upgrades as an accelerated proxy — not as organic production churn (Track-1 honesty requirement from Wave pack / B1 brief).
+
+## The moat (stated carefully)
+
+Under the counterparty model, **no single customer** warms a cache across hundreds of portals they each touch a few times a year — so **cross-agent / cross-portal pooling** is the product, not a v2 feature (**ASSUMED** product thesis; depends on Track 2 multiplicity holding).
+
+Honest cold-start: **v1 must be economically self-justifying single-tenant** (**ASSUMED** go-to-market; not measured). Pooling is the compounding layer if, and only if, privacy allowlisting keeps pooled rows free of tenant literals (PRD §6 / B5 track — boundary not verified in this draft because `docs/prd/PRD-trajectory-cache-v0.2.md` was **not present** in the working tree at write time; see Open questions).
+
+## What would make us wrong
+
+Real kill conditions — not theater:
+
+| Kill | What it looks like | Owner |
+| --- | --- | --- |
+| Mechanism fails churn | Replay validity / success-with-≤2-repairs below the (still unset) Track-1 threshold | Track 1 |
+| Thesis fails twice | Second consecutive vertical FAIL (≤2 survivors or ALREADY_SOLVED / multiplicity 1 across surfaces) → question whether there is a company, not just a bad anchor | Track 2 / C5 |
+| Intermediary owns the labor | Clearinghouse / network / GRC autofill already absorbs the work; "counterparty" is their customer | C4 durability |
+| ToS / portal blocks | Hosted portals ban automated interaction without consent; pilots become counsel+MSA gated (A6 already HIGH for Datadog/Grafana consoles — [`A6-tos.md`](../research/census-week0/A6-tos.md), access_date 2026-07-24) | Legal + GTM |
+| Models get cheap enough | Fresh reasoning cost falls until caching's economic wedge collapses | Market / Track 1 cost curves |
+
+We would rather lose on an explicit kill than raise on an unmeasured number.
+
+## Where we are (honest status)
+
+| Track | Question | Status |
+| --- | --- | --- |
+| 1 | Do compiled trajectories survive site churn? | Harness in progress — **gate number pending** |
+| 2 | Is there a vertical where counterparty holds? | **Search in progress** — pending C5 |
+| 3 | Narrative | This Wave-1 draft; finalize after C5 |
+
+Backup scout (not a lock): seller-side portal questionnaire fill / trust-center visitor flows are a **conditionally credible** wedge in A7, contested by existing Chrome-extension products, and blocked for 14-day measurement by invitation-gated test beds ([`A7-backup.md`](../research/census-week0/A7-backup.md), access_date 2026-07-24). That is a lead for Track 2, not a vertical decision.
+
+## Open questions / what I could not verify
+
+- `docs/prd/pivot-brief-v0.3.md` and `docs/prd/PRD-trajectory-cache-v0.2.md` were **not in the repo tree** at draft time (only `docs/prd/README.md` placeholder). Pivot prose here is reconstructed from A8, census README, repo README, and Wave-2 shared context — mark founder brief as **PENDING drop** for D2 cross-link.
+- Exact §9 numeric kill thresholds — **not invented**; pending PRD + Track-1 measurement.
+- Whether "48 hours" is a measured census wall-clock or pack rhetoric — **ASSUMED** until founder confirms.
+- Vertical lock and named first task — **PENDING C5**.
+- All performance / cost / replay figures — **[PENDING TRACK-1]**.
