@@ -1,0 +1,44 @@
+name: Dependency review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # The dependency graph API this action reads is free for public repos and needs
+  # GitHub Advanced Security on private ones — skip cleanly rather than fail.
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.check.outputs.eligible }}
+    steps:
+      - id: check
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.repository.private }}" = "false" ]; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Dependency review skipped — needs a public repo or GitHub Advanced Security."
+          fi
+
+  review:
+    needs: guard
+    if: needs.guard.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          # MIT-licensed project; flag copyleft so a licence change is a decision,
+          # not an accident.
+          deny-licenses: AGPL-3.0, GPL-2.0, GPL-3.0, LGPL-3.0
+          comment-summary-in-pr: on-failure
