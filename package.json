@@ -17,6 +17,7 @@
     "secret-scan": "node scripts/secret-scan.mjs",
     "validate:contracts": "node scripts/validate-contracts.mjs",
     "testbed": "node --import tsx src/testbed/cli.ts",
+    "compile": "node --import tsx src/compiler/cli.ts",
     "ci": "npm run secret-scan && npm run validate:contracts && npm run lint && npm run typecheck && npm run test"
   },
   "devDependencies": {

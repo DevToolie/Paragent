@@ -47,7 +47,7 @@ Live index. Update this file when you add or supersede a document.
 | --- | --- | --- |
 | [gate/testbed.md](gate/testbed.md) | draft | B1 |
 | `gate/recorder.md` | pending B2 | B2 |
-| `gate/compiler.md` | pending B3 | B3 |
+| [gate/compiler.md](gate/compiler.md) | draft | B3 |
 | `gate/runner.md` | pending B4 | B4 |
 
 ## Privacy
