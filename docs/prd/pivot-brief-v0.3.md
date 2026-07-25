@@ -1,9 +1,21 @@
+---
+title: "Pivot brief v0.3 — post-census selection rule"
+doc_type: brief
+status: accepted
+owner: founder
+created: 2026-07-24
+updated: 2026-07-25
+confidence: HIGH
+supersedes: docs/prd/PRD-trajectory-cache-v0.2.md §8
+sources_verified: true
+---
+
 # Pivot Brief — PRD v0.3 delta
 ### Post-census decision: the selection rule was wrong, not just the anchor
 
 **Status:** decision brief, supersedes §8 of PRD v0.2
 **Date:** 2026-07-24
-**Trigger:** Week-0 census returned FAIL (2 survivors, 51 tasks killed as FULLY_API)
+**Trigger:** Week-0 census returned FAIL (2 survivors, 51 tasks killed as FULLY_API) — [A8-DECISION.md](../research/census-week0/A8-DECISION.md). Track-2 later FAIL — [DECISION.md](../research/vertical-search/DECISION.md).
 
 ---
 
@@ -141,3 +153,9 @@ I am not reopening the vertical on this, and the reason should be recorded: for 
 ---
 
 *Next artifact: Track-1 harness spec (self-hosted target, version matrix, assertion format, instrumentation) — writable immediately, independent of Track 2's outcome.*
+
+## Open questions / what I could not verify
+
+- C5 FAIL closes Wave-2 surface lock; whether founder reframes to sell-to-intermediaries is outside this brief ([DECISION.md](../research/vertical-search/DECISION.md) next action).
+- Track-1 kill line “replay-validity < ~50%” vs PRD §9 fuller gate set — which document controls when Track 1 reports.
+- Standing / ToS counsel packet sizing (§5) — flagged, not completed in-repo.

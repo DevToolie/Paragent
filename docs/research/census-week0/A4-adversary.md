@@ -1,3 +1,15 @@
+---
+title: "A4 — Observability API/IaC adversary"
+doc_type: research
+status: killed
+owner: A4
+created: 2026-07-24
+updated: 2026-07-24
+confidence: HIGH
+supersedes: null
+sources_verified: true
+---
+
 # A4 — Adversary (API / Terraform / as-code falsification)
 
 **Role:** Kill browser-only claims for every task in A1–A3.  
@@ -176,3 +188,8 @@ Also confirmed FULLY_API where A1–A3 already guessed **N** (still kills as bro
 4. **Cloud account connect (DD-09/10, GC-12) is FULLY_API under the census definition** when AWS/Azure IAM is done via those clouds’ APIs/Terraform plus Datadog/Grafana integration resources — the CloudFormation/console wizards are convenience, not necessity.
 
 5. **Absence discipline:** NO_PATH_FOUND lists searches; do not treat as proof of nonexistence. Especially GC-16 (`invites:*` scopes exist without a documented path in the Cloud API page fetched) and SN-18/22 (token creation documented as UI).
+
+## Open questions / what I could not verify
+
+- Pre-standard Week-0 artifact: see docs/INTEGRITY-AUDIT.md for evidence-table shape gaps vs CONTRIBUTING.
+- Follow-ups after this FAIL are owned by Track 2 / C5 — not reopened here.

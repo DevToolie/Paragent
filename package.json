@@ -16,6 +16,7 @@
     "test:canary": "vitest run tests/canary",
     "secret-scan": "node scripts/secret-scan.mjs",
     "validate:contracts": "node scripts/validate-contracts.mjs",
+    "protect:main": "node scripts/apply-branch-protection.mjs",
     "testbed": "node --import tsx src/testbed/cli.ts",
     "recorder": "node --import tsx src/recorder/cli.ts",
     "compile": "node --import tsx src/compiler/cli.ts",

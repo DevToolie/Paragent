@@ -46,20 +46,20 @@ Hard product risk. MFA and human gates already appear as browser-bound residues 
 
 ## 7. Two failed censuses — is there a company here?
 
-Week-0 is **one** failed **anchor**, not two failed censuses yet. A second consecutive FAIL at C5 (≤2 survivors, or surfaces ALREADY_SOLVED / multiplicity 1) is exactly when Wave-pack guidance says to treat the result as evidence about the **thesis**, and let Track-1's number decide whether to continue at all (Wave pack §Agent C5).
+**Present tense (post-C5):** two consecutive vertical FAILs — Week-0 observability ([A8](../research/census-week0/A8-DECISION.md), 2/70) and Track-2 counterparty search ([DECISION.md](../research/vertical-search/DECISION.md), 2/75, 0 DURABLE surfaces; [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)). C5 treats that as evidence about the **selection thesis**, not merely bad anchors, and directs the company at the **Track-1 gate number**.
 
-Honest present tense: observability is dead as anchor ([A8](../research/census-week0/A8-DECISION.md)); counterparty search is **in progress**; mechanism unproven. **If both tracks fail, there may not be a company** — that is the slide we keep.
+Honest present tense: observability is dead as anchor; Wave-2 surfaces are **not locked**; mechanism still unproven. **If Track 1 fails, C5 says stop the company thesis** — that is the slide we keep.
 
 ## 8. Isn't portal autofill already a crowded category?
 
-A7 notes multiple Chrome extensions (e.g. Vanta questionnaire automation, SafeBase portal autofill) as **demand validation and competition**, not empty space ([A7-backup.md](../research/census-week0/A7-backup.md), access_date 2026-07-24; cites Vanta engineering post and Chrome Web Store listings). Our differentiation claim is compilation + assertions + poolable cache under privacy allowlisting — **ASSUMED** until Track 1/2 prove it. We do **not** lock vendor-security portals as the vertical here.
+Yes — and C4/C5 treat that as a **kill**, not an open wedge: QAuto intermediaries already productize seller-side portal fill ([adversary-report.md](../research/vertical-search/adversary-report.md); C5: do not lock questionnaires “because A7 said so”). A7’s Chrome-extension notes remain historical demand signal ([A7-backup.md](../research/census-week0/A7-backup.md), access_date 2026-07-24). Differentiation vs extensions (compilation + assertions + poolable cache) stays **ASSUMED** until Track 1 measures.
 
 ## 9. Can you measure without a design partner?
 
-For invitation-gated buyer portals, A7 says **brutal no** for a 14-day protocol without a partner or thin self-serve visitor flows ([A7](../research/census-week0/A7-backup.md)). Track 1 deliberately uses self-hosted OSS so the **mechanism** can be measured without third-party ToS or partners (Wave-2 shared context). Commercial proof still needs a reachable surface — **PENDING Track 2 feasibility ranking**.
+Track 1 deliberately uses self-hosted Grafana OSS so the **mechanism** can be measured without third-party ToS or partners ([ADR-0003](../decisions/ADR-0003-testbed-grafana-oss.md); pivot §4). C5 defers design-partner portal pilots until after that number. Commercial vertical lock for Wave-2 is **closed** (FAIL).
 
 ## Open questions / what I could not verify
 
 - Competitor roadmap intent for OpenAI/Anthropic/Browserbase caching layers — not researched in this draft; treat as ASSUMED.
-- Per-portal bot-detection severity for Track-2 candidates — PENDING C1–C4.
+- Founder post-Track-1 choice (sell-to-intermediary reframe vs shut search) — C5 next-action box; not decided here.
 - Founder personal capacity / raise structure — out of scope; no claims.
