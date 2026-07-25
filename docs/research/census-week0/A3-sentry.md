@@ -1,3 +1,15 @@
+---
+title: "A3 — Sentry task enumerator"
+doc_type: research
+status: killed
+owner: A3
+created: 2026-07-24
+updated: 2026-07-24
+confidence: HIGH
+supersedes: null
+sources_verified: true
+---
+
 # A3 — Sentry Task Census
 
 **Role:** Sentry task enumerator  
@@ -49,3 +61,8 @@
 6. **Absence discipline:** This file does **not** claim APIs/Terraform do or do not exist for any task (A4’s job). “No API found” statements intentionally omitted.
 
 7. **Confidence:** Rows marked MED are those where end-state verification depends on billing UI copy or plan gating not fully walked end-to-end in this pass (SN-17, SN-24).
+
+## Open questions / what I could not verify
+
+- Pre-standard Week-0 artifact: see docs/INTEGRITY-AUDIT.md for evidence-table shape gaps vs CONTRIBUTING.
+- Follow-ups after this FAIL are owned by Track 2 / C5 — not reopened here.

@@ -24,6 +24,8 @@ accepted
 
 ## Context
 
+**Triggered by:** C5 adjudication FAIL on all six Wave-2 surfaces ([DECISION.md](../research/vertical-search/DECISION.md), 2026-07-25) after C4 durability kills.
+
 Week-0 census **FAIL**ed observability as anchor (2/70 survivors;
 `docs/research/census-week0/A8-DECISION.md`, scored 2026-07-24). Pivot brief
 v0.3 replaced the selection rule with counterparty + durability + multiplicity

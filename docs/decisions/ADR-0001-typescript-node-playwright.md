@@ -18,10 +18,12 @@ accepted
 
 ## Context
 
-Wave-0 needs a stack decision before B1–B5 implement test-bed, recorder,
-compiler, runner, and privacy enforcement in parallel. The repo previously
-contained a Python hello-world scaffold (`archive/python-scaffold/`); it had no
-browser automation surface and is not load-bearing.
+**Triggered by:** Wave-0 need for a single stack before B1–B5 implement
+test-bed, recorder, compiler, runner, and privacy enforcement in parallel.
+
+The repo previously contained a Python hello-world scaffold
+(`archive/python-scaffold/`); it had no browser automation surface and is not
+load-bearing.
 
 Constraints:
 

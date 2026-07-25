@@ -1,3 +1,15 @@
+---
+title: "A8 — Adjudicator decision memo (FAIL)"
+doc_type: research
+status: killed
+owner: A8
+created: 2026-07-24
+updated: 2026-07-24
+confidence: HIGH
+supersedes: null
+sources_verified: true
+---
+
 FAIL
 
 # A8 — Adjudicator Decision Memo
@@ -201,3 +213,8 @@ Hand off to A7’s **seller portal-fill / trust-center visitor** slice under the
 - FREQUENCY/PAIN drawn from A5 rows; BROWSER_ONLY from A4 verdicts with PARTIAL substantive vs trivial judgment as required by METHOD.
 
 *Adjudicator: A8. Decision date: 2026-07-24.*
+
+## Open questions / what I could not verify
+
+- Pre-standard Week-0 artifact: see docs/INTEGRITY-AUDIT.md for evidence-table shape gaps vs CONTRIBUTING.
+- Follow-ups after this FAIL are owned by Track 2 / C5 — not reopened here.

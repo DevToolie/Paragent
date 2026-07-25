@@ -1,3 +1,15 @@
+---
+title: "A1 — Datadog task enumerator"
+doc_type: research
+status: killed
+owner: A1
+created: 2026-07-24
+updated: 2026-07-24
+confidence: HIGH
+supersedes: null
+sources_verified: true
+---
+
 # A1 — Datadog task enumerator
 
 **Role:** Datadog UI task census (enumeration only; not API falsification, not frequency scoring).  
@@ -55,3 +67,8 @@
 6. **Absence note (not absence of feature):** Did not deep-dive Datadog Marketplace paid app installs, SCIM user provisioning UI, or multi-org child-org creation beyond SAML mentions. Searched primarily: create monitor/dashboard/SLO, SAML, Slack, AWS/Azure integrations, synthetics, RUM, pipelines, indexes, retention filters, keys, service accounts, teams, roles, downtimes, webhooks, PagerDuty, incidents, usage attribution, plan & usage.
 
 7. **ui_steps_est** counts human UI actions in the Datadog (and clearly required external) consoles as described in docs — not keyboard granularity. CONFIDENCE on step counts is generally MED even when task existence is HIGH.
+
+## Open questions / what I could not verify
+
+- Pre-standard Week-0 artifact: see docs/INTEGRITY-AUDIT.md for evidence-table shape gaps vs CONTRIBUTING.
+- Follow-ups after this FAIL are owned by Track 2 / C5 — not reopened here.
