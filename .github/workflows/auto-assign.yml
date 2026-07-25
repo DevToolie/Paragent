@@ -21,7 +21,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         env:
           # GITHUB_TOKEN cannot read org team membership, so the pool is listed
           # here. Keep it in sync with the @DevToolie/core team.
