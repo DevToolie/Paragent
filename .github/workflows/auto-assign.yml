@@ -1,0 +1,72 @@
+name: Auto-assign
+
+# Assigns an owner to every new issue and PR, and requests a review from someone
+# other than the author. pull_request_target is used so fork PRs get assigned too;
+# no repo code is checked out or executed.
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    # Dependabot manages its own PRs; a human assignee just adds noise.
+    if: github.actor != 'dependabot[bot]'
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          # GITHUB_TOKEN cannot read org team membership, so the pool is listed
+          # here. Keep it in sync with the @DevToolie/core team.
+          POOL: myselfsiddharth,OM152002
+        with:
+          script: |
+            const pool = process.env.POOL.split(",").map((s) => s.trim()).filter(Boolean);
+            const pr = context.payload.pull_request;
+            const target = pr ?? context.payload.issue;
+            const author = target.user.login;
+            const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
+
+            const common = { owner: context.repo.owner, repo: context.repo.repo };
+
+            if (target.assignees.length === 0) {
+              // A PR is the author's to land; an issue is unowned work, so it goes
+              // to a random member of the pool.
+              const assignee = pr ? author : pick(pool);
+              await github.rest.issues.addAssignees({
+                ...common,
+                issue_number: target.number,
+                assignees: [assignee],
+              });
+              core.notice(`Assigned #${target.number} to ${assignee}`);
+            }
+
+            if (!pr || pr.draft) return;
+
+            const alreadyRequested = pr.requested_reviewers.length > 0;
+            if (alreadyRequested) {
+              core.notice("Reviewer already requested; leaving it alone.");
+              return;
+            }
+
+            // You cannot review your own PR, so the author is never a candidate.
+            const candidates = pool.filter((login) => login !== author);
+            if (candidates.length === 0) {
+              core.notice(`No reviewer available other than ${author}.`);
+              return;
+            }
+
+            const reviewer = pick(candidates);
+            await github.rest.pulls.requestReviewers({
+              ...common,
+              pull_number: pr.number,
+              reviewers: [reviewer],
+            });
+            core.notice(`Requested review from ${reviewer}`);

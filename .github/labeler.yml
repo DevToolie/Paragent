@@ -1,0 +1,92 @@
+# Path-based PR labels, applied by .github/workflows/labeler.yml (actions/labeler v5).
+# Docs: https://github.com/actions/labeler#configuration
+
+"area: recorder":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/recorder/**
+          - tests/unit/recorder.test.ts
+
+"area: compiler":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/compiler/**
+          - tests/unit/compiler.test.ts
+
+"area: runner":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/runner/**
+          - tests/unit/runner.test.ts
+
+"area: cache":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/cache/**
+          - tests/unit/cache-privacy.test.ts
+
+"area: metrics":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/metrics/**
+          - tests/unit/metrics-aggregate.test.ts
+
+"area: testbed":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/testbed/**
+          - scripts/testbed/**
+          - tests/unit/testbed.test.ts
+
+"area: contracts":
+  - changed-files:
+      - any-glob-to-any-file:
+          - contracts/**
+
+"area: experiments":
+  - changed-files:
+      - any-glob-to-any-file:
+          - experiments/**
+
+"area: tooling":
+  - changed-files:
+      - any-glob-to-any-file:
+          - scripts/*.mjs
+          - eslint.config.mjs
+          - tsconfig.json
+          - vitest.config.ts
+          - package.json
+          - package-lock.json
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - docs/**
+
+# Privacy boundary: the canary suite and taint/redaction paths are merge-blocking.
+# Labelling them makes a reviewer look twice.
+privacy-boundary:
+  - changed-files:
+      - any-glob-to-any-file:
+          - tests/canary/**
+          - src/cache/taint.ts
+          - src/cache/allowlist.ts
+          - src/recorder/redact.ts
+          - docs/privacy/**
+
+gate:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/gate/**
+          - experiments/gate-v1/**
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+
+proposal:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/decisions/**

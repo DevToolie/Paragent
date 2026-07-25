@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# A new push to the same PR makes the previous run's result irrelevant.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     name: lint-typecheck-test-secrets

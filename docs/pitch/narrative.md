@@ -45,7 +45,7 @@ The product bet (ASSUMED until measured): compilation amortizes reasoning across
 
 Under the counterparty model, **no single customer** warms a cache across hundreds of portals they each touch a few times a year — so **cross-agent / cross-portal pooling** is the product, not a v2 feature (**ASSUMED** product thesis; depends on Track 2 multiplicity holding).
 
-Honest cold-start: **v1 must be economically self-justifying single-tenant** (**ASSUMED** go-to-market; not measured). Pooling is the compounding layer if, and only if, privacy allowlisting keeps pooled rows free of tenant literals (PRD §6 / B5 track — boundary not verified in this draft because `docs/prd/PRD-trajectory-cache-v0.2.md` was **not present** in the working tree at write time; see Open questions).
+Honest cold-start: **v1 must be economically self-justifying single-tenant** (**ASSUMED** go-to-market; not measured). Pooling is the compounding layer if, and only if, privacy allowlisting keeps pooled rows free of tenant literals ([PRD §6](../prd/PRD-trajectory-cache-v0.2.md); [boundary-spec.md](../privacy/boundary-spec.md)).
 
 ## What would make us wrong
 
@@ -66,15 +66,15 @@ We would rather lose on an explicit kill than raise on an unmeasured number.
 | Track | Question | Status |
 | --- | --- | --- |
 | 1 | Do compiled trajectories survive site churn? | Harness in progress — **gate number pending** |
-| 2 | Is there a vertical where counterparty holds? | **Search in progress** — pending C5 |
+| 2 | Is there a vertical where counterparty holds? | **FAIL** — [DECISION.md](../research/vertical-search/DECISION.md) (C5, 2026-07-25); no Wave-2 lock |
 | 3 | Narrative | This Wave-1 draft; finalize after C5 |
 
-Backup scout (not a lock): seller-side portal questionnaire fill / trust-center visitor flows are a **conditionally credible** wedge in A7, contested by existing Chrome-extension products, and blocked for 14-day measurement by invitation-gated test beds ([`A7-backup.md`](../research/census-week0/A7-backup.md), access_date 2026-07-24). That is a lead for Track 2, not a vertical decision.
+A7’s seller-side questionnaire lead was **not locked**; C5 FAIL + C4 ALREADY_SOLVED (QAuto) close that Wave-2 wedge ([DECISION.md](../research/vertical-search/DECISION.md); [adversary-report.md](../research/vertical-search/adversary-report.md)). Historical A7 notes remain in [A7-backup.md](../research/census-week0/A7-backup.md).
 
 ## Open questions / what I could not verify
 
-- `docs/prd/pivot-brief-v0.3.md` and `docs/prd/PRD-trajectory-cache-v0.2.md` were **not in the repo tree** at draft time (only `docs/prd/README.md` placeholder). Pivot prose here is reconstructed from A8, census README, repo README, and Wave-2 shared context — mark founder brief as **PENDING drop** for D2 cross-link.
-- Exact §9 numeric kill thresholds — **not invented**; pending PRD + Track-1 measurement.
-- Whether "48 hours" is a measured census wall-clock or pack rhetoric — **ASSUMED** until founder confirms.
-- Vertical lock and named first task — **PENDING C5**.
+- PRD/pivot are in-tree; C5 FAIL recorded 2026-07-25 — earlier “pending C5 / PRD absent” notes are obsolete.
+- PRD §9 states proposed numeric gates; **measured** Track-1 gate number still unset — see docs/INTEGRITY-AUDIT.md.
+- Whether "48 hours" is measured wall-clock — **ASSUMED** until founder confirms.
 - All performance / cost / replay figures — **[PENDING TRACK-1]**.
+- Founder choice after Track-1 number (intermediary reframe vs shut search) — per C5 next action; not decided here.
