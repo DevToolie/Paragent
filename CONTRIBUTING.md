@@ -23,8 +23,7 @@
 - One logical unit per PR; keep them small.
 - Write the doc with the code, never after.
 - Update `docs/README.md` when you add a document.
-- CI must pass except where a documented intentional red exists (historically the
-  canary stub — replaced by B5's real canary).
+- CI must pass, including `npm run test:canary` (privacy boundary — merge-blocking).
 - Contracts in `contracts/` are the integration surface. Prefer extending a
   schema via ADR over ad-hoc JSON fields in one package.
 

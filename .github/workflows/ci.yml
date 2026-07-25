@@ -53,5 +53,5 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Privacy canary (stub fails until B5)
+      - name: Privacy canary (merge-blocking)
         run: npm run test:canary
