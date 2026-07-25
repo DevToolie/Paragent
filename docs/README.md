@@ -1,4 +1,4 @@
----
+﻿---
 title: Documentation index
 doc_type: brief
 status: draft
@@ -26,7 +26,7 @@ Live index. Update this file when you add or supersede a document.
 
 | Doc | Status | Notes |
 | --- | --- | --- |
-| [PRD v0.2](prd/PRD-trajectory-cache-v0.2.md) | accepted | �8 superseded by pivot brief |
+| [PRD v0.2](prd/PRD-trajectory-cache-v0.2.md) | accepted | §8 superseded by pivot brief |
 | [Pivot brief v0.3](prd/pivot-brief-v0.3.md) | accepted | Counterparty selection rule; two-track plan |
 
 ## Research ? Week-0 census (FAILED ? preserve)
@@ -67,7 +67,7 @@ Live index. Update this file when you add or supersede a document.
 
 | Doc | Status | Owner |
 | --- | --- | --- |
-| `pitch/` | pending D1 merge | D1 |
+| [pitch/](pitch/) | draft (Wave-1) | D1 |
 
 ## Contracts
 
@@ -77,3 +77,4 @@ See [`../contracts/`](../contracts/) ? trajectory, assertion, cache-row, metrics
 
 - Gate number and vertical lock do not exist yet ? do not invent them in this index.
 - Surface scouts are not adjudications ? C4/C5 attack and score separately.
+
