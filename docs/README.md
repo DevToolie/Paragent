@@ -35,6 +35,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | --- | --- | --- | --- | --- |
 | [ROADMAP.md](./ROADMAP.md) | Current state, what is stubbed, milestones M0–M7 in order | accepted | 2026-07-25 | **Read before picking up an issue** |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Commands, layout, data flow, invariants, pre-PR checklist | accepted | 2026-07-25 | Contributor runbook |
+| [architecture.md](./architecture.md) | How the six `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-07-25 | Owns the **chain** between packages; `gate/*.md` own one hop each. Records two unwired hops (issue #52) |
 | [README-narrative.md](./README-narrative.md) | Story: thesis → census kill → pivot → two tracks → evidence now | draft | 2026-07-25 | Includes C5 FAIL |
 | [INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md) | Unsourced claims, placeholders, LOW load-bearing, contradictions | draft | 2026-07-25 | Surfaces conflicts; does not pick winners |
 | [../README.md](../README.md) | Repo root status | living | 2026-07-25 | May lag Track 3 / C5 — see INTEGRITY-AUDIT |
