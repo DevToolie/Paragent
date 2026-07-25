@@ -33,11 +33,14 @@ async function api(
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
+  const init: RequestInit = {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  };
+  if (body !== undefined) {
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, init);
   const text = await res.text();
   let json: unknown = null;
   try {
