@@ -13,9 +13,6 @@
  * resolved, and CI green. enforce_admins stays off while the team is small.
  */
 import { execFileSync } from "node:child_process";
-import { writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 
 const DEFAULT_REPO = "DevToolie/Paragent";
 const BRANCH = "main";
@@ -65,9 +62,9 @@ function parseArgs(argv) {
   return args;
 }
 
-function gh(args, { allowFailure = false } = {}) {
+function gh(args, { allowFailure = false, input } = {}) {
   try {
-    return execFileSync("gh", args, { encoding: "utf8" });
+    return execFileSync("gh", args, { encoding: "utf8", input });
   } catch (error) {
     if (allowFailure) {
       return { failed: true, stderr: error.stderr ?? "", stdout: error.stdout ?? "" };
@@ -89,22 +86,12 @@ function main() {
     return;
   }
 
-  const payloadPath = path.join(tmpdir(), `paragent-protection-${process.pid}.json`);
-  writeFileSync(payloadPath, JSON.stringify(protection));
-
+  // Payload goes over stdin ("--input -") rather than a temp file: a predictable
+  // name in a shared temp dir is a symlink-swap target.
   const result = gh(
-    [
-      "api",
-      "-X",
-      "PUT",
-      `repos/${repo}/branches/${BRANCH}/protection`,
-      "--input",
-      payloadPath,
-    ],
-    { allowFailure: true },
+    ["api", "-X", "PUT", `repos/${repo}/branches/${BRANCH}/protection`, "--input", "-"],
+    { allowFailure: true, input: JSON.stringify(protection) },
   );
-
-  rmSync(payloadPath, { force: true });
 
   if (result.failed) {
     const stderr = String(result.stderr);
