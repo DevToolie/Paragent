@@ -46,7 +46,7 @@ async function api(
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
-    json = null;
+    // Non-JSON body — leave it null and let the caller use `text`.
   }
   return { status: res.status, json, text };
 }
