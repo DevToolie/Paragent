@@ -26,7 +26,8 @@ Live index. Update this file when you add or supersede a document.
 
 | Doc | Status | Notes |
 | --- | --- | --- |
-| `prd/` | placeholder | Founder supplies PRD v0.2 + pivot brief v0.3 |
+| [PRD v0.2](prd/PRD-trajectory-cache-v0.2.md) | accepted (dev-ready) | §8 superseded by pivot brief |
+| [Pivot brief v0.3](prd/pivot-brief-v0.3.md) | accepted | Replaces §8 selection rule; two-track plan |
 
 ## Research — Week-0 census (FAILED — preserve)
 
@@ -67,5 +68,4 @@ See [`../contracts/`](../contracts/) — trajectory, assertion, cache-row, metri
 
 ## Open questions / what I could not verify
 
-- PRD v0.2 and pivot brief v0.3 not yet copied into `docs/prd/` (founder supply).
 - Gate number and vertical lock do not exist yet — do not invent them in this index.
