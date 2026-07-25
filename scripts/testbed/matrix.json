@@ -1,0 +1,110 @@
+{
+  "target": "grafana-oss",
+  "image": "grafana/grafana",
+  "host_port_default": 3000,
+  "container_port": 3000,
+  "base_url_template": "http://127.0.0.1:{port}",
+  "fixture_admin_user": "admin",
+  "fixture_admin_pass": "paragent",
+  "fixture_note": "Local Docker fixture only — not a production secret. Injected via compose YAML colon-form env (not dotenv-style credential assignments).",
+  "versions": [
+    {
+      "id": "9.5.21",
+      "image_tag": "9.5.21",
+      "released": "2024-03",
+      "churn_role": "baseline — pre-Scenes classic dashboards / nav",
+      "docker_hub_tag_url": "https://hub.docker.com/r/grafana/grafana/tags?name=9.5.21",
+      "github_release_url": "https://github.com/grafana/grafana/releases/tag/v9.5.21",
+      "access_date": "2026-07-25"
+    },
+    {
+      "id": "10.0.13",
+      "image_tag": "10.0.13",
+      "released": "2024-01",
+      "churn_role": "Grafana 10 — Scenes library public preview; navigation / search changes",
+      "docker_hub_tag_url": "https://hub.docker.com/r/grafana/grafana/tags?name=10.0.13",
+      "github_release_url": "https://github.com/grafana/grafana/releases/tag/v10.0.13",
+      "whats_new_url": "https://grafana.com/docs/grafana/latest/whatsnew/whats-new-in-v10-0/",
+      "access_date": "2026-07-25"
+    },
+    {
+      "id": "10.4.19",
+      "image_tag": "10.4.19",
+      "released": "2025-02",
+      "churn_role": "late v10 — pre–Scenes-GA dashboard surface",
+      "docker_hub_tag_url": "https://hub.docker.com/r/grafana/grafana/tags?name=10.4.19",
+      "github_release_url": "https://github.com/grafana/grafana/releases/tag/v10.4.19",
+      "access_date": "2026-07-25"
+    },
+    {
+      "id": "11.0.0",
+      "image_tag": "11.0.0",
+      "released": "2024-05",
+      "churn_role": "Grafana 11 — Scenes-powered dashboards; edit mode; alert detail redesign",
+      "docker_hub_tag_url": "https://hub.docker.com/r/grafana/grafana/tags?name=11.0.0",
+      "github_release_url": "https://github.com/grafana/grafana/releases/tag/v11.0.0",
+      "whats_new_url": "https://grafana.com/docs/grafana/latest/whatsnew/whats-new-in-v11-0/",
+      "access_date": "2026-07-25"
+    },
+    {
+      "id": "11.5.2",
+      "image_tag": "11.5.2",
+      "released": "2025-02",
+      "churn_role": "mid/late v11 — Scenes GA era (11.3+) consolidation",
+      "docker_hub_tag_url": "https://hub.docker.com/r/grafana/grafana/tags?name=11.5.2",
+      "github_release_url": "https://github.com/grafana/grafana/releases/tag/v11.5.2",
+      "whats_new_url": "https://grafana.com/docs/grafana/latest/whatsnew/whats-new-in-v11-3/",
+      "access_date": "2026-07-25"
+    },
+    {
+      "id": "12.0.0",
+      "image_tag": "12.0.0",
+      "released": "2025-05",
+      "churn_role": "Grafana 12 — Angular removal; dynamic dashboards / new schema experiments; UI themes",
+      "docker_hub_tag_url": "https://hub.docker.com/r/grafana/grafana/tags?name=12.0.0",
+      "github_release_url": "https://github.com/grafana/grafana/releases/tag/v12.0.0",
+      "whats_new_url": "https://grafana.com/docs/grafana/latest/whatsnew/whats-new-in-v12-0/",
+      "access_date": "2026-07-25"
+    },
+    {
+      "id": "12.2.1",
+      "image_tag": "12.2.1",
+      "released": "2025-08",
+      "churn_role": "mid v12 — continued Drilldown / dashboard workflow churn",
+      "docker_hub_tag_url": "https://hub.docker.com/r/grafana/grafana/tags?name=12.2.1",
+      "github_release_url": "https://github.com/grafana/grafana/releases/tag/v12.2.1",
+      "access_date": "2026-07-25"
+    },
+    {
+      "id": "13.0.3",
+      "image_tag": "13.0.3",
+      "released": "2026-07",
+      "churn_role": "current major tip of matrix (Docker Hub tag verified 2026-07-25)",
+      "docker_hub_tag_url": "https://hub.docker.com/r/grafana/grafana/tags?name=13.0.3",
+      "github_release_url": "https://github.com/grafana/grafana/releases/tag/v13.0.3",
+      "access_date": "2026-07-25"
+    }
+  ],
+  "sources": [
+    {
+      "label": "Docker Hub grafana/grafana tags",
+      "url": "https://hub.docker.com/r/grafana/grafana/tags",
+      "access_date": "2026-07-25"
+    },
+    {
+      "label": "Run Grafana Docker image",
+      "url": "https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/",
+      "access_date": "2026-07-25"
+    },
+    {
+      "label": "Provision Grafana",
+      "url": "https://grafana.com/docs/grafana/latest/administration/provisioning/",
+      "access_date": "2026-07-25"
+    },
+    {
+      "label": "TestData datasource provision",
+      "url": "https://grafana.com/docs/grafana/latest/datasources/testdata/configure/",
+      "access_date": "2026-07-25"
+    }
+  ]
+}
