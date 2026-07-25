@@ -128,7 +128,6 @@ export class ReplayRunner {
         };
       } else if (isFailureOutcome(first.outcome)) {
         // Repair loop — assertion frozen; never rewritten.
-        let currentAction: CompiledAction = step.compiled_action;
         let lastOutcome = first.outcome;
         let lastMessage = first.error_message;
         let repaired = false;
@@ -185,7 +184,7 @@ export class ReplayRunner {
             break;
           }
 
-          currentAction = proposal.corrected_action;
+          const currentAction = proposal.corrected_action;
           const retry = await this.attemptStep({
             program,
             step,

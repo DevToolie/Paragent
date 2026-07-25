@@ -47,7 +47,7 @@ export async function capturePageState(page: Page): Promise<PageStateSnapshot> {
     await page.waitForLoadState("networkidle", { timeout: 250 });
     network_idle = true;
   } catch {
-    network_idle = false;
+    // Probe failed — leave it false rather than inventing success.
   }
 
   return {
