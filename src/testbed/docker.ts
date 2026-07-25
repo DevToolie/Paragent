@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { COMPOSE_PROJECT_PREFIX, DEFAULT_HOST_PORT } from "./constants.js";
-import { composeFilePath, sanitizeVersion } from "./paths.js";
+import { composeFilePath, composeProjectSlug } from "./paths.js";
 
 export interface ComposeEnv {
   GRAFANA_VERSION: string;
@@ -20,7 +20,7 @@ export function buildComposeEnv(opts: {
     GRAFANA_VERSION: opts.imageTag,
     HOST_PORT: String(port),
     PROVISIONING_DIR: opts.provisioningDir,
-    COMPOSE_PROJECT_NAME: `${COMPOSE_PROJECT_PREFIX}-${sanitizeVersion(opts.versionId)}`,
+    COMPOSE_PROJECT_NAME: `${COMPOSE_PROJECT_PREFIX}-${composeProjectSlug(opts.versionId)}`,
   };
 }
 

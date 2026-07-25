@@ -47,6 +47,40 @@ jobs:
       - name: Unit tests
         run: npx vitest run tests/unit
 
+  # Boots ONE pinned matrix version on the runner's Docker daemon so a broken
+  # src/testbed/ Docker path cannot merge green. The full 8-version matrix stays
+  # in the gate run — eight image pulls per PR is not a smoke test.
+  # Not a required status check yet (see PR description follow-up).
+  testbed-smoke:
+    name: testbed-smoke (grafana 11.0.0)
+    runs-on: ubuntu-latest
+    # A hung image pull must not burn a runner.
+    timeout-minutes: 10
+    env:
+      TESTBED_VERSION: "11.0.0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Boot and seed pinned version
+        run: npm run testbed -- --version "$TESTBED_VERSION"
+
+      # Interim stand-in for `npm run testbed -- --version <X> --verify` (#57):
+      # asserts /api/health plus the presence of the seed dashboard/datasource.
+      - name: Assert healthy and seeded
+        run: node scripts/testbed/ci-smoke-assert.mjs --version "$TESTBED_VERSION"
+
+      - name: Tear down
+        if: always()
+        run: npm run testbed -- --version "$TESTBED_VERSION" --down
+
   canary:
     name: privacy-canary
     runs-on: ubuntu-latest

@@ -83,6 +83,33 @@ npm run testbed -- --version 11.0.0 --down
 `--dry-run` prepares the provisioning overlay and prints the compose plan
 without requiring a Docker daemon.
 
+## CI coverage
+
+CI smokes **one pinned version** — Grafana `11.0.0` — on every pull request and
+push to `main`, in the `testbed-smoke` job of
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml). The job boots and
+seeds on the runner's Docker daemon, asserts `/api/health` plus the presence of
+the seed dashboard (`paragent-seed`) and datasource (`paragent-testdata`) via
+`scripts/testbed/ci-smoke-assert.mjs`, then tears down in an `if: always()`
+step. Job-level `timeout-minutes: 10` caps a hung image pull.
+
+One version, not eight: pulling the whole matrix per PR costs minutes of CI and
+gigabytes of transfer. **The full matrix belongs to the gate run, not per-PR
+CI** — a green `testbed-smoke` proves the Docker + provisioning + seed path is
+not broken, and says nothing about the other seven tags (see issue #23 for the
+per-tag verification table).
+
+Mirror the CI steps locally with:
+
+```text
+npm run testbed -- --version 11.0.0
+node scripts/testbed/ci-smoke-assert.mjs --version 11.0.0
+npm run testbed -- --version 11.0.0 --down
+```
+
+The assertion script is an interim stand-in for `--verify` (issue #57); once
+that flag lands, the CI step should call it instead.
+
 ## Docker daemon limitation
 
 This harness **ships** `docker-compose.yml` + seed HTTP client. If the local
@@ -93,8 +120,9 @@ seed succeeded.
 
 ## Open questions / what I could not verify
 
-- Live pull + health for every matrix tag in this agent environment (dry-run
-  path verified in CI instructions; full up depends on Docker).
+- Live pull + health for every matrix tag. `11.0.0` is verified end to end (boot
+  → seed → health → seed objects) locally and in CI; the other seven tags remain
+  unverified until issue #23 records the results table.
 - Whether B2 gate task (login + navigate) stays browser-meaningful once Grafana
   HTTP APIs cover the same clicks — Track-1 must pick tasks that still stress
   DOM locators, not only API-equivalent config.
