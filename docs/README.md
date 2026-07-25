@@ -8,6 +8,7 @@ updated: 2026-07-25
 confidence: HIGH
 supersedes: null
 sources_verified: true
+# Index updated 2026-07-25: C4 adversary-report linked
 ---
 
 # docs/ ? map
@@ -41,11 +42,11 @@ Live index. Update this file when you add or supersede a document.
 | --- | --- | --- | --- |
 | [vendor-security-questionnaires-trust-portals.md](research/vertical-search/vendor-security-questionnaires-trust-portals.md) | draft (C1) | C1 | 2026-07-24 |
 | [procurement-supplier-onboarding.md](research/vertical-search/procurement-supplier-onboarding.md) | draft (C1) | C1 | 2026-07-24 |
-| [healthcare-payer-portals.md](research/vertical-search/healthcare-payer-portals.md) | draft (C2) / pending merge | C2 | 2026-07-24 |
-| [insurance-broker-carrier-portals.md](research/vertical-search/insurance-broker-carrier-portals.md) | draft (C2) / pending merge | C2 | 2026-07-24 |
+| [healthcare-payer-portals.md](research/vertical-search/healthcare-payer-portals.md) | draft (C2) | C2 | 2026-07-24 |
+| [insurance-broker-carrier-portals.md](research/vertical-search/insurance-broker-carrier-portals.md) | draft (C2) | C2 | 2026-07-24 |
 | [freight-carrier-customs-portals.md](research/vertical-search/freight-carrier-customs-portals.md) | draft (C3) | C3 | 2026-07-24 |
 | [regulatory-government-filing-portals.md](research/vertical-search/regulatory-government-filing-portals.md) | draft (C3) | C3 | 2026-07-24 |
-| adversary-report.md | pending Wave 2 C4 | C4 | ? |
+| [adversary-report.md](research/vertical-search/adversary-report.md) | draft (C4) | C4 | 2026-07-25 |
 | DECISION.md | pending Wave 3 C5 | C5 | ? |
 
 ## Gate (Track 1)
@@ -75,6 +76,6 @@ See [`../contracts/`](../contracts/) ? trajectory, assertion, cache-row, metrics
 
 ## Open questions / what I could not verify
 
-- Gate number and vertical lock do not exist yet ? do not invent them in this index.
-- Surface scouts are not adjudications ? C4/C5 attack and score separately.
+- Gate number and vertical lock do not exist yet — do not invent them in this index.
+- C4 adversary-report is attack-only — C5 DECISION.md still pending.
 
