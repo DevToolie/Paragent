@@ -79,7 +79,7 @@ D2 consolidator pass (2026-07-25), **after** C4 + C5 merges. **Surfaces conflict
 | D-01 **FOUNDER** | Historical A7 / early Wave-1 “conditionally credible” seller-portal lead | C4 ALREADY_SOLVED + **C5 FAIL** (do not lock “because A7 said so”) | Adjudicated by C5; residual deck slides may still lag | **Critical** if old pitch used without C5 cite |
 | D-02 **FOUNDER** | PRD §8: Grafana Cloud + Datadog anchors | ADR-0003 OSS bed; A8/C5 reject those locks | Residual PRD body | **Critical** |
 | D-03 **FOUNDER** | Pitch “no gate number” / unset thresholds | PRD §9 proposed 80/90/~50/70 | Unset measured vs proposed | **High** |
-| D-04 | Root README Track 3 “placeholders only” | Pitch pack + C5 on main | Stale status | Medium |
+| D-04 | (was) Root README Track 2 “search in progress” / Track 3 “placeholders only” | C5 FAIL + ADR-0004; pitch pack on main | **Resolved** — status table now records Track 2 FAIL and Track 3 Wave-1 draft, each citing the artifact | Resolved in README; deck/objections prose may still lag (D-01, E-12) |
 | D-05 | Early D1 proof-points: PRD absent / C5 pending | Files + C5 FAIL on main | Stale diligence | Medium — register refreshed |
 | D-06 | PRD §8 “pivot if &lt;~6 survivors” | A8/C5 executed ≤2 FAIL gates | Different fail lines | Medium — historical |
 | D-07 | (was) Objections denying two FAILs | A8 + C5 | **Updated in this PR** to present-tense two FAILs | Resolved in objections; deck may lag |
