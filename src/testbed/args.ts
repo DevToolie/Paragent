@@ -1,4 +1,5 @@
 import { DEFAULT_HOST_PORT } from "./constants.js";
+import { DEFAULT_READY_TIMEOUT_SECONDS } from "./readiness.js";
 
 export interface CliArgs {
   version?: string;
@@ -12,6 +13,23 @@ export interface CliArgs {
   json: boolean;
   /** Versions to diff. One means "--version <X> vs this"; two means "these two". */
   compare?: string[];
+  /** Readiness budget in seconds, between compose-up and seed. */
+  readyTimeout: number;
+}
+
+function takePositiveInt(
+  raw: string | undefined,
+  flag: string,
+  unit: string,
+): number {
+  if (!raw || raw.startsWith("-")) {
+    throw new Error(`${flag} requires a ${unit}`);
+  }
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`invalid ${flag} ${raw}`);
+  }
+  return n;
 }
 
 /**
@@ -44,6 +62,7 @@ export function parseArgs(argv: string[]): CliArgs {
     help: false,
     verify: false,
     json: false,
+    readyTimeout: DEFAULT_READY_TIMEOUT_SECONDS,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -87,18 +106,12 @@ export function parseArgs(argv: string[]): CliArgs {
         out.version = next;
         break;
       }
-      case "--port": {
-        const next = argv[++i];
-        if (!next || next.startsWith("-")) {
-          throw new Error("--port requires a number");
-        }
-        const n = Number.parseInt(next, 10);
-        if (!Number.isFinite(n) || n <= 0) {
-          throw new Error(`invalid --port ${next}`);
-        }
-        out.port = n;
+      case "--ready-timeout":
+        out.readyTimeout = takePositiveInt(argv[++i], "--ready-timeout", "seconds");
         break;
-      }
+      case "--port":
+        out.port = takePositiveInt(argv[++i], "--port", "number");
+        break;
       default:
         throw new Error(`unknown argument: ${a}`);
     }
@@ -120,6 +133,9 @@ Usage:
 Options:
   --version <X>   Matrix version id (required unless --list/--help/--compare)
   --port <n>      Host port (default ${DEFAULT_HOST_PORT})
+  --ready-timeout <s>
+                  Seconds to wait for GET /api/health to report database="ok"
+                  before seeding (default ${DEFAULT_READY_TIMEOUT_SECONDS})
   --down          Tear down the compose project for --version
   --list          Print matrix versions
   --dry-run       Prepare overlay + print compose plan; do not call Docker daemon

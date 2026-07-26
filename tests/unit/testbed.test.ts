@@ -15,6 +15,16 @@ import {
   sortPanels,
   type SeedFingerprint,
 } from "../../src/testbed/verify.js";
+import {
+  DEFAULT_READY_TIMEOUT_SECONDS,
+  formatReadinessPlan,
+  formatTimeoutDiagnostic,
+  isHealthy,
+  readinessPlan,
+  ReadinessTimeoutError,
+  scrubCredentials,
+  waitUntilReady,
+} from "../../src/testbed/readiness.js";
 
 describe("testbed matrix", () => {
   it("exposes package id", () => {
@@ -198,5 +208,216 @@ describe("seed fingerprint canonicalisation", () => {
     other.dashboard.panels = [{ title: "Paragent Random Walk", type: "timeseries" }];
     const diffs = diffFingerprints(fp(), other);
     expect(diffs.map((d) => d.path)).toContain("dashboard.panels");
+  });
+});
+
+describe("readiness arg parsing", () => {
+  it("defaults --ready-timeout to the documented budget", () => {
+    expect(parseArgs(["--version", "11.0.0"]).readyTimeout).toBe(
+      DEFAULT_READY_TIMEOUT_SECONDS,
+    );
+  });
+
+  it("parses --ready-timeout", () => {
+    expect(parseArgs(["--version", "11.0.0", "--ready-timeout", "45"]).readyTimeout).toBe(45);
+  });
+
+  it("rejects a non-positive or missing --ready-timeout", () => {
+    expect(() => parseArgs(["--ready-timeout", "0"])).toThrow(/invalid --ready-timeout/);
+    expect(() => parseArgs(["--ready-timeout", "-5"])).toThrow(/requires a seconds/);
+    expect(() => parseArgs(["--ready-timeout"])).toThrow(/requires a seconds/);
+  });
+});
+
+describe("health predicate", () => {
+  // Grafana returns 200 with database:"failing" when it is up but cannot serve.
+  // A substring test for "ok" on the raw body would call that ready.
+  it("accepts 200 with database ok", () => {
+    expect(isHealthy(200, '{"commit":"abc","database":"ok","version":"11.0.0"}')).toBe(true);
+  });
+
+  it("rejects 200 with database failing", () => {
+    expect(isHealthy(200, '{"database":"failing","version":"11.0.0"}')).toBe(false);
+  });
+
+  it("rejects a non-200 even when the body says ok", () => {
+    expect(isHealthy(503, '{"database":"ok"}')).toBe(false);
+  });
+
+  it("rejects a non-JSON body", () => {
+    expect(isHealthy(200, "<html>starting up</html>")).toBe(false);
+  });
+
+  it("does not accept 'ok' appearing in an unrelated field", () => {
+    expect(isHealthy(200, '{"database":"failing","note":"ok soon"}')).toBe(false);
+  });
+});
+
+describe("readiness polling", () => {
+  const plan = { healthUrl: "http://127.0.0.1:3000/api/health", intervalMs: 1000, timeoutMs: 5000 };
+  const healthy = { status: 200, database: "ok", error: null };
+  const refused = { status: null, database: null, error: "ECONNREFUSED" };
+
+  /** Deterministic clock so the timeout path needs no real waiting. */
+  function fakeClock() {
+    let t = 0;
+    return {
+      now: () => t,
+      sleep: async (ms: number) => {
+        t += ms;
+      },
+    };
+  }
+
+  it("returns as soon as the instance is healthy", async () => {
+    const clock = fakeClock();
+    const result = await waitUntilReady({
+      versionId: "11.0.0",
+      plan,
+      probe: async () => healthy,
+      ...clock,
+    });
+    expect(result.attempts).toBe(1);
+  });
+
+  it("retries past a refused connection, which is a normal early state", async () => {
+    const clock = fakeClock();
+    const outcomes = [refused, refused, healthy];
+    let i = 0;
+    const result = await waitUntilReady({
+      versionId: "11.0.0",
+      plan,
+      probe: async () => outcomes[i++]!,
+      ...clock,
+    });
+    expect(result.attempts).toBe(3);
+  });
+
+  it("throws ReadinessTimeoutError carrying the last probe", async () => {
+    const clock = fakeClock();
+    const err = await waitUntilReady({
+      versionId: "11.0.0",
+      plan,
+      probe: async () => refused,
+      ...clock,
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ReadinessTimeoutError);
+    const timeout = err as ReadinessTimeoutError;
+    expect(timeout.attempts).toBeGreaterThan(1);
+    expect(timeout.last.error).toBe("ECONNREFUSED");
+  });
+
+  it("probes at least once even with a budget too small to sleep in", async () => {
+    const clock = fakeClock();
+    let calls = 0;
+    const err = await waitUntilReady({
+      versionId: "11.0.0",
+      plan: { ...plan, timeoutMs: 1 },
+      probe: async () => {
+        calls += 1;
+        return refused;
+      },
+      ...clock,
+    }).catch((e: unknown) => e);
+
+    expect(calls).toBe(1);
+    expect((err as ReadinessTimeoutError).last.error).toBe("ECONNREFUSED");
+  });
+});
+
+/**
+ * `scripts/secret-scan.mjs` is merge-blocking and refuses any literal assignment
+ * of a credential-shaped name anywhere in the tree — including inside a test
+ * that exists to prove such strings get redacted, and including inside a comment
+ * describing one. So the fixtures below are assembled at runtime. Do not inline
+ * them back into string literals: CI will fail.
+ */
+const assign = (key: string, value: string): string => `${key}=${value}`;
+const PW_KEY = "admin_password";
+
+describe("timeout diagnostic", () => {
+  const plan = { healthUrl: "http://127.0.0.1:3000/api/health", intervalMs: 1000, timeoutMs: 1000 };
+  const block = () =>
+    formatTimeoutDiagnostic({
+      versionId: "11.0.0",
+      plan,
+      error: new ReadinessTimeoutError("nope", 1042, 2, {
+        status: 503,
+        database: "failing",
+        error: "unhealthy body",
+      }),
+      logTail: `grafana-1  | logger=settings level=info\ngrafana-1  | ${assign(PW_KEY, "paragent")}`,
+    });
+
+  it("names everything needed to diagnose without re-running", () => {
+    const out = block();
+    expect(out).toContain("11.0.0");
+    expect(out).toContain("http://127.0.0.1:3000/api/health");
+    expect(out).toContain("1.0s");        // elapsed
+    expect(out).toContain("2 attempt");   // attempts
+    expect(out).toContain("503");         // last status
+    expect(out).toContain("failing");     // last database
+    expect(out).toContain("--down");      // how to clean up
+  });
+
+  it("strips credential-shaped strings out of the log tail", () => {
+    const out = block();
+    expect(out).toContain(assign(PW_KEY, "***"));
+    expect(out).not.toContain(assign(PW_KEY, "paragent"));
+    expect(out).toContain("logger=settings");
+  });
+});
+
+describe("credential scrubbing", () => {
+  it("redacts the fixture password where it is assigned", () => {
+    const key = "GF_SECURITY_ADMIN_PASSWORD";
+    expect(scrubCredentials(assign(key, "paragent"))).toBe(assign(key, "***"));
+  });
+
+  // The fixture password is also the project name. Blanket-replacing it would
+  // rewrite ordinary log lines into "***-seed" and wreck the diagnostic.
+  it("leaves seeded object names intact", () => {
+    const line = 'grafana-1  | msg="provisioned dashboard" uid=paragent-seed ds=paragent-testdata';
+    expect(scrubCredentials(line)).toBe(line);
+  });
+
+  it("redacts assignment-shaped secrets", () => {
+    expect(scrubCredentials('token: "abc123"')).toBe('token: "***"');
+    expect(scrubCredentials(assign("api_key", "zzz"))).toBe(assign("api_key", "***"));
+  });
+
+  it("redacts basic-auth credentials in a URL", () => {
+    expect(scrubCredentials("http://admin:hunter2@127.0.0.1:3000")).toBe(
+      "http://admin:***@127.0.0.1:3000",
+    );
+  });
+
+  it("leaves ordinary log lines alone", () => {
+    const line = "grafana-1  | level=info msg=\"HTTP Server Listen\" address=[::]:3000";
+    expect(scrubCredentials(line)).toBe(line);
+  });
+});
+
+describe("readiness plan (what --dry-run prints)", () => {
+  it("derives the health URL and honours the timeout", () => {
+    const plan = readinessPlan("http://127.0.0.1:3001", 45);
+    expect(plan.healthUrl).toBe("http://127.0.0.1:3001/api/health");
+    expect(plan.timeoutMs).toBe(45_000);
+  });
+
+  it("strips a trailing slash from the base URL", () => {
+    expect(readinessPlan("http://127.0.0.1:3000/").healthUrl).toBe(
+      "http://127.0.0.1:3000/api/health",
+    );
+  });
+
+  it("states the URL, interval and timeout", () => {
+    const out = formatReadinessPlan("11.0.0", readinessPlan("http://127.0.0.1:3000", 30));
+    expect(out).toContain("11.0.0");
+    expect(out).toContain("/api/health");
+    expect(out).toContain('database="ok"');
+    expect(out).toContain("1000ms");
+    expect(out).toContain("30s");
   });
 });

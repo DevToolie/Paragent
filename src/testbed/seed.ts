@@ -9,6 +9,7 @@ import {
   SEED_OPERATOR_PASS,
 } from "./constants.js";
 import { testdataTypeFor } from "./matrix.js";
+import { isHealthy, READY_POLL_INTERVAL_MS } from "./readiness.js";
 
 export interface SeedOptions {
   baseUrl: string;
@@ -56,7 +57,14 @@ export async function api(
   return { status: res.status, json, text };
 }
 
-/** Poll GET /api/health until database is ok or timeout. */
+/**
+ * Poll GET /api/health until database is ok or timeout.
+ *
+ * Retained as the seed's own defensive gate — the CLI now runs an explicit
+ * readiness gate before calling seedInstance, so in the normal path this
+ * returns on its first probe. It shares `isHealthy` with that gate on purpose:
+ * two different definitions of "ready" in one package is how they drift.
+ */
 export async function waitForHealth(
   baseUrl: string,
   timeoutMs = 120_000,
@@ -67,11 +75,11 @@ export async function waitForHealth(
     try {
       const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/health`);
       last = await res.text();
-      if (res.ok && /ok/i.test(last)) return;
+      if (isHealthy(res.status, last)) return;
     } catch (err) {
       last = err instanceof Error ? err.message : String(err);
     }
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, READY_POLL_INTERVAL_MS));
   }
   throw new Error(`Grafana health timeout after ${timeoutMs}ms (last: ${last})`);
 }
