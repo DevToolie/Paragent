@@ -33,6 +33,21 @@ export function runtimeProvisioningDir(versionId: string): string {
   return path.join(runtimeDir(versionId), "provisioning");
 }
 
+/**
+ * Saved seed fingerprint for `--verify --json`.
+ *
+ * Deliberately a sibling of `runtimeDir()`, not a child: `prepareProvisioningOverlay`
+ * rm -rf's the per-version directory on every boot, which would delete the very
+ * fingerprint a later `--compare` needs to read.
+ */
+export function verifyFingerprintPath(versionId: string): string {
+  return path.join(
+    testbedScriptsDir(),
+    ".runtime",
+    `verify-${sanitizeVersion(versionId)}.json`,
+  );
+}
+
 export function sanitizeVersion(versionId: string): string {
   return versionId.replace(/[^a-zA-Z0-9._-]/g, "_");
 }

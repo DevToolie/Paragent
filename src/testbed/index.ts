@@ -33,4 +33,21 @@ export {
   matrixPath,
   composeFilePath,
   runtimeProvisioningDir,
+  verifyFingerprintPath,
 } from "./paths.js";
+export {
+  buildFingerprint,
+  canonicalize,
+  canonicalJson,
+  diffFingerprints,
+  flattenPanels,
+  sortPanels,
+  summarize,
+  verifyPlan,
+  VerifyError,
+  type FingerprintDiff,
+  type FingerprintPanel,
+  type SeedFingerprint,
+  type VerifyContext,
+  type VerifyResult,
+} from "./verify.js";

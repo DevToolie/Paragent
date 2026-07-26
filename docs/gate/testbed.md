@@ -83,6 +83,74 @@ npm run testbed -- --version 11.0.0 --down
 `--dry-run` prepares the provisioning overlay and prints the compose plan
 without requiring a Docker daemon.
 
+## Seed verification (`--verify`)
+
+The gate measures whether a compiled trajectory survives a version bump. That is
+only meaningful if the **only** difference between two runs is the Grafana
+version. A seed that quietly produces three panels on one version and two on
+another turns a seeding artifact into something that looks like churn.
+
+```text
+npm run testbed -- --version 11.0.0 --verify           # summary to stdout
+npm run testbed -- --version 11.0.0 --verify --json    # + save the fingerprint
+npm run testbed -- --version 11.0.0 --verify --dry-run # print the query plan only
+npm run testbed -- --verify --compare 9.5.21 11.0.0    # exit 0 only if state matches
+```
+
+`--verify --json` writes a canonical fingerprint to
+`scripts/testbed/.runtime/verify-<version>.json` (gitignored). Canonical means
+sorted keys, panels sorted by title then type, no timestamps, and no
+Grafana-assigned ids — so two equal states serialize to identical bytes.
+`--compare` is the actual guard: a per-version fingerprint nobody diffs proves
+nothing.
+
+### What is in the fingerprint
+
+| Object | Fields |
+| --- | --- |
+| Datasource | `uid`, `name`, `queryable` (a real `/api/ds/query` round-trip) |
+| Dashboard `paragent-seed` | `uid`, `title`, `panel_count`, sorted `panels[]` of title + type |
+| Users | `operator_present`, `operator_role` |
+
+### What is deliberately excluded, and why
+
+- **`datasource_type`** — flips from `testdata` to `grafana-testdata-datasource`
+  at v10 (ADR-0003). Including it would fail every cross-major compare for a
+  reason already known and accepted. Printed alongside the fingerprint so a
+  human can see which side of the boundary they are on.
+- **`grafana_version`** — the one thing that is *supposed* to differ.
+- **Grafana-assigned numeric ids, `version`, `created`/`updated` timestamps** —
+  not stable across a re-seed, let alone across versions.
+- **Row containers** — a collapsed row nests its children, so rows are flattened
+  and the row itself dropped; whether a row is collapsed must not decide the
+  panel count.
+
+If you add to the seed, add it here — a field the seed creates and `--verify`
+ignores is a confound the gate cannot see.
+
+### Result — verified 2026-07-25, no divergence found
+
+Run on Docker 28.5.1, one version at a time on port 3000, each booted fresh:
+
+| Check | Result |
+| --- | --- |
+| Same version seeded twice (11.0.0, torn down between) | **byte-identical** |
+| 9.5.21 vs 11.0.0 — across the v10 plugin-id rename | **identical** |
+| 11.0.0 vs 12.0.0 | **identical** |
+
+All three fingerprints share one SHA-256
+(`f6382c93…1108b7`). **This closes an ADR-0003 open question**: the per-major
+TestData `type` rewrite does produce equivalent observable state on both sides
+of the v10 boundary. It is verified for these three tags only — the remaining
+five are still unverified (issue #23).
+
+One observation worth recording rather than fixing: `operator_role` is `Viewer`,
+not `Editor`. `ensureOperator` creates the user via `POST /api/admin/users`
+without an org role, so Grafana applies its default. That is stable across all
+three versions, which is what the fingerprint needs; whether the gate task
+requires a more privileged operator is a question for the ADR-0006 task
+definition, not for this harness.
+
 ## CI coverage
 
 CI smokes **one pinned version** — Grafana `11.0.0` — on every pull request and
@@ -120,9 +188,18 @@ seed succeeded.
 
 ## Open questions / what I could not verify
 
-- Live pull + health for every matrix tag. `11.0.0` is verified end to end (boot
-  → seed → health → seed objects) locally and in CI; the other seven tags remain
-  unverified until issue #23 records the results table.
+- Live pull + health for every matrix tag. `9.5.21`, `11.0.0` and `12.0.0` are
+  verified end to end (boot → seed → health → seed objects → fingerprint) and
+  produce identical seed state; `11.0.0` is additionally CI-smoked on every PR.
+  The remaining five tags are unverified until issue #23 records the table.
+- Whether the seed stays identical on `10.0.13`, `10.4.19`, `11.5.2`, `12.2.1`
+  and `13.0.3`. `--verify --compare` now makes that a command rather than a
+  judgement call, but the runs have not been done.
+- Whether `queryable` is the right depth for the datasource check. It proves the
+  plugin answers a `random_walk` query; it does not prove the returned frames are
+  shaped identically across versions. Deeper comparison would need a stable
+  response digest, and TestData's frame schema is not obviously stable enough for
+  one — not attempted, and not needed until a gate task reads panel data.
 - Whether B2 gate task (login + navigate) stays browser-meaningful once Grafana
   HTTP APIs cover the same clicks — Track-1 must pick tasks that still stress
   DOM locators, not only API-equivalent config.

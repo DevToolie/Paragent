@@ -20,7 +20,12 @@ function basicAuthHeader(user: string, pass: string): string {
   return `Basic ${Buffer.from(`${user}:${pass}`, "utf8").toString("base64")}`;
 }
 
-async function api(
+/**
+ * Authenticated Grafana HTTP call against the local fixture instance.
+ * Exported so the --verify path reads state back through the same client the
+ * seed wrote it with — a second client could drift in auth or error handling.
+ */
+export async function api(
   baseUrl: string,
   method: string,
   path: string,
