@@ -25,7 +25,7 @@ repairs **actions only** on failure (≤2 repairs/run by default), and emits
 | `locators.ts` | Playwright `getByRole` / `getByLabel` / `getByTestId` / `getByText` / `getByPlaceholder` / `locator`; `topology_only` → not found |
 | `assertions.ts` | `evaluateAssertion` → `PASS` / `ASSERTION_FAILED` / `LOCATOR_NOT_FOUND` / `TIMEOUT` / `PAGE_ERROR` |
 | `actions.ts` | `executeAction` for navigate/click/fill/select/check/uncheck/press/hover/wait/upload/custom |
-| `page-state.ts` | `capturePageState` / `emptyPageState` — no cookies, storage, or raw HTML. `visible_landmarks` is visibility-filtered with the same predicate as `src/recorder/fingerprint.ts` ([ADR-0007](../decisions/ADR-0007-post-action-visibility.md)); before that it reported hidden landmarks as visible, which would have fed the repair model a page the recorder never saw |
+| `page-state.ts` | `capturePageState` / `emptyPageState` — no cookies, storage, or raw HTML. `visible_landmarks` is visibility-filtered with the same predicate as `src/recorder/fingerprint.ts` ([ADR-0007](../decisions/ADR-0007-post-action-visibility.md)); before that it reported hidden landmarks as visible, which would have fed the repair model a page the recorder never saw. The predicate is shared; the **enumeration is not yet** — ADR-0007, tracked as #74. The evaluate body is a string on purpose: named function expressions get esbuild's `__name` wrapper, which does not exist in the browser. Covered by `tests/unit/page-state.test.ts` |
 | `repair.ts` | `RepairModelClient`, `StubRepairModelClient` (null action, zero tokens), `assertAssertionUnchanged` |
 | `replay.ts` | `ReplayRunner` — dry-run, repair loop, metrics emission |
 | `metrics/` | Sibling package: emitter + §9 aggregates |

@@ -92,9 +92,32 @@ second time after the action, which costs a round-trip per step.
 
 1. `visible_landmarks` becomes genuinely visibility-filtered, in **both**
    `src/recorder/fingerprint.ts` and `src/runner/page-state.ts`, using the same in-page
-   `Element.checkVisibility()` predicate so recorder and repair context cannot disagree.
+   `Element.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true })`
+   predicate.
    ([MDN `checkVisibility`](https://developer.mozilla.org/en-US/docs/Web/API/Element/checkVisibility)
    — access_date: 2026-07-26.)
+
+   The flags are load-bearing. With **default** options `checkVisibility()` returns `true` for
+   a `visibility: hidden` element, while Playwright's `isVisible()` returns `false` — so the
+   default would reintroduce the very recorder/runner disagreement this ADR exists to remove.
+   Measured in Chromium:
+
+   | CSS | `checkVisibility()` default | with flags | Playwright `isVisible()` |
+   | --- | --- | --- | --- |
+   | `display:none` | false | false | false |
+   | `visibility:hidden` | **true** | false | false |
+   | `opacity:0` | true | true | true |
+   | `[hidden]` | false | false | false |
+
+   **This shares the predicate, not the enumeration.** The two sites still disagree about
+   *which elements to test*: the recorder walks the whole tree mapping implicit roles for
+   `FORM MAIN NAV HEADER FOOTER ASIDE` against an 8-role landmark set, while `page-state`
+   checks 6 `[role=]` selectors with tag fallbacks for only `main`/`nav`/`form`. On semantic
+   markup without redundant `role` attributes the recorder reports `banner`,
+   `complementary`, and `contentinfo` that `page-state` misses. The in-tree fixture cannot
+   show this because it puts an explicit `role=` on every landmark. Tracked as
+   [#74](https://github.com/DevToolie/Paragent/issues/74) — closing it means extracting one
+   shared enumeration, not duplicating the walk.
 2. `trajectory.schema.json` `$defs.step` gains optional `post_action_target_visible: boolean`,
    recorded only for steps that acted through a locator. The recorder observes it with
    Playwright's `Locator.isVisible()`.
@@ -109,9 +132,9 @@ visibility definition. Recording that observation with `Locator.isVisible()` mea
 claims exactly what the runner will check. Using a DOM-level predicate there would let the two
 disagree at the edges.
 
-Landmarks are a bulk structural signal never asserted by locator, so an in-page pass is both
-cheaper and the only way to keep the recorder and the runner's `page-state` identical — which
-is the consistency that matters for *that* field.
+Landmarks are a bulk structural signal never asserted by locator, so an in-page pass is
+cheaper and lets both capture sites run the identical predicate. It does **not**, on its own,
+make the two sites agree — see the enumeration caveat above.
 
 ### Strength of the new assertion
 
@@ -145,6 +168,22 @@ gate run.
 (opens a modal, collapses a sibling) is still asserted on the clicked control. That needs a
 post-action fingerprint diff rather than a single boolean, and no defect currently demands it.
 
+**`post_action_target_visible` is one instantaneous sample.** A control that hides behind a CSS
+transition is still visible when the recorder looks, so it records `true` and the step falls
+back to the previous assertion. That fails *safe* — a weaker assertion, never a false one — but
+Grafana's modals animate, so expect this to under-fire on the live task rather than mis-fire.
+Waiting for the transition would mean guessing a duration, which is worse.
+
+**On failure the recorder records nothing, not `false`.** `isVisible()` throws on a strict-mode
+violation (a locator matching two controls). Mapping that to `false` would let "I could not
+tell" become a `strong` "I proved the control disappeared" — precisely the invention
+[CONTRIBUTING](../../CONTRIBUTING.md) rule 3 forbids. The field is omitted instead.
+
+**Precedence.** The new branch is checked before the `element-visible` synthesis and therefore
+overrides an `assertion_hint` of `element-visible`. That is deliberate: both describe the same
+element, and an observation beats a hint. It is a change to the priority table in
+[compiler.md](../gate/compiler.md), recorded there.
+
 ## Reversal cost
 
 **Low for C, moderate for A.** `post_action_target_visible` is additive and optional — ignoring
@@ -156,10 +195,12 @@ visibility. The right answer then is option B, adding a separate field, not un-f
 
 ## Open questions / what I could not verify
 
-- Whether `Element.checkVisibility()` and Playwright's `isVisible()` agree in every case we
-  will meet on real Grafana. They agree on the `hidden` attribute and `display:none`, which is
-  what the fixture exercises; `content-visibility` and zero-size-but-rendered elements are not
-  covered by any test here.
+- Whether `Element.checkVisibility()` (with the flags above) and Playwright's `isVisible()`
+  agree in every case we will meet on real Grafana. Measured agreement on `display:none`,
+  `visibility:hidden`, `opacity:0` and `[hidden]`; zero-size-but-rendered elements and
+  off-screen-but-painted elements are not covered by any test here.
+- When the shared-enumeration work lands, whether `page-state` reporting `complementary` /
+  `region` changes repair-model behaviour. Unknowable until #27 wires a real model.
 - Whether `strong` is the right label once #61 audits a real 8–12 step task. If a self-hiding
   click turns out to be routinely ambiguous on Grafana, the label should drop to `weak` — that
   is a finding, not a bug in this ADR.

@@ -49,8 +49,16 @@ For every step:
 
 `visible_landmarks` is genuinely visibility-filtered — it was not before ADR-0007, and a
 landmark that had just been hidden was still listed. Filtering uses an in-page
-`Element.checkVisibility()` pass, matching `src/runner/page-state.ts` exactly so the recorder
-and the repair context cannot describe the same page differently.
+`Element.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true })` pass. The
+flags matter: with defaults, `checkVisibility()` calls a `visibility: hidden` element *visible*
+while Playwright does not.
+
+`src/runner/page-state.ts` runs the **same predicate** but still enumerates candidates
+differently — it checks 6 `[role=]` selectors with tag fallbacks for only `main`/`nav`/`form`,
+where the recorder walks the tree against an 8-role set with implicit roles for
+`FORM MAIN NAV HEADER FOOTER ASIDE`. On markup without redundant `role` attributes the recorder
+sees `banner` / `complementary` / `contentinfo` that `page-state` misses. Tracked as
+[#74](https://github.com/DevToolie/Paragent/issues/74); do not assume the two lists match.
 
 `post_action_target_visible` instead uses Playwright's `Locator.isVisible()`. That is
 deliberate: `src/runner/assertions.ts` later checks this same target with

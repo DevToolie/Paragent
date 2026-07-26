@@ -84,11 +84,17 @@ export class TrajectoryRecorder {
     // observation the runner will make is what keeps the two honest.
     // A control that hides itself (dismiss, close, collapse) is otherwise
     // indistinguishable from one that stays, and gets asserted as still visible.
+    // On failure record NOTHING, never `false`. isVisible() throws on a strict
+    // mode violation (a locator matching two controls — entirely plausible on
+    // real Grafana), and the compiler promotes `false` into a *strong*
+    // "the control disappeared" assertion. Turning "I could not tell" into "I
+    // proved it vanished" is the exact shape CONTRIBUTING rule 3 forbids.
+    // Leaving it undefined omits the field and falls back to prior behaviour.
     let post_action_target_visible: boolean | undefined;
     if (args.locator) {
       post_action_target_visible = await args.locator
         .isVisible()
-        .catch(() => false);
+        .catch(() => undefined);
     }
 
     const post_state = await this.fingerprint(args.awaitNetworkIdle ?? true);
