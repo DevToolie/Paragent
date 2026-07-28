@@ -3,16 +3,24 @@ import { parseArgs } from "../../src/testbed/args.js";
 import { PACKAGE } from "../../src/testbed/constants.js";
 import { buildComposeEnv } from "../../src/testbed/docker.js";
 import {
+  availableVersions,
   getVersion,
+  isUnavailable,
+  listVersions,
   loadMatrix,
   testdataTypeFor,
+  type Matrix,
+  type MatrixVersion,
 } from "../../src/testbed/matrix.js";
 import { composeProjectSlug } from "../../src/testbed/paths.js";
 import {
+  buildFingerprint,
   canonicalJson,
   diffFingerprints,
   flattenPanels,
   sortPanels,
+  VerifyError,
+  type ApiFn,
   type SeedFingerprint,
 } from "../../src/testbed/verify.js";
 import {
@@ -44,11 +52,67 @@ describe("testbed matrix", () => {
     expect(v.image_tag).toBe("11.0.0");
   });
 
-  it("selects TestData plugin type by major", () => {
+  // The rename landed in 10.2.0, not 10.0. This test previously asserted
+  // `10.0.13 -> grafana-testdata-datasource`, which is what the harness did and
+  // what made the bug invisible: Grafana accepted the provisioned datasource and
+  // listed it, then failed every query with plugin.notRegistered. Boundary
+  // measured per image in issue #23 — see testdataTypeFor's comment.
+  it("selects TestData plugin type at the measured 10.2.0 boundary", () => {
     expect(testdataTypeFor("9.5.21")).toBe("testdata");
-    expect(testdataTypeFor("10.0.13")).toBe("grafana-testdata-datasource");
+    expect(testdataTypeFor("10.0.13")).toBe("testdata");
+    expect(testdataTypeFor("10.1.0")).toBe("testdata");
+    expect(testdataTypeFor("10.2.0")).toBe("grafana-testdata-datasource");
+    expect(testdataTypeFor("10.4.19")).toBe("grafana-testdata-datasource");
     expect(testdataTypeFor("11.0.0")).toBe("grafana-testdata-datasource");
     expect(testdataTypeFor("13.0.3")).toBe("grafana-testdata-datasource");
+  });
+
+  it("treats a minorless version as the conservative side of the boundary", () => {
+    expect(testdataTypeFor("10")).toBe("testdata");
+    expect(testdataTypeFor("9")).toBe("testdata");
+    expect(testdataTypeFor("11")).toBe("grafana-testdata-datasource");
+  });
+});
+
+describe("matrix availability (#26)", () => {
+  // `npm run gate:matrix` walks this list. A version that cannot be made to work
+  // stays in the matrix — a shrinking matrix is a finding the gate writeup has
+  // to disclose — but must not be walked, and must not vanish from the count.
+  const withStatus = (id: string, status?: string, reason?: string): MatrixVersion => ({
+    id,
+    image_tag: id,
+    released: "2025-01",
+    churn_role: "test",
+    docker_hub_tag_url: "https://example.invalid",
+    github_release_url: "https://example.invalid",
+    access_date: "2026-07-27",
+    ...(status === undefined ? {} : { status }),
+    ...(reason === undefined ? {} : { reason }),
+  });
+
+  const fake = (versions: MatrixVersion[]) =>
+    ({ ...loadMatrix(), versions }) as Matrix;
+
+  it("treats only `unavailable` as unwalkable", () => {
+    expect(isUnavailable(withStatus("1.0.0"))).toBe(false);
+    expect(isUnavailable(withStatus("1.0.0", "unavailable", "tag 404s"))).toBe(true);
+    // Any other status value is not a skip signal — do not guess.
+    expect(isUnavailable(withStatus("1.0.0", "verified"))).toBe(false);
+  });
+
+  it("filters unavailable versions out of the walkable list, keeping them in the matrix", () => {
+    const m = fake([
+      withStatus("1.0.0"),
+      withStatus("2.0.0", "unavailable", "tag 404s"),
+      withStatus("3.0.0"),
+    ]);
+    expect(availableVersions(m).map((v) => v.id)).toEqual(["1.0.0", "3.0.0"]);
+    // The skipped row is still there to be counted and reported.
+    expect(listVersions(m)).toHaveLength(3);
+  });
+
+  it("walks every pinned version today — none is marked unavailable", () => {
+    expect(availableVersions()).toHaveLength(listVersions().length);
   });
 });
 
@@ -126,6 +190,71 @@ describe("verify args", () => {
 
   it("rejects --compare with no version", () => {
     expect(() => parseArgs(["--verify", "--compare"])).toThrow(/one or two matrix ids/);
+  });
+});
+
+describe("verify treats an unanswering datasource as a failure", () => {
+  // Issue #23: on 10.0.13 the seed datasource was present and listed, and every
+  // query 404'd with plugin.notRegistered. A verify that reports queryable=false
+  // and exits 0 is blind in exactly the way the presence checks were.
+  const grafana = (queryStatus: number): ApiFn => {
+    return (_baseUrl, _method, path) => {
+      if (path === "/api/health") {
+        return response(200, { version: "10.0.13" });
+      }
+      if (path === "/api/ds/query") {
+        return response(
+          queryStatus,
+          queryStatus === 200
+            ? { results: { A: { frames: [] } } }
+            : { message: "Not found", messageId: "plugin.notRegistered", statusCode: 404 },
+        );
+      }
+      if (path.startsWith("/api/datasources/uid/")) {
+        return response(200, {
+          name: "Paragent TestData",
+          type: "grafana-testdata-datasource",
+          uid: "paragent-testdata",
+        });
+      }
+      if (path.startsWith("/api/dashboards/uid/")) {
+        return response(200, {
+          dashboard: {
+            uid: "paragent-seed",
+            title: "Paragent Seed",
+            panels: [{ title: "Paragent Stat", type: "stat" }],
+          },
+        });
+      }
+      if (path === "/api/org/users") {
+        return response(200, [{ login: "paragent_operator", role: "Editor" }]);
+      }
+      throw new Error(`unexpected path ${path}`);
+    };
+  };
+
+  const response = async (
+    status: number,
+    json: unknown,
+  ): Promise<{ status: number; json: unknown; text: string }> => ({
+    status,
+    json,
+    text: JSON.stringify(json),
+  });
+
+  it("throws VerifyError when the datasource lists but does not answer", async () => {
+    await expect(buildFingerprint("http://localhost:3000", grafana(404))).rejects.toThrow(
+      VerifyError,
+    );
+    await expect(buildFingerprint("http://localhost:3000", grafana(404))).rejects.toThrow(
+      /answers no query.*plugin\.notRegistered/s,
+    );
+  });
+
+  it("fingerprints normally when the datasource answers", async () => {
+    const result = await buildFingerprint("http://localhost:3000", grafana(200));
+    expect(result.fingerprint.datasource.queryable).toBe(true);
+    expect(result.context.datasource_type).toBe("grafana-testdata-datasource");
   });
 });
 

@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B1
 created: 2026-07-25
-updated: 2026-07-27
+updated: 2026-07-28
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -49,6 +49,127 @@ Tags and release URLs cited with `access_date: 2026-07-25`.
 | 12.0.0 | 2025-05 | Grafana 12 — Angular removal; dynamic dashboards / schema experiments |
 | 12.2.1 | 2025-08 | mid v12 — continued Drilldown / dashboard workflow churn |
 | 13.0.3 | 2026-07 | current major tip of matrix (Docker Hub tag verified 2026-07-25) |
+
+## Verified results — all 8 tags booted and seeded
+
+`verified_on: 2026-07-27` · issue [#23](https://github.com/DevToolie/Paragent/issues/23) ·
+Docker 29.1.3 (Docker Desktop, linux/amd64), 20 CPU / 8 GB, Windows 11 host.
+
+**8 / 8 pulled, reached healthy, seeded, and tore down with no orphans.** One defect was found
+and fixed (10.0.13 — see below); the table is the state **after** that fix. Digests are the
+`RepoDigests[0]` actually pulled, so this run is reproducible by digest rather than by tag.
+
+| Version | Pulled | Healthy | Seeded | Datasource **queryable** | Dashboard renders | Boot | Image | Digest (`sha256:`) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 9.5.21 | yes | yes | yes | yes (`testdata`) | yes | 27 s | 92 MB | `ec106c7d446c88377f9d6c4cd363361b5846c361a28f5669d1b5e92926d94891` |
+| 10.0.13 | yes | yes | yes | yes (`testdata`) — **was 404 before the fix** | yes | 22 s | 95 MB | `c5606a0570624ddf6a131ee0a065681bef95088485fc77d74aa849a3253c465f` |
+| 10.4.19 | yes | yes | yes | yes (`grafana-testdata-datasource`) | yes | 23 s | 126 MB | `a9043254ba16fb10945cc27333963dfd08eccbb43b51f1222d831cc564e3a1f4` |
+| 11.0.0 | yes | yes | yes | yes (`grafana-testdata-datasource`) | yes | 22 s | 121 MB | `0dc5a246ab16bb2c38a349fb588174e832b4c6c2db0981d0c3e6cd774ba66a54` |
+| 11.5.2 | yes | yes | yes | yes (`grafana-testdata-datasource`) | yes | 38 s | 151 MB | `8b37a2f028f164ce7b9889e1765b9d6ee23fec80f871d156fbf436d6198d32b7` |
+| 12.0.0 | yes | yes | yes | yes (`grafana-testdata-datasource`) | yes | 33 s | 187 MB | `263cbefd5d9b179893c47c415daab4da5c1f3d6770154741eca4f45c81119884` |
+| 12.2.1 | yes | yes | yes | yes (`grafana-testdata-datasource`) | yes | 32 s | 204 MB | `35c41e0fd0295f5d0ee5db7e780cf33506abfaf47686196f825364889dee878b` |
+| 13.0.3 | yes | yes | yes | yes (`grafana-testdata-datasource`) | yes — **behind a first-run modal** | 48 s | 352 MB | `1a345428a36270f5fb9add69fea71450a5843c15266c99359d6d380470ab19c9` |
+
+No version is `unavailable`; `matrix.json` needs no `status` / `reason` row.
+
+### The defect: presence is not the same as queryable
+
+`testdataTypeFor()` used `major < 10` to pick the TestData plugin id. **The rename actually
+landed in 10.2.0**, so 10.0.13 was provisioned with `grafana-testdata-datasource`, which that
+image does not ship. Grafana accepted the datasource and **listed it happily** — then failed
+every query with `{"messageId":"plugin.notRegistered","statusCode":404}`, and both seed panels
+rendered "No data" behind an error badge.
+
+Nothing in the tree could see this. `scripts/testbed/ci-smoke-assert.mjs` asserts the datasource
+**exists**; `tests/unit/testbed.test.ts` asserted `10.0.13 → grafana-testdata-datasource`, i.e.
+the test encoded the bug. Only issuing a query against the datasource exposes it.
+
+Boundary measured by reading the plugin id straight out of each image:
+
+```bash
+docker run --rm --entrypoint sh grafana/grafana:<tag> \
+  -c 'ls /usr/share/grafana/public/app/plugins/datasource/ | grep testdata'
+```
+
+| 9.5.21 | 10.0.13 | 10.1.0 | 10.2.0 | 10.3.0 | 10.4.19 | 11.x–13.x |
+| --- | --- | --- | --- | --- | --- | --- |
+| `testdata` | `testdata` | `testdata` | `grafana-testdata-datasource` | `grafana-testdata-datasource` | `grafana-testdata-datasource` | `grafana-testdata-datasource` |
+
+10.1.0 / 10.2.0 / 10.3.0 are not matrix pins — they were pulled only to bracket the flip, and
+removed afterwards.
+
+The boundary was independently reproduced during review of
+[#80](https://github.com/DevToolie/Paragent/pull/80) on macOS / arm64 — a host sharing no
+architecture, daemon or OS with the run above — including the pre-fix 404 on 10.0.13.
+
+### The failure is asymmetric: guessing new-side is fatal, guessing old-side is currently free
+
+The rename is **not** a clean cut-over, and this matters more than the boundary itself.
+`grafana-testdata-datasource/plugin.json` declares `"aliasIDs": ["testdata"]` on 10.2.0, 11.0.0,
+12.0.0 and 13.0.3 — every post-rename pin including the tip. Provisioning the seed datasource as
+`type: testdata` on 11.0.0 therefore works: Grafana resolves the alias, normalizes the type to
+`grafana-testdata-datasource` on read, and `/api/ds/query` returns 200 with data. There is no
+alias in the other direction — 9.5.21 ships no `grafana-testdata-datasource` directory at all,
+which is exactly the 10.0.13 failure above.
+
+So:
+
+| Provisioned id | On pre-10.2 Grafana | On 10.2+ Grafana |
+| --- | --- | --- |
+| `testdata` | works | works — resolved via `aliasIDs` |
+| `grafana-testdata-datasource` | **listed, then 404s every query** | works |
+
+Two consequences. First, `10` treated as `10.0` in `testdataTypeFor()` is the safe default for a
+concrete reason, not a hunch: an under-guess costs nothing today, an over-guess is silent
+breakage. Second, the version-boundary branch is a **choice, not a requirement** — `testdata`
+alone would satisfy all eight pins as they stand. It is kept because `aliasIDs` is undocumented
+surface a future major can drop, and because provisioning the id the image actually ships is the
+more honest description of the test-bed. If that alias ever disappears the branch is what saves
+the new majors; until then it saves nothing, and that is worth knowing before someone "simplifies"
+it away in either direction.
+
+The alias evidence comes from the #80 review host (macOS / arm64), not from the 2026-07-27 run;
+it has not been re-read on this machine.
+
+### Per-version observations for B2
+
+Recorded because they are surface churn the recorder will meet, not defects:
+
+- **13.0.3 opens a first-run "Grafana Assistant is now available to OSS users" modal** over the
+  dashboard on a fresh container. Panels render behind it. Nothing persists user preferences
+  (no volume), so it appears on **every** boot. Any recorded 13.0.3 trajectory has to dismiss
+  it, and a Playwright visibility check will not notice the occlusion — `isVisible()` is not
+  occlusion-aware.
+- **12.0.0** decorates the Drilldown nav item with a `New!` badge; **12.x/13.x** replace the
+  burger-menu nav with a docked sidebar. Expect locator churn across the 11 → 12 boundary.
+- **9.5.21** raises a `DashboardQueryRunner failed / Failed to fetch` toast on the dashboard.
+  It is the annotation / alert-state runner, not the panel queries — panels render data
+  normally. The container has no outbound network, which also makes the Grafana update check
+  time out after 10 s on every boot.
+- **Every version** logs `ensureDatasource update: 403 {"message":"Cannot update read-only data
+  source"}` during seeding. The provisioned datasource is `editable: false`, so the seed's
+  redundant `PUT` in [`src/testbed/seed.ts`](../../src/testbed/seed.ts) is refused; provisioning
+  already created it correctly and the seed proceeds. Cosmetic noise, out of scope for #23 and
+  still present — the deferral originally pointed at #77 as the in-flight owner of the seed
+  path, and #77 has since merged without touching it. Reproduced again on the #80 review host,
+  so it is a property of the seed, not of one machine.
+
+### How this was verified
+
+Per version: `npm run testbed -- --version <X>` → six checks → `--down`. The checks were
+`/login` renders; fixture admin authenticates; datasource `paragent-testdata` present with the
+expected plugin type; `/api/plugins?type=datasource` registers that type; **`POST /api/ds/query`
+returns data points**; dashboard `paragent-seed` present with its panels; and the dashboard page
+opened in Chromium with both panels rendering, checked against a screenshot per version.
+
+Teardown was exercised twice back to back on 11.0.0; `docker ps -a`, `docker volume ls` and
+`docker network ls` showed zero `paragent-*` leftovers and zero dangling volumes.
+
+One caveat on method: an early run recorded 9.5.21 as failing with SQLite `database is locked`
+during dashboard provisioning. That reproduced only while eight image pulls were saturating
+disk I/O; on a quiet machine 9.5.21 boots in 27 s. It is recorded here as an environment
+sensitivity, **not** a property of the tag — a slow or contended disk can make provisioning lose
+the SQLite lock and the container exit 1. Retry before concluding a tag is broken.
 
 External citations (also listed in `matrix.json` `sources`):
 
@@ -160,9 +281,23 @@ nothing.
 
 | Object | Fields |
 | --- | --- |
-| Datasource | `uid`, `name`, `queryable` (a real `/api/ds/query` round-trip) |
+| Datasource | `uid`, `name`, `queryable` (a real `/api/ds/query` round-trip — **and a hard gate**) |
 | Dashboard `paragent-seed` | `uid`, `title`, `panel_count`, sorted `panels[]` of title + type |
 | Users | `operator_present`, `operator_role` |
+
+### `queryable` is a gate, not a field to read
+
+A datasource that lists but answers nothing is the whole 10.0.13 defect above, and printing
+`queryable=false` next to exit 0 would rebuild the blindness one level up: a `--verify` that
+passes over a broken instance is a presence check wearing a query's clothes. So a non-200 from
+`POST /api/ds/query` raises `VerifyError` — `--verify` exits 1, and no fingerprint is written,
+which also stops a broken instance becoming a baseline that `--compare` cheerfully matches
+against an equally broken one. The error names the datasource type it found and points at the
+10.2.0 boundary, because that is the cause nine times out of ten.
+
+Consequence: `datasource.queryable` is `true` in every fingerprint written from this build. It
+stays in the schema because fingerprints are files that outlive the code that wrote them, and
+`--compare` still has to read a `false` recorded before the gate existed.
 
 ### What is deliberately excluded, and why
 
@@ -205,9 +340,12 @@ to sit on correct sides of the real boundary, so the compare could not see it.
 
 That defect is the argument for `queryable` being in the fingerprint rather than
 mere presence: a datasource that exists but cannot answer a query is exactly the
-seeding artifact the gate must not mistake for churn. #80 asks that "`--verify`
-should query, not merely list" — it already does, via a real `/api/ds/query`
-round-trip. Running `--verify --compare` against `10.0.13` would have caught it.
+seeding artifact the gate must not mistake for churn. `--verify` already issued a
+real `/api/ds/query` round-trip when this result was recorded, but it *reported*
+the answer and exited 0 — against a pre-fix `10.0.13` it would have printed
+`queryable=false` and called that a pass, so only `--compare` against a healthy
+tag could have caught it. #80 closes that: a datasource that does not answer is
+now a `VerifyError`, and bare `--verify` fails on it.
 
 The remaining five tags are covered by issue #23 / PR #80.
 
@@ -242,8 +380,11 @@ node scripts/testbed/ci-smoke-assert.mjs --version 11.0.0
 npm run testbed -- --version 11.0.0 --down
 ```
 
-The assertion script is an interim stand-in for `--verify` (issue #57); once
-that flag lands, the CI step should call it instead.
+The assertion script is an interim stand-in for `--verify` (issue #57), and it is
+a **presence** check — the kind that could not see the 10.0.13 defect above.
+`--verify` has landed (#76) and now fails on a datasource that does not answer,
+so the CI step should call it instead; until it does, `testbed-smoke` proves the
+seed objects exist and not that they work.
 
 ## Docker daemon limitation
 
@@ -255,13 +396,17 @@ seed succeeded.
 
 ## Open questions / what I could not verify
 
-- Live pull + health for every matrix tag. `9.5.21`, `11.0.0` and `12.0.0` are
-  verified end to end (boot → seed → health → seed objects → fingerprint) and
-  produce identical seed state; `11.0.0` is additionally CI-smoked on every PR.
-  The remaining five tags are unverified until issue #23 records the table.
+- Live pull + health for every matrix tag. **Boot + seed + render is closed for all eight tags
+  by #23 (2026-07-27)** — see the results table above; `9.5.21`, `11.0.0` and `12.0.0` are
+  additionally verified to the *fingerprint* level (boot → seed → health → seed objects →
+  fingerprint) and produce identical seed state, and `11.0.0` is CI-smoked on every PR. Still
+  open: the same tags pulling and booting on a **GitHub-hosted runner** (the #23 run was one
+  Windows / Docker Desktop host), and whether the tags still resolve at some later date — the
+  digests are recorded so drift is at least detectable.
 - Whether the seed stays identical on `10.0.13`, `10.4.19`, `11.5.2`, `12.2.1`
   and `13.0.3`. `--verify --compare` now makes that a command rather than a
-  judgement call, but the runs have not been done.
+  judgement call, but the runs have not been done. #23 establishes that these
+  tags boot and seed, not that their fingerprints match.
 - Whether the cold-pull readiness race the gate guards against is real on a slow
   CI runner. It could not be reproduced locally, because compose `--wait` already
   gates on a healthcheck that polls `/api/health` inside the container. The gate
@@ -272,6 +417,14 @@ seed succeeded.
   shaped identically across versions. Deeper comparison would need a stable
   response digest, and TestData's frame schema is not obviously stable enough for
   one — not attempted, and not needed until a gate task reads panel data.
+- Whether the `paragent-seed` dashboard keeps rendering as majors advance past 13.0.3. It does
+  today on every pinned tag, but the seed uses only `timeseries` + `stat`.
+- Whether the 13.0.3 first-run Assistant modal can be suppressed by a `GF_*` env var rather
+  than dismissed per recording. Not searched; the recorder can dismiss it either way.
+- How long the `testdata` → `grafana-testdata-datasource` alias survives. It is what makes the
+  old id work on new majors (see the asymmetry note above), and it is undocumented surface a
+  future major can drop without ceremony. Nothing here watches for that; the per-image `ls`
+  above is the only check, and it is manual.
 - Whether B2 gate task (login + navigate) stays browser-meaningful once Grafana
   HTTP APIs cover the same clicks — Track-1 must pick tasks that still stress
   DOM locators, not only API-equivalent config.

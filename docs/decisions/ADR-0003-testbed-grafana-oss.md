@@ -4,7 +4,7 @@ doc_type: adr
 status: accepted
 owner: B1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-28
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -116,7 +116,13 @@ Easy: one-container compose; provisioning overlay; HTTP seed for operator user;
 B2–B4 can assume `site_key` style identity around Grafana URLs on localhost.
 
 Hard: TestData plugin type id changes across majors (`testdata` vs
-`grafana-testdata-datasource`) — harness rewrites overlay per version.
+`grafana-testdata-datasource`) — harness rewrites overlay per version. The boundary is
+**10.2.0**, measured per image in #23; it was originally guessed as 10.0 and that guess broke
+10.0.13 silently. The rename is not a clean cut-over: post-10.2 images alias the old id
+(`aliasIDs: ["testdata"]`, present through 13.0.3) while pre-10.2 images have no reverse alias,
+so the old id works everywhere today and the new id is fatal below 10.2. Rewriting per version
+is therefore the honest description of the images rather than a hard requirement — see the open
+questions below.
 
 Forecloses (for now): Sentry/Keycloak/Metabase as the *primary* Track-1 matrix.
 They remain documented runners-up if Grafana proves too API-friendly for the
@@ -131,11 +137,33 @@ and rewriting seed + matrix; contracts stay unchanged.
 
 ## Open questions / what I could not verify
 
-- Whether every matrix tag still pulls cleanly on all CI runners (tags cited
-  from Docker Hub / GitHub on 2026-07-25; not every tag was pulled in this
-  environment).
-- Exact Grafana major where TestData plugin id flipped for *all* install paths
-  (harness uses major &lt; 10 → `testdata`, else `grafana-testdata-datasource`;
-  CONFIDENCE: MED pending live pull of 9.5.21 + 10.0.13).
+- ~~Whether every matrix tag still pulls cleanly~~ — **all eight pulled, booted, seeded and
+  rendered on 2026-07-27** (issue [#23](https://github.com/DevToolie/Paragent/issues/23); table
+  and digests in [gate/testbed.md](../gate/testbed.md)). Still open: **on all CI runners.** That
+  run was one Windows / Docker Desktop host; only `11.0.0` has ever booted on a GitHub-hosted
+  runner, via the `testbed-smoke` job.
+- ~~Exact Grafana major where the TestData plugin id flipped~~ — **answered: 10.2.0**, not 10.0.
+  Measured by reading `/usr/share/grafana/public/app/plugins/datasource/` out of each image:
+  9.5.21, 10.0.13 and 10.1.0 ship `testdata`; 10.2.0 onward ship
+  `grafana-testdata-datasource`. The harness's `major < 10` rule therefore broke **10.0.13** —
+  Grafana listed the provisioned datasource and then 404'd every query with
+  `plugin.notRegistered`. Fixed in `testdataTypeFor()`; CONFIDENCE now HIGH, measured rather
+  than inferred. The consequence recorded above ("harness rewrites overlay per version") was
+  right in shape and wrong in boundary. Both the boundary and the pre-fix 404 were reproduced
+  independently on macOS / arm64 during review of #80.
+- **New, and open:** how long `aliasIDs` keeps the old plugin id working. Post-10.2 images
+  declare `"aliasIDs": ["testdata"]` through 13.0.3, so `testdata` alone would satisfy all eight
+  pins today — the version branch buys nothing *right now* and everything if a future major drops
+  the alias. Nothing watches for that drop; the only check is reading the plugin directory out of
+  a new image by hand. Read off the #80 review host, not re-measured here.
 - Whether Angular-panel removal in v12 breaks the seed dashboard for older
-  panel types we might add later (current seed uses timeseries + stat).
+  panel types we might add later (current seed uses timeseries + stat). The
+  current seed renders on all eight tags, so this stays open only for panel
+  types not yet used.
+- ~~Whether a *presence* check is ever sufficient to call a version verified.~~ **Answered: no.**
+  The 10.0.13 defect was invisible to both `ci-smoke-assert.mjs` and the unit test because both
+  asked "does the datasource exist" rather than "does it answer a query". `--verify` (issue #57,
+  shipped in #76) already issues `POST /api/ds/query`; as of #23 a non-answering datasource is a
+  `VerifyError` rather than a `queryable=false` line printed alongside exit 0. Still open:
+  `scripts/testbed/ci-smoke-assert.mjs`, which the CI smoke job still calls, remains a presence
+  check — the CI step should call `--verify` instead, as `gate/testbed.md` already notes.

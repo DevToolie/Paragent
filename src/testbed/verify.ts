@@ -39,6 +39,13 @@ export interface SeedFingerprint {
   };
   datasource: {
     name: string;
+    /**
+     * Always `true` in a fingerprint this build produces — a datasource that
+     * does not answer now fails verification outright (see `buildFingerprint`).
+     * The field stays because fingerprints are files on disk that outlive the
+     * code that wrote them: `--compare` must still be able to read a `false`
+     * recorded before the gate existed.
+     */
     queryable: boolean;
     uid: string;
   };
@@ -52,9 +59,12 @@ export interface SeedFingerprint {
  * Observed alongside the fingerprint but deliberately NOT part of it.
  *
  * `datasource_type` flips from `testdata` to `grafana-testdata-datasource` at
- * Grafana 10 (ADR-0003), so including it would make every cross-major compare
- * fail for a reason we already know and accept. Reported so a human can see
- * which side of the boundary they are on.
+ * Grafana **10.2.0** (ADR-0003; boundary measured per image in #23), so
+ * including it would make every cross-major compare fail for a reason we
+ * already know and accept. Reported so a human can see which side of the
+ * boundary they are on — and note that Grafana normalizes the type on read, so
+ * a post-10.2 image reports the new id even when the seed provisioned the old
+ * one through `aliasIDs`.
  */
 export interface VerifyContext {
   datasource_type: string;
@@ -73,12 +83,18 @@ export class VerifyError extends Error {
   }
 }
 
+/**
+ * The HTTP client `--verify` reads through. Injectable so the gates below can be
+ * exercised without a live Grafana; production always passes `api` from seed.ts.
+ */
+export type ApiFn = typeof api;
+
 /** Endpoints `--verify` reads, in order. Printed by `--verify --dry-run`. */
 export function verifyPlan(): string[] {
   return [
     "GET  /api/health",
     `GET  /api/datasources/uid/${SEED_DATASOURCE_UID}`,
-    "POST /api/ds/query                       (datasource queryable check)",
+    "POST /api/ds/query                       (must answer — failing this fails verify)",
     `GET  /api/dashboards/uid/${SEED_DASHBOARD_UID}`,
     "GET  /api/org/users                      (operator presence + role)",
   ];
@@ -131,8 +147,8 @@ export function flattenPanels(panels: RawPanel[] | undefined): FingerprintPanel[
   return out;
 }
 
-async function grafanaVersion(baseUrl: string): Promise<string> {
-  const health = await api(baseUrl, "GET", "/api/health");
+async function grafanaVersion(baseUrl: string, call: ApiFn): Promise<string> {
+  const health = await call(baseUrl, "GET", "/api/health");
   if (health.status !== 200) {
     throw new VerifyError(
       `instance unreachable or unhealthy: GET /api/health returned ${health.status} ${health.text}`,
@@ -143,12 +159,14 @@ async function grafanaVersion(baseUrl: string): Promise<string> {
 }
 
 /**
- * True when the datasource answers a trivial query. Uses /api/ds/query, which
- * exists across the whole matrix; the per-version datasource health endpoint
- * does not.
+ * Ask the datasource a trivial question. Uses /api/ds/query, which exists across
+ * the whole matrix; the per-version datasource health endpoint does not.
  */
-async function isQueryable(baseUrl: string): Promise<boolean> {
-  const res = await api(baseUrl, "POST", "/api/ds/query", {
+async function queryDatasource(
+  baseUrl: string,
+  call: ApiFn,
+): Promise<{ status: number; text: string }> {
+  const res = await call(baseUrl, "POST", "/api/ds/query", {
     from: "now-5m",
     to: "now",
     queries: [
@@ -161,13 +179,16 @@ async function isQueryable(baseUrl: string): Promise<boolean> {
       },
     ],
   });
-  return res.status === 200;
+  return { status: res.status, text: res.text };
 }
 
-export async function buildFingerprint(baseUrl: string): Promise<VerifyResult> {
-  const version = await grafanaVersion(baseUrl);
+export async function buildFingerprint(
+  baseUrl: string,
+  call: ApiFn = api,
+): Promise<VerifyResult> {
+  const version = await grafanaVersion(baseUrl, call);
 
-  const ds = await api(
+  const ds = await call(
     baseUrl,
     "GET",
     `/api/datasources/uid/${SEED_DATASOURCE_UID}`,
@@ -179,7 +200,23 @@ export async function buildFingerprint(baseUrl: string): Promise<VerifyResult> {
   }
   const dsBody = ds.json as { name?: string; type?: string; uid?: string };
 
-  const dash = await api(
+  // Presence is not queryable. Provisioning a TestData plugin id the image does
+  // not ship leaves Grafana listing the datasource happily while every query
+  // 404s with `plugin.notRegistered` — the 10.0.13 defect in issue #23, which a
+  // presence check could not see. Reporting `queryable=false` and exiting 0
+  // would reproduce that blindness one level up, so it fails here instead.
+  const query = await queryDatasource(baseUrl, call);
+  if (query.status !== 200) {
+    throw new VerifyError(
+      `seed datasource ${SEED_DATASOURCE_UID} is present (type=${dsBody.type ?? "unknown"}) ` +
+        `but answers no query: POST /api/ds/query returned ${query.status} ${query.text}\n` +
+        `A datasource that lists but does not answer usually means the provisioned TestData ` +
+        `plugin id is not the one Grafana ${version} ships (the id changed at 10.2.0) — ` +
+        `see docs/gate/testbed.md.`,
+    );
+  }
+
+  const dash = await call(
     baseUrl,
     "GET",
     `/api/dashboards/uid/${SEED_DASHBOARD_UID}`,
@@ -194,7 +231,7 @@ export async function buildFingerprint(baseUrl: string): Promise<VerifyResult> {
   };
   const panels = sortPanels(flattenPanels(dashBody.dashboard?.panels));
 
-  const orgUsers = await api(baseUrl, "GET", "/api/org/users");
+  const orgUsers = await call(baseUrl, "GET", "/api/org/users");
   if (orgUsers.status !== 200) {
     throw new VerifyError(
       `cannot read org users: ${orgUsers.status} ${orgUsers.text}`,
@@ -214,7 +251,7 @@ export async function buildFingerprint(baseUrl: string): Promise<VerifyResult> {
       },
       datasource: {
         name: dsBody.name ?? SEED_DATASOURCE_NAME,
-        queryable: await isQueryable(baseUrl),
+        queryable: true, // gated above — reaching here means the query returned 200
         uid: dsBody.uid ?? "",
       },
       users: {
