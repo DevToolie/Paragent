@@ -74,3 +74,16 @@ export function composeUp(env: ComposeEnv, dryRun = false) {
 export function composeDown(env: ComposeEnv, dryRun = false) {
   return runCompose(env, ["down", "--remove-orphans"], { dryRun });
 }
+
+/**
+ * Tail of the project's container logs, for the readiness-timeout diagnostic.
+ * Caller must scrub before printing — see readiness.scrubCredentials.
+ */
+export function composeLogs(env: ComposeEnv, tailLines = 20) {
+  return runCompose(env, [
+    "logs",
+    "--no-color",
+    "--tail",
+    String(tailLines),
+  ]);
+}

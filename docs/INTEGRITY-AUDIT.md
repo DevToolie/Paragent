@@ -4,7 +4,7 @@ doc_type: brief
 status: draft
 owner: D2
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-27
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -102,14 +102,32 @@ D2 consolidator pass (2026-07-25), **after** C4 + C5 merges. **Surfaces conflict
 | E-07 | Pitch cross-links refreshed for PRD/pivot/C5 |
 | E-08 | ADR “Triggered by” lines (0001–0004) |
 
+### Now machine-checked
+
+`npm run lint:docs` (`scripts/lint-docs.mjs`, issue #53) runs in `npm run ci` and fails the
+build on: missing frontmatter or any required key; a `doc_type` / `status` / `confidence` /
+`sources_verified` / date value outside its allowed set; a `docs/*.md` not linked from
+`docs/README.md`; a doc that does not **end** with `## Open questions / what I could not
+verify`; and a relative link inside `docs/` that does not resolve.
+
+It found and this PR fixed: `docs/gate/testbed.md` carrying `doc_type: gate` (not in
+CONTRIBUTING's list — relabelled `spec`, since no gate result exists to call it `gate-result`);
+six docs absent from the index (the five-doc pitch pack, and `A2-grafana.md`, hidden behind an
+`A1`–`A3` range link); and two research docs with an appendix section after Open questions
+(`vertical-search/adversary-report.md`, `vertical-search/DECISION.md` — sections reordered, no
+wording changed).
+
+The rows below say what the linter does **not** cover, so nothing here reads as closed when it
+is not.
+
 ### Flagged
 
-| ID | Item |
-| --- | --- |
-| E-09 | A1–A4 evidence tables: access_date often doc-level or in URL cells, not always a column |
-| E-10 | A5–A8 pre-standard shape beyond stubs |
-| E-11 | Root README / CONTRIBUTING / archive meta — no wave frontmatter |
-| E-12 | Residual pitch sentences not fully rewritten (objections/deck) — register + narrative updated |
+| ID | Item | Machine-checked? |
+| --- | --- | --- |
+| E-09 | A1–A4 evidence tables: access_date often doc-level or in URL cells, not always a column | **No.** The linter checks frontmatter, index coverage, the Open-questions section, and link resolution — never table columns. Review-enforced |
+| E-10 | A5–A8 pre-standard shape beyond stubs | **Partly.** Frontmatter keys/values and the trailing Open-questions section are enforced and green on A5–A8; body shape beyond that is not |
+| E-11 | Root README / CONTRIBUTING / archive meta — no wave frontmatter | **No — out of scope by design.** The linter walks `docs/` only. `docs/README.md` indexes root README and CONTRIBUTING as `living`, which is not a valid frontmatter `status`; whether those files should carry frontmatter at all is unresolved |
+| E-12 | Residual pitch sentences not fully rewritten (objections/deck) — register + narrative updated | **No.** Prose content, not shape |
 
 ---
 
@@ -128,3 +146,9 @@ D2 consolidator pass (2026-07-25), **after** C4 + C5 merges. **Surfaces conflict
 
 - Whether founder wants a full pitch rewrite pass now that C5 FAIL is accepted, vs leaving Wave-1 as historical draft.
 - Root README status-table update ownership.
+- Whether `.md` outside `docs/` (root README, CONTRIBUTING, `archive/`, `contracts/README.md`,
+  `experiments/gate-v1/README.md`) should carry wave frontmatter and be linted (E-11). The
+  index calls two of them `living`, which is not a valid `status` — so extending the linter
+  there needs a CONTRIBUTING decision first, not just a wider glob.
+- Whether the evidence-table standard (`evidence_urls` + `access_date` columns, E-09) is
+  mechanically checkable at all, given how much the census tables vary in shape. Not attempted.

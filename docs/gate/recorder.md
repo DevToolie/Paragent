@@ -125,12 +125,19 @@ landmark that had just been hidden was still listed. Filtering uses an in-page
 flags matter: with defaults, `checkVisibility()` calls a `visibility: hidden` element *visible*
 while Playwright does not.
 
-`src/runner/page-state.ts` runs the **same predicate** but still enumerates candidates
-differently — it checks 6 `[role=]` selectors with tag fallbacks for only `main`/`nav`/`form`,
-where the recorder walks the tree against an 8-role set with implicit roles for
-`FORM MAIN NAV HEADER FOOTER ASIDE`. On markup without redundant `role` attributes the recorder
-sees `banner` / `complementary` / `contentinfo` that `page-state` misses. Tracked as
-[#74](https://github.com/DevToolie/Paragent/issues/74); do not assume the two lists match.
+`src/runner/page-state.ts` runs the **same enumeration**, not merely the same predicate — one
+copy, in [`src/shared/landmarks.ts`](../../src/shared/landmarks.ts): role vocabulary, implicit
+roles for `FORM MAIN NAV HEADER FOOTER ASIDE`, the visibility predicate, and the tree walk.
+Until [#74](https://github.com/DevToolie/Paragent/issues/74) the two sites shared only the
+predicate and `page-state` silently missed `banner` / `complementary` / `contentinfo` on markup
+without redundant `role` attributes. The fixture below cannot show that — it puts an explicit
+`role=` on every landmark — so `tests/unit/landmarks.test.ts` builds semantic pages that do not.
+
+It is a **JS source string**, not a shared function. Both sites hand their evaluate body to the
+browser as text because esbuild's `keepNames` wraps named function expressions in `__name(...)`,
+which does not exist there. Anything that turns the shared snippet back into a callback
+reintroduces a runtime crash CI cannot see. `search` and `region` are in the role set but have
+no implicit tag mapping — explicit `role=` only.
 
 `post_action_target_visible` instead uses Playwright's `Locator.isVisible()`. That is
 deliberate: `src/runner/assertions.ts` later checks this same target with
@@ -156,6 +163,7 @@ signals, not visibility claims.
 | `src/recorder/preamble.ts` | `establishSession` — login scaffolding, records nothing |
 | `src/recorder/locators.ts` | Candidate collection |
 | `src/recorder/fingerprint.ts` | Pre/post fingerprints |
+| `src/shared/landmarks.ts` | The one landmark enumeration, shared with `src/runner/page-state.ts` |
 | `src/recorder/redact.ts` | Templatize / secret scan |
 | `src/recorder/cli.ts` | Gate-task CLI |
 | `src/recorder/fixtures/grafana-gate-login.html` | Deterministic stand-in |

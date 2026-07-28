@@ -41,6 +41,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Frontmatter, index coverage, Open-questions section, relative links.
+      # docs/README.md is the map a cold agent reads; a stale map is worse than
+      # none, so it is machine-checked rather than enforced by hope.
+      - name: Lint docs
+        run: npm run lint:docs
+
       - name: Typecheck
         run: npm run typecheck
 

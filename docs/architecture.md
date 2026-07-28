@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B0
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-27
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -12,10 +12,10 @@ sources_verified: true
 
 # Architecture
 
-Six packages under `src/`, four JSON Schemas in `contracts/`, one throwaway harness in
-`experiments/gate-v1/`. Each package has a spec doc under [`gate/`](./gate/); this document
-owns the **chain** — what hands what to whom, under which contract, and where the chain is
-not actually connected yet.
+Six pipeline packages under `src/` plus one shared leaf, four JSON Schemas in `contracts/`, one
+throwaway harness in `experiments/gate-v1/`. Each pipeline package has a spec doc under
+[`gate/`](./gate/); this document owns the **chain** — what hands what to whom, under which
+contract, and where the chain is not actually connected yet.
 
 Read [ROADMAP.md](./ROADMAP.md) for what to work on and [DEVELOPMENT.md](./DEVELOPMENT.md) for
 how to run it. This document is the wiring diagram.
@@ -110,11 +110,29 @@ record → compile → cache-write → replay) is the issue that closes both.
 | `src/cache/` | Write-time privacy boundary: allowlist, locator taint, pool/tenant row split, canary pipeline | `src/cache/index.ts` (library only — no CLI) | `cache-row.schema.json`, `assertion.schema.json` (inspected for pool safety) | `cache-row.schema.json` | [privacy/boundary-spec.md](./privacy/boundary-spec.md) |
 | `src/runner/` | Replay a compiled program in Playwright; repair actions only on failure; emit measured metrics | `src/runner/index.ts` (library only — driven by `experiments/gate-v1/run-matrix.ts`) | `cache-row.schema.json`, `assertion.schema.json` shapes (via `CompiledProgram`) | none directly — emits through `src/metrics/` | [gate/runner.md](./gate/runner.md) |
 | `src/metrics/` | Cost arithmetic, NDJSON emitter, PRD §9 aggregates that report `no_data` on an empty denominator | `src/metrics/index.ts` (library only) | `metrics.schema.json` (`readMetricNdjson`) | `metrics.schema.json` | §9 sections in [prd/PRD-trajectory-cache-v0.2.md](./prd/PRD-trajectory-cache-v0.2.md) |
+| `src/shared/` | **Not a pipeline stage.** In-page JS source strings two capture sites must run identically — today the `visible_landmarks` enumeration | `src/shared/index.ts` (library only) | none | none — feeds the `trajectory.schema.json` `visible_landmarks` field written by the recorder | see below |
 | `experiments/gate-v1/` | Throwaway harness: walk the version list, emit rows, render the report. **Not a product API** | `npm run gate:matrix`, `npm run gate:report` | `metrics.schema.json`, local `versions.json` | `metrics.schema.json` | [experiments/gate-v1/README.md](../experiments/gate-v1/README.md) |
 
 `src/cache/` has no spec doc under `gate/`; its contract is
 [privacy/boundary-spec.md](./privacy/boundary-spec.md) and the merge-blocking canary
 (`tests/canary/`).
+
+### The one non-pipeline package
+
+`src/shared/` (added by [#74](https://github.com/DevToolie/Paragent/issues/74), after this
+document's derivation commit) is not a stage in the chain and takes no contract. It is a leaf:
+it imports nothing from `src/` and holds **in-page JS source strings** that two capture sites
+must run identically. Today that is one file, `landmarks.ts` — the enumeration behind
+`visible_landmarks`, run by both `src/recorder/fingerprint.ts` and `src/runner/page-state.ts`.
+
+It exists because the alternative was worse in both directions: `src/runner/` importing from
+`src/recorder/` inverts the pipeline dependency, and the reverse is no better. The snippets are
+strings rather than functions on purpose — see the [invariants](#invariants-that-must-not-break)
+below.
+
+Keep it a leaf. Something belongs here only if it runs inside the browser *and* two packages
+must run the identical copy; anything else goes in the package that owns it. A `src/shared/`
+that grows general utilities is a dependency cycle waiting to happen.
 
 ### Contracts
 
@@ -204,6 +222,16 @@ emission all execute; the aggregates compute correctly and report `no_data` hone
 5. **The gate harness is throwaway.** `experiments/gate-v1/` must not be promoted into a
    product API or imported by `src/`. Today the dependency runs the correct direction only:
    `experiments/` imports `src/`, never the reverse.
+6. **In-page snippets stay strings, and there is one of each.** Both capture sites pass their
+   evaluate body to the browser as text — the recorder via `new Function`, the runner via
+   `page.evaluate("...")` — because esbuild's `keepNames` wraps named function expressions in
+   `__name(...)`, which does not exist in the browser. A serialized callback throws
+   `ReferenceError: __name is not defined`, and CI cannot see it: `capturePageState`'s only
+   caller is the repair loop, which the `gate:matrix` exit-2 guard keeps unreached. So the
+   shared unit is a **source string** (`src/shared/landmarks.ts`), and it is shared rather
+   than copied — two copies of the landmark walk is exactly what made the recorder and the
+   runner report different pages (#74). `tests/unit/landmarks.test.ts` fails if a second copy
+   of the predicate appears anywhere under `src/`.
 
 ---
 

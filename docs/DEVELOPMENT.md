@@ -38,12 +38,13 @@ required only for the testbed; everything else runs without it.
 
 | Command | What it does | Merge-blocking |
 | --- | --- | --- |
-| `npm run ci` | secret-scan → validate:contracts → lint → typecheck → unit tests → integration tests | yes |
+| `npm run ci` | secret-scan → validate:contracts → lint → lint:docs → typecheck → unit tests → integration tests | yes |
 | `npm run test:canary` | Privacy boundary canaries — zero tenant strings in pool-eligible rows | **yes**, separate CI job |
 | `npm run test:integration` | Whole loop on a loopback fixture: record → compile → cache-write → replay → report | yes |
 | `npm run secret-scan` | `scripts/secret-scan.mjs` over the tree | yes |
 | `npm run validate:contracts` | Ajv-validates `contracts/examples/*` against the schemas | yes |
 | `npm run lint` / `npm run typecheck` | eslint / `tsc --noEmit` | yes |
+| `npm run lint:docs` | `scripts/lint-docs.mjs` — frontmatter keys and values, `docs/README.md` index coverage, trailing Open-questions section, relative links that resolve | yes |
 | `npm run test` | Unit tests (`tests/unit`) | yes |
 
 ### Running the pieces
@@ -160,4 +161,7 @@ issues under any milestone are the template.
 
 - Whether every pinned Grafana tag boots on a given machine — unverified as of writing; see
   [ROADMAP.md](./ROADMAP.md) and issue #23.
-- Whether `npm run lint:docs` exists yet — issue #53. Update the command table when it lands.
+- ~~Whether `npm run lint:docs` exists yet — issue #53.~~ **Landed** — it is in the command
+  table above and in `npm run ci`. What it does *not* check is the shape of evidence tables
+  (per-row `access_date` columns, INTEGRITY-AUDIT E-09/E-10) or any `.md` outside `docs/`
+  (E-11); both are still enforced by review.

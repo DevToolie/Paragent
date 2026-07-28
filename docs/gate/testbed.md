@@ -1,10 +1,10 @@
 ---
 title: Track-1 Grafana OSS test-bed
-doc_type: gate
+doc_type: spec
 status: draft
 owner: B1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-27
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -77,11 +77,146 @@ npm run testbed -- --list
 npm run testbed -- --version 11.0.0 --dry-run
 npm run testbed -- --version 11.0.0
 npm run testbed -- --version 11.0.0 --port 3001
+npm run testbed -- --version 11.0.0 --ready-timeout 180
 npm run testbed -- --version 11.0.0 --down
 ```
 
-`--dry-run` prepares the provisioning overlay and prints the compose plan
-without requiring a Docker daemon.
+`--dry-run` prepares the provisioning overlay and prints the compose plan and the
+readiness plan, without requiring a Docker daemon and without making any network
+call.
+
+## Readiness gate (`--ready-timeout`)
+
+Between `docker compose up --wait` and the HTTP seed, the harness polls the API
+from the host until it is actually serving.
+
+**Readiness signal:** `GET /api/health` returning HTTP 200 with a JSON body whose
+`database` field is `"ok"`. Stable across the whole matrix range.
+Source: <https://grafana.com/docs/grafana/latest/developers/http_api/other/#returns-health-information-about-grafana>
+— access_date: 2026-07-26.
+
+| Setting | Value |
+| --- | --- |
+| Poll interval | 1s fixed |
+| Default budget | 120s, override with `--ready-timeout <seconds>` |
+| On success | prints elapsed time and probe count, then seeds |
+| On timeout | exit 1 with version, URL, elapsed, last status/error, and the last 20 lines of `docker compose logs` (credential-shaped strings redacted) |
+
+The predicate parses the body rather than grepping it. A 200 with
+`database: "failing"` is a *running* Grafana that cannot serve, and a substring
+test for `ok` on the raw body can pass on an unrelated field. `seed.ts`'s own
+defensive `waitForHealth` shares this predicate — two definitions of "ready" in
+one package is how they drift apart.
+
+**Why 120s.** Measured worst case so far is ~18s for a cold `11.0.0` pull plus
+boot locally and 14s for pull+boot+seed on a GitHub `ubuntu-latest` runner (the
+`testbed-smoke` CI job). 120s is roughly 8× that headroom — enough for a slow
+runner or a larger image, short enough not to mask a genuinely dead instance, and
+well inside the CI job's 10-minute ceiling.
+
+### What this gate does and does not fix
+
+Verified 2026-07-26: on this fixture, `--ready-timeout 1` on a **fresh** boot
+still succeeds. `docker compose up --wait` blocks until the container's own
+healthcheck passes, and that healthcheck already curls `/api/health` *inside* the
+container (see `scripts/testbed/docker-compose.yml`), so by the time compose
+returns the API is normally serving. The cold-pull race the gate was written for
+could not be reproduced locally.
+
+It is still worth having, for reasons that are not the original one:
+
+- It polls **through the host port mapping**, which is what the seed, recorder
+  and runner actually use. A container can be healthy on its internal port while
+  the published port does not serve; `--wait` cannot see that, and the seed would
+  fail as a bare `fetch failed`.
+- The container healthcheck greps for `ok` loosely; this gate parses the body.
+- It fails with a diagnostic instead of an opaque fetch error.
+- It does not depend on the compose healthcheck continuing to exist or stay
+  strict — a fixture edit that weakens it would silently remove the only
+  readiness check the harness had.
+
+## Seed verification (`--verify`)
+
+The gate measures whether a compiled trajectory survives a version bump. That is
+only meaningful if the **only** difference between two runs is the Grafana
+version. A seed that quietly produces three panels on one version and two on
+another turns a seeding artifact into something that looks like churn.
+
+```text
+npm run testbed -- --version 11.0.0 --verify           # summary to stdout
+npm run testbed -- --version 11.0.0 --verify --json    # + save the fingerprint
+npm run testbed -- --version 11.0.0 --verify --dry-run # print the query plan only
+npm run testbed -- --verify --compare 9.5.21 11.0.0    # exit 0 only if state matches
+```
+
+`--verify --json` writes a canonical fingerprint to
+`scripts/testbed/.runtime/verify-<version>.json` (gitignored). Canonical means
+sorted keys, panels sorted by title then type, no timestamps, and no
+Grafana-assigned ids — so two equal states serialize to identical bytes.
+`--compare` is the actual guard: a per-version fingerprint nobody diffs proves
+nothing.
+
+### What is in the fingerprint
+
+| Object | Fields |
+| --- | --- |
+| Datasource | `uid`, `name`, `queryable` (a real `/api/ds/query` round-trip) |
+| Dashboard `paragent-seed` | `uid`, `title`, `panel_count`, sorted `panels[]` of title + type |
+| Users | `operator_present`, `operator_role` |
+
+### What is deliberately excluded, and why
+
+- **`datasource_type`** — flips from `testdata` to `grafana-testdata-datasource`
+  across the matrix. Including it would fail every cross-major compare for a
+  reason already known and accepted. Printed alongside the fingerprint so a
+  human can see which side of the boundary they are on. *(ADR-0003 placed that
+  flip at v10; PR #80 measured it at **10.2.0**. The fingerprint is unaffected —
+  excluding the field is what makes it robust to the boundary moving — but the
+  value printed beside it is the thing to read when a version misbehaves.)*
+- **`grafana_version`** — the one thing that is *supposed* to differ.
+- **Grafana-assigned numeric ids, `version`, `created`/`updated` timestamps** —
+  not stable across a re-seed, let alone across versions.
+- **Row containers** — a collapsed row nests its children, so rows are flattened
+  and the row itself dropped; whether a row is collapsed must not decide the
+  panel count.
+
+If you add to the seed, add it here — a field the seed creates and `--verify`
+ignores is a confound the gate cannot see.
+
+### Result — verified 2026-07-25, no divergence found
+
+Run on Docker 28.5.1, one version at a time on port 3000, each booted fresh:
+
+| Check | Result |
+| --- | --- |
+| Same version seeded twice (11.0.0, torn down between) | **byte-identical** |
+| 9.5.21 vs 11.0.0 — across the v10 plugin-id rename | **identical** |
+| 11.0.0 vs 12.0.0 | **identical** |
+
+All three fingerprints share one SHA-256 (`f6382c93…1108b7`): the TestData `type`
+rewrite produces equivalent observable state on all three of these tags.
+
+**Scope that result carefully.** It holds for `9.5.21`, `11.0.0` and `12.0.0`
+only. It does *not* clear the rewrite in general: PR #80 subsequently measured
+the plugin-id rename at **10.2.0**, not 10.0, which means `10.0.13` was being
+provisioned with the wrong type the whole time — the datasource listed fine and
+every query returned `plugin.notRegistered`. The three tags compared here happen
+to sit on correct sides of the real boundary, so the compare could not see it.
+
+That defect is the argument for `queryable` being in the fingerprint rather than
+mere presence: a datasource that exists but cannot answer a query is exactly the
+seeding artifact the gate must not mistake for churn. #80 asks that "`--verify`
+should query, not merely list" — it already does, via a real `/api/ds/query`
+round-trip. Running `--verify --compare` against `10.0.13` would have caught it.
+
+The remaining five tags are covered by issue #23 / PR #80.
+
+One observation worth recording rather than fixing: `operator_role` is `Viewer`,
+not `Editor`. `ensureOperator` creates the user via `POST /api/admin/users`
+without an org role, so Grafana applies its default. That is stable across all
+three versions, which is what the fingerprint needs; whether the gate task
+requires a more privileged operator is a question for the ADR-0006 task
+definition, not for this harness.
 
 ## CI coverage
 
@@ -120,9 +255,23 @@ seed succeeded.
 
 ## Open questions / what I could not verify
 
-- Live pull + health for every matrix tag. `11.0.0` is verified end to end (boot
-  → seed → health → seed objects) locally and in CI; the other seven tags remain
-  unverified until issue #23 records the results table.
+- Live pull + health for every matrix tag. `9.5.21`, `11.0.0` and `12.0.0` are
+  verified end to end (boot → seed → health → seed objects → fingerprint) and
+  produce identical seed state; `11.0.0` is additionally CI-smoked on every PR.
+  The remaining five tags are unverified until issue #23 records the table.
+- Whether the seed stays identical on `10.0.13`, `10.4.19`, `11.5.2`, `12.2.1`
+  and `13.0.3`. `--verify --compare` now makes that a command rather than a
+  judgement call, but the runs have not been done.
+- Whether the cold-pull readiness race the gate guards against is real on a slow
+  CI runner. It could not be reproduced locally, because compose `--wait` already
+  gates on a healthcheck that polls `/api/health` inside the container. The gate
+  is cheap and its diagnostic is the actual payoff, but its original motivation
+  remains unobserved rather than confirmed.
+- Whether `queryable` is the right depth for the datasource check. It proves the
+  plugin answers a `random_walk` query; it does not prove the returned frames are
+  shaped identically across versions. Deeper comparison would need a stable
+  response digest, and TestData's frame schema is not obviously stable enough for
+  one — not attempted, and not needed until a gate task reads panel data.
 - Whether B2 gate task (login + navigate) stays browser-meaningful once Grafana
   HTTP APIs cover the same clicks — Track-1 must pick tasks that still stress
   DOM locators, not only API-equivalent config.

@@ -68,6 +68,12 @@ npm install
 npm run secret-scan
 npm run validate:contracts
 npm run lint
+npm run lint:docs
 npm run typecheck
 npm run test
 ```
+
+`npm run lint:docs` machine-checks the documentation standard below: required frontmatter keys
+and their allowed values, a trailing **Open questions** section, every `docs/*.md` linked from
+`docs/README.md`, and relative links that actually resolve. Fix the shape it reports — never
+edit a finding, number, or verdict to silence it.
