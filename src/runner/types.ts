@@ -171,6 +171,15 @@ export interface StepAttemptResult {
   time_to_repair_ms?: number;
   assertion_strength?: AssertionStrength;
   error_message?: string;
+  /**
+   * Something worth recording about a step that did **not** fail — today only
+   * "the `networkidle` hint never fired, we proceeded anyway". Deliberately not
+   * `error_message`: this is not an error, and a step carrying it can be `PASS`.
+   *
+   * In-memory only. Adding it to `metrics.schema.json` is a contract change,
+   * and nothing aggregates it yet — see docs/gate/runner.md.
+   */
+  notes?: string;
 }
 
 export interface RunResult {

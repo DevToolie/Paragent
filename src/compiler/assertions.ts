@@ -10,6 +10,32 @@ import type {
 } from "./types.js";
 import { SCHEMA_VERSION } from "./types.js";
 
+/**
+ * `timeout_ms` written onto every synthesized assertion.
+ *
+ * Was seven separate `5000` literals. Naming it is the change; **the value is
+ * deliberately unmoved.**
+ *
+ * A timeout is part of an assertion's *strength*, not a performance knob: a
+ * shorter one is a stricter check, a longer one a laxer one. Lowering this to
+ * make replay feel faster would raise the failure rate and move step-level
+ * replay-validity — the one number PRD §9 gates on — while looking like a perf
+ * tweak. That is the shape `docs/architecture.md` invariant 1 forbids.
+ *
+ * The runner spends this budget on *failure*
+ * (`src/runner/assertions.ts`), so it is also the dominant term in
+ * worst-case latency: a 12-step task with three stale locators waits 3 × this
+ * before repair even starts. Changing it is therefore a real decision, and it
+ * should follow a measurement rather than precede one. Override per-compile via
+ * `SynthesizeAssertionOptions.timeoutMs` if you need to explore that.
+ */
+export const DEFAULT_ASSERTION_TIMEOUT_MS = 5000;
+
+export interface SynthesizeAssertionOptions {
+  /** Override for {@link DEFAULT_ASSERTION_TIMEOUT_MS}. */
+  timeoutMs?: number;
+}
+
 const ASSERTION_TYPES = new Set<AssertionType>([
   "element-visible",
   "text-matches",
@@ -89,7 +115,11 @@ interface SynthesisContext {
 }
 
 /** Synthesize one post-condition; expected values are templates with typed holes. */
-export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
+export function synthesizeAssertion(
+  ctx: SynthesisContext,
+  options: SynthesizeAssertionOptions = {},
+): Assertion {
+  const timeout_ms = options.timeoutMs ?? DEFAULT_ASSERTION_TIMEOUT_MS;
   const { trajectory, step, locatorChain } = ctx;
   const hint = step.assertion_hint;
   const primary = pickPrimaryLocator(locatorChain);
@@ -133,7 +163,7 @@ export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
         param_types: { success_message: "string" },
         regex_template: templateToRegex(template),
       },
-      timeout_ms: 5000,
+      timeout_ms,
       failure_classification: "assertion_failed",
       notes:
         "Recorder signalled toast/success copy. Expected text is a typed hole ({success_message}) — never a tenant/product-message literal. Strong when the runner binds a success-pattern allowlist; otherwise runtime bind quality is MED confidence.",
@@ -157,7 +187,7 @@ export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
         template: "{item_count}",
         param_types: { item_count: "integer" },
       },
-      timeout_ms: 5000,
+      timeout_ms,
       failure_classification: "assertion_failed",
       notes:
         "Count asserted via template hole. expected.count=0 is a schema placeholder until B2 emits structured counts in post_state; runner must bind the observed count. Labelled weak: absolute counts drift. Not a gate metric.",
@@ -210,7 +240,7 @@ export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
       strength: "strong",
       target: { locator: stripTenantFlagForTarget(primary) },
       expected: { visible: false },
-      timeout_ms: 5000,
+      timeout_ms,
       failure_classification: "assertion_failed",
       notes:
         "Recorder observed the acted-on control was no longer visible after the action (ADR-0007 post_action_target_visible=false). Asserts only that: the control is gone. Proves the step was not a no-op; proves nothing about downstream state.",
@@ -278,7 +308,7 @@ export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
         strength,
         target: { locator: stripTenantFlagForTarget(resolved) },
         expected: { visible: true },
-        timeout_ms: 5000,
+        timeout_ms,
         failure_classification: "assertion_failed",
         notes,
       };
@@ -305,7 +335,7 @@ export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
       strength: strong ? "strong" : "weak",
       target: { url_template },
       expected,
-      timeout_ms: 5000,
+      timeout_ms,
       failure_classification: "assertion_failed",
       notes: strong
         ? "URL template changed (or navigate completed); matching post_state.url_template is strong evidence the step reached the intended surface."
@@ -319,7 +349,7 @@ export function synthesizeAssertion(ctx: SynthesisContext): Assertion {
       assertion_id: assertionId,
       type: "network-idle",
       strength: "weak",
-      timeout_ms: 5000,
+      timeout_ms,
       failure_classification: "timeout",
       notes:
         "network_idle in post_state is weakly consistent with success — idle also occurs on error pages and no-ops. Labelled weak.",
