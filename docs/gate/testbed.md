@@ -115,9 +115,12 @@ nothing.
 ### What is deliberately excluded, and why
 
 - **`datasource_type`** — flips from `testdata` to `grafana-testdata-datasource`
-  at v10 (ADR-0003). Including it would fail every cross-major compare for a
+  across the matrix. Including it would fail every cross-major compare for a
   reason already known and accepted. Printed alongside the fingerprint so a
-  human can see which side of the boundary they are on.
+  human can see which side of the boundary they are on. *(ADR-0003 placed that
+  flip at v10; PR #80 measured it at **10.2.0**. The fingerprint is unaffected —
+  excluding the field is what makes it robust to the boundary moving — but the
+  value printed beside it is the thing to read when a version misbehaves.)*
 - **`grafana_version`** — the one thing that is *supposed* to differ.
 - **Grafana-assigned numeric ids, `version`, `created`/`updated` timestamps** —
   not stable across a re-seed, let alone across versions.
@@ -138,11 +141,23 @@ Run on Docker 28.5.1, one version at a time on port 3000, each booted fresh:
 | 9.5.21 vs 11.0.0 — across the v10 plugin-id rename | **identical** |
 | 11.0.0 vs 12.0.0 | **identical** |
 
-All three fingerprints share one SHA-256
-(`f6382c93…1108b7`). **This closes an ADR-0003 open question**: the per-major
-TestData `type` rewrite does produce equivalent observable state on both sides
-of the v10 boundary. It is verified for these three tags only — the remaining
-five are still unverified (issue #23).
+All three fingerprints share one SHA-256 (`f6382c93…1108b7`): the TestData `type`
+rewrite produces equivalent observable state on all three of these tags.
+
+**Scope that result carefully.** It holds for `9.5.21`, `11.0.0` and `12.0.0`
+only. It does *not* clear the rewrite in general: PR #80 subsequently measured
+the plugin-id rename at **10.2.0**, not 10.0, which means `10.0.13` was being
+provisioned with the wrong type the whole time — the datasource listed fine and
+every query returned `plugin.notRegistered`. The three tags compared here happen
+to sit on correct sides of the real boundary, so the compare could not see it.
+
+That defect is the argument for `queryable` being in the fingerprint rather than
+mere presence: a datasource that exists but cannot answer a query is exactly the
+seeding artifact the gate must not mistake for churn. #80 asks that "`--verify`
+should query, not merely list" — it already does, via a real `/api/ds/query`
+round-trip. Running `--verify --compare` against `10.0.13` would have caught it.
+
+The remaining five tags are covered by issue #23 / PR #80.
 
 One observation worth recording rather than fixing: `operator_role` is `Viewer`,
 not `Editor`. `ensureOperator` creates the user via `POST /api/admin/users`
