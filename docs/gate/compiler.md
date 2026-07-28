@@ -85,10 +85,15 @@ typed holes** — never tenant literals.
 | 1 | Toast / success / notification in hint signals | `text-matches` | strong (template `{success_message}`) |
 | 2 | Count / rows / items in hint signals | `count-equals` | **weak** (structured count not in fingerprint yet) |
 | 3 | **`click` that changed `url_template`** | `url-matches` | **strong** — see the rule below |
-| 4 | Hint `element-visible`, new landmarks, or fill/click target | `element-visible` | strong for navigate→login surface; **weak** for fill/select |
-| 5 | `pre_state.url_template ≠ post_state.url_template` | `url-matches` | strong for navigate/click navigations |
-| 6 | `post_state.network_idle === true` | `network-idle` | **weak** |
-| 7 | Nothing else | `custom` (`post_digest_changed_or_stable`) | **weak** |
+| 4 | **Click-like step whose target went visible → hidden** (`post_action_target_visible: false`) | `element-visible` with `expected.visible: false` | **strong** — ADR-0007 |
+| 5 | Hint `element-visible`, new landmarks, or fill/click target | `element-visible` | strong for navigate→login surface; **weak** for fill/select |
+| 6 | `pre_state.url_template ≠ post_state.url_template` | `url-matches` | strong for navigate/click navigations |
+| 7 | `post_state.network_idle === true` | `network-idle` | **weak** |
+| 8 | Nothing else | `custom` (`post_digest_changed_or_stable`) | **weak** |
+
+Priorities 3 and 4 are ordered deliberately: a click that **both** navigates and hides its
+control — submitting a login form — is asserted on its destination, because where it landed is
+better evidence than what vanished.
 
 ### Navigating clicks never assert the clicked control
 
@@ -100,14 +105,26 @@ transitions the page routinely hides the surface the control lived on — submit
 form, closing a modal, navigating away — so "the button I clicked is still visible" is a
 post-condition the step itself falsifies.
 
-The `post_state` landmark fallback does not rescue it: `visible_landmarks` is collected by
-walking the DOM **without a visibility filter**, so a landmark that has just been hidden is
-still listed. The name overpromises; treat it as *landmark roles present*, not *visible*.
-
 Found by [`tests/integration/pipeline.test.ts`](../../tests/integration/pipeline.test.ts) on
 its first run: replaying a compiled login step timed out waiting for the submit button to be
 visible after it had been clicked. Pinned by the `click assertion target` cases in
 `tests/unit/compiler.test.ts`.
+
+### A control that hides itself is asserted gone
+
+Since [ADR-0007](../decisions/ADR-0007-post-action-visibility.md) the recorder observes whether
+the acted-on control survived the action and stores it as `post_action_target_visible`. A
+click-like step whose target went visible → hidden is asserted `element-visible` with
+`expected.visible: false` on that target.
+
+This is the case the URL rule above cannot reach — a dismiss, close, or collapse control has no
+destination to assert. It is labelled `strong` because for such a control the disappearance
+**is** the purpose of the step, and the assertion fails if the click is a no-op.
+
+Note this also repaired the landmark fallback. `visible_landmarks` used to be collected by
+walking the DOM with no visibility filter, so a landmark that had just been hidden was still
+listed and the fallback was useless. It is now genuinely visibility-filtered in both the
+recorder and the runner's `page-state`.
 
 **Strength rule:** `strong` = unambiguous proof the step achieved its purpose;
 `weak` = consistent with success but also with several failures. Weak is allowed
@@ -153,7 +170,7 @@ Options: `--out <path>`, `--no-validate`, `--help`.
 5. **Visual / screenshot diffs** — out of scope for Phase-1 contracts.
 6. **Cross-frame / shadow DOM** — no trajectory signal.
 7. **Auth session validity** — cookies/storage excluded from compiler input by construction; cannot assert “still logged in” from trajectory fields alone.
-8. **Element visibility after an action** — the trajectory records no post-action visibility for the acted-on control, which is why a navigating click has to be inferred from the URL rather than observed directly. A non-navigating click that hides its own control (a modal close with no route change) is still mis-asserted. Fixing it properly means the recorder capturing post-action visibility, which is a `trajectory.schema.json` change and therefore an ADR.
+8. **Side effects on elements other than the target** — resolved for the acted-on control by [ADR-0007](../decisions/ADR-0007-post-action-visibility.md), which records `post_action_target_visible`. Still open: a click that hides or reveals *something else* (opens a modal, collapses a sibling panel) is asserted on the clicked control, because only the target's fate is captured. Closing that needs a post-action fingerprint diff rather than a single boolean — no defect currently demands it.
 9. **B2 live recordings** — no path found for `track1/b2-recorder` at compile time; example trajectory only.
 10. **B5 allowlist** — chrome label / role sets here are provisional; do not treat `pool_eligible: true` as final pool admission.
 

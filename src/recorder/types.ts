@@ -93,6 +93,8 @@ export interface Step {
   post_state: Fingerprint;
   timing_ms: TimingMs;
   assertion_hint?: AssertionHint;
+  /** ADR-0007. Absent when the step acted through no locator. */
+  post_action_target_visible?: boolean;
 }
 
 export interface Trajectory {

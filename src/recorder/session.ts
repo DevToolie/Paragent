@@ -76,6 +76,27 @@ export class TrajectoryRecorder {
       ? await collectLocatorCandidates(args.locator)
       : [];
     await args.run();
+
+    // ADR-0007: observe whether the acted-on control survived the action, before
+    // anything else can change the page. Playwright's isVisible() is used rather
+    // than a DOM predicate because src/runner/assertions.ts later checks this
+    // same target with waitFor({ state: "hidden" | "visible" }) — recording the
+    // observation the runner will make is what keeps the two honest.
+    // A control that hides itself (dismiss, close, collapse) is otherwise
+    // indistinguishable from one that stays, and gets asserted as still visible.
+    // On failure record NOTHING, never `false`. isVisible() throws on a strict
+    // mode violation (a locator matching two controls — entirely plausible on
+    // real Grafana), and the compiler promotes `false` into a *strong*
+    // "the control disappeared" assertion. Turning "I could not tell" into "I
+    // proved it vanished" is the exact shape CONTRIBUTING rule 3 forbids.
+    // Leaving it undefined omits the field and falls back to prior behaviour.
+    let post_action_target_visible: boolean | undefined;
+    if (args.locator) {
+      post_action_target_visible = await args.locator
+        .isVisible()
+        .catch(() => undefined);
+    }
+
     const post_state = await this.fingerprint(args.awaitNetworkIdle ?? true);
     const duration_ms = Math.max(0, this.offsetMs() - started);
     const step: Step = {
@@ -88,6 +109,9 @@ export class TrajectoryRecorder {
       timing_ms: { started_offset_ms: started, duration_ms },
     };
     if (args.assertion_hint) step.assertion_hint = args.assertion_hint;
+    if (post_action_target_visible !== undefined) {
+      step.post_action_target_visible = post_action_target_visible;
+    }
     this.steps.push(step);
   }
 

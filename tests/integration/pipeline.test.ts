@@ -171,6 +171,12 @@ async function recordFixtureTask(
     page.getByTestId("nav-dashboards"),
     "Navigate to Dashboards list",
   );
+  // Self-hiding, non-navigating control. #70 rescued only URL-changing clicks;
+  // this is the case that needs post-action visibility to assert correctly.
+  await recorder.click(
+    page.getByTestId("dismiss-notice"),
+    "Dismiss the preview notice",
+  );
 
   return recorder.toTrajectory();
 }
@@ -219,6 +225,17 @@ describe("pipeline: record -> compile -> cache -> replay", () => {
       expect(trajectoryText).not.toContain(String(params.username));
       expect(trajectoryText).not.toContain(String(params.password));
 
+      // ADR-0007: visible_landmarks must mean visible. The fixture's app view
+      // is `hidden` on load, so its banner/navigation must NOT be reported on
+      // the freshly navigated page — they were, before this was filtered.
+      expect(trajectory.steps[0]!.post_state.visible_landmarks).toEqual([
+        "main",
+        "form",
+      ]);
+      // And the acted-on control's fate is recorded: the dismiss button is gone.
+      expect(trajectory.steps[5]!.post_action_target_visible).toBe(false);
+      expect(trajectory.steps[4]!.post_action_target_visible).toBe(true);
+
       // --- 2. compile ------------------------------------------------------
       const bundle = compileTrajectory(
         trajectory as unknown as CompilerTrajectory,
@@ -229,6 +246,30 @@ describe("pipeline: record -> compile -> cache -> replay", () => {
       const bundleValidation = await validateCompiledBundle(bundle);
       expect(bundleValidation.errors).toEqual([]);
       expect(bundleValidation.ok).toBe(true);
+
+      // A green replay proves nothing on its own: the compiler could fall
+      // through to a weaker assertion and still pass. Pin the shapes.
+      const shapes = bundle.rows.map((r) => ({
+        action: r.compiled_action.type,
+        type: r.assertion.type,
+        visible: r.assertion.expected?.visible,
+      }));
+
+      // Login submit: navigates AND hides its control — the destination wins
+      // over the disappearance (ADR-0007 ordering).
+      expect(shapes[3]).toEqual({
+        action: "click",
+        type: "url-matches",
+        visible: undefined,
+      });
+      // Dismiss: hides itself, no URL change. Must assert the control is GONE,
+      // not that it is still visible. This is the #71 regression guard.
+      expect(shapes[5]).toEqual({
+        action: "click",
+        type: "element-visible",
+        visible: false,
+      });
+      expect(bundle.rows[5]!.assertion.strength).toBe("strong");
 
       // --- 3. cache write --------------------------------------------------
       for (const row of bundle.rows) {

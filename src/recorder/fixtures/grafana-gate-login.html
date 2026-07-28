@@ -12,6 +12,8 @@
       nav a { color: #6e9fff; margin-right: 1rem; }
       .dash-list { list-style: none; padding: 0; }
       .dash-list li { padding: 0.5rem 0; border-bottom: 1px solid #2a2d33; }
+      .notice { border: 1px solid #2a2d33; padding: 0.5rem 0.75rem; margin: 0.75rem 0; }
+      .notice button { width: auto; margin-top: 0.25rem; }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -34,6 +36,16 @@
             <a href="#dashboards" data-testid="nav-dashboards">Dashboards</a>
           </nav>
         </header>
+        <!--
+          A control that hides itself without changing the URL. This is the
+          shape the compiler used to mis-assert: the click's whole purpose is
+          that the control goes away, so "the button is still visible" is a
+          post-condition the step itself falsifies.
+        -->
+        <div id="notice" class="notice">
+          <p>Preview build.</p>
+          <button type="button" data-testid="dismiss-notice">Dismiss</button>
+        </div>
         <div id="home-panel"><h1>Home</h1><p>Welcome</p></div>
         <div id="dashboards-panel" hidden>
           <h1>Dashboards</h1>
@@ -69,6 +81,10 @@
         homePanel.hidden = false;
         document.title = "Grafana - Home";
         history.replaceState(null, "", "#home");
+      });
+      // Deliberately does NOT touch history: a self-hiding, non-navigating control.
+      document.querySelector('[data-testid="dismiss-notice"]').addEventListener("click", () => {
+        document.getElementById("notice").hidden = true;
       });
     </script>
   </body>

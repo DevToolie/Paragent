@@ -71,7 +71,7 @@ describe("click assertion target", () => {
     },
   });
 
-  const wrap = (step: ReturnType<typeof clickStep>): Trajectory => ({
+  const wrap = (step: Trajectory["steps"][number]): Trajectory => ({
     schema_version: "1.0.0",
     trajectory_id: "traj-click",
     site_key: "fixture@local",
@@ -109,6 +109,54 @@ describe("click assertion target", () => {
     const assertion = bundle.rows[0]!.assertion;
     expect(assertion.type).toBe("element-visible");
     expect(assertion.target?.locator?.role).toBe("button");
+    expect(assertion.expected?.visible).toBe(true);
+  });
+
+  // ADR-0007
+  it("asserts the control is GONE when a non-navigating click hides it", () => {
+    const step = {
+      ...clickStep("http://{host}:{port}/app", "http://{host}:{port}/app"),
+      post_action_target_visible: false,
+    };
+    const assertion = compileTrajectory(wrap(step), {
+      compiledAt: "2026-07-25T00:00:00.000Z",
+    }).rows[0]!.assertion;
+
+    expect(assertion.type).toBe("element-visible");
+    expect(assertion.expected?.visible).toBe(false);
+    expect(assertion.target?.locator?.role).toBe("button");
+    // Disappearance IS the purpose of a dismiss-shaped click, and this fails
+    // on a no-op — so it is load-bearing, not merely consistent with success.
+    expect(assertion.strength).toBe("strong");
+  });
+
+  it("prefers the destination when a click both navigates and hides its control", () => {
+    const step = {
+      ...clickStep("http://{host}:{port}/app", "http://{host}:{port}/app#home"),
+      post_action_target_visible: false,
+    };
+    const assertion = compileTrajectory(wrap(step), {
+      compiledAt: "2026-07-25T00:00:00.000Z",
+    }).rows[0]!.assertion;
+
+    // Where it landed is better evidence than what vanished.
+    expect(assertion.type).toBe("url-matches");
+    expect(assertion.strength).toBe("strong");
+  });
+
+  it("leaves fill steps alone even when the field is hidden afterwards", () => {
+    const step = {
+      ...clickStep("http://{host}:{port}/app", "http://{host}:{port}/app"),
+      action: { type: "fill" as const, param_refs: ["q"] },
+      post_action_target_visible: false,
+    };
+    const assertion = compileTrajectory(wrap(step), {
+      compiledAt: "2026-07-25T00:00:00.000Z",
+    }).rows[0]!.assertion;
+
+    // The new branch is scoped to click-like actions; a fill that hides its
+    // own field is not a pattern we have observed, so do not invent a rule.
+    expect(assertion.expected?.visible).not.toBe(false);
   });
 });
 
