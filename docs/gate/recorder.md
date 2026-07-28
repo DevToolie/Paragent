@@ -4,7 +4,7 @@ doc_type: runbook
 status: draft
 owner: B2
 created: 2026-07-25
-updated: 2026-07-27
+updated: 2026-07-28
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -17,17 +17,18 @@ Wave-1 Track-1 agent **B2**. Captures Playwright actions into
 artifacts with lifted parameter slots, ordered locator candidates, and
 pre/post fingerprints for B3 assertion synthesis.
 
-## Working assumption (test-bed)
+## Site identity
 
-ADR-0003 / B1 test-bed was **not merged** at capture time. Default site identity:
+No longer a working assumption: ADR-0003 pinned the matrix and
+[ADR-0006](../decisions/ADR-0006-track1-gate-task.md) named the task.
 
-| Field | Value | Confidence |
+| Field | Fixture path | Live path |
 | --- | --- | --- |
-| `site_key` | `grafana-oss@fixture` (fixture) or `grafana-oss@pending-adr0003` (live) | MED |
-| Gate task | `login-open-dashboards-list` — login, then open Dashboards list | HIGH |
-| Live console | Grafana OSS (working assumption until ADR-0003) | MED |
+| `site_key` | `grafana-oss@fixture` | `grafana-oss@{host}:{port}` of the instance recorded |
+| `task_key` | `login-open-dashboards-list` | `create-stat-dashboard-from-testdata` (ADR-0006) |
+| `provenance.testbed_version` | `fixture-v1` | read from `/api/health` — `9.5.21` for the committed recording |
 
-Re-label `site_key` / `testbed_version` when B1 pins a version matrix.
+No `pending-` placeholder survives on the live path.
 
 ## Session preamble — logging in is NOT a measured step
 
@@ -76,8 +77,25 @@ Two further differences, neither affecting selection:
 | --- | --- | --- |
 | Landing URL is `/?orgId=1` | 9.5.21 → 11.0.0 | The preamble waits for "no longer on `/login`" and never asserts an exact post-login URL |
 | Landing URL gains `&from=now-6h&to=now&timezone=browser` | 11.5.2 → 13.0.3 | same |
-| First-run **Grafana Assistant dialog** covers the app on every boot | 13.0.3 only | Dismissed in the preamble. Nothing persists the dismissal (the testbed mounts no volume), and it is occlusion rather than hiding — Playwright reports elements underneath as visible, so nothing downstream would notice |
+| First-run **Grafana Assistant dialog** covers the app | 13.0.3 only | Dismissed in the preamble — see the correction below. It is occlusion rather than hiding, so Playwright reports elements underneath as visible and nothing downstream would notice |
 | **No change-password interstitial on any version** | all eight | Not clicked through. Compose sets `GF_SECURITY_ADMIN_PASSWORD`, so Grafana never forces the reset; the old conditional "Skip" click was dead code. If the screen ever appears the preamble raises a named failure instead of guessing |
+
+### Correction: the first-run dialog check was losing a race (#24)
+
+Measured on a fresh 13.0.3 container, 2026-07-28. `establishSession` returned at **+2149 ms**;
+the Assistant dialog mounted at **+2327 ms**. The old check *sampled* visibility for 2 s and
+therefore ran out before the dialog existed — it reported `dismissed_first_run_modal: false`
+and left the dialog sitting over the app, so step 1 of any recorded task would have met a modal
+instead of the page. It now **waits** for the dialog (`FIRST_RUN_DIALOG_WAIT_MS`, 3 s) instead
+of sampling for it, which costs that budget on the seven versions with no dialog and is the
+right trade for scaffolding that runs once per recording.
+
+Two claims elsewhere in this repo were wrong and are corrected here. The dialog appears once per
+**container**, not once per page load, and the dismissal is stored **server-side**: after
+closing it, a brand-new browser context against the same container never sees it again.
+`gate/testbed.md`'s "nothing persists the dismissal" is true only across `--down`, which
+re-creates the database the testbed keeps on no volume. What made it look per-page-load was this
+function silently failing.
 
 ### Failure is named, never silent
 
@@ -147,6 +165,86 @@ observation the runner will make is what keeps the two honest.
 The role and element **counts** inside `dom_digest` remain DOM-wide. They are structural
 signals, not visibility claims.
 
+## The live gate task (ADR-0006)
+
+`npm run recorder -- --base-url …` records the
+[ADR-0006](../decisions/ADR-0006-track1-gate-task.md) task — build a Stat panel over the seeded
+TestData datasource and save it as a named dashboard. The `--fixture` path is unchanged and is
+still the only one that runs without Docker.
+
+**Recorded 2026-07-28 against Grafana `9.5.21`** — the matrix base version, because the gate
+walks forward from there. Committed as
+[`experiments/gate-v1/trajectories/grafana-create-stat-dashboard-from-testdata-9.5.21.json`](../../experiments/gate-v1/trajectories/grafana-create-stat-dashboard-from-testdata-9.5.21.json):
+**12 measured steps, 8 parameter slots, zero typed values.**
+
+```bash
+npm run testbed -- --version 9.5.21
+npm run testbed -- --version 9.5.21 --verify
+
+# export PARAGENT_USERNAME and PARAGENT_USER_SECRET in the shell first — credentials
+# come from the environment, never from a flag, and never reach the artifact
+npm run recorder -- --base-url http://127.0.0.1:3000
+
+npm run testbed -- --version 9.5.21 --down
+```
+
+`provenance.testbed_version` is read from `/api/health` on the instance being recorded, not
+passed in: a hand-typed tag is a claim, `/api/health` is an observation. `--testbed-version`
+overrides it deliberately if ever needed.
+
+**Locators are the ones that resolve on 9.5.21, deliberately not a version-tolerant chain.**
+Being robust inside a measured step would launder churn out of the gate: the trajectory is
+*supposed* to break where a control moved, and the repair loop is what gets measured for putting
+it back. Version tolerance belongs in the preamble and nowhere else. Running the recorder
+against a later version is therefore expected to exit **4** (`STEP NOT RECORDABLE`) naming the
+step — and nothing is written, because a hand-patched trajectory invalidates the gate.
+
+### Two recordings, diffed
+
+Recorded three times, each on a **freshly created container** (`--down` then up, so the Grafana
+database is new each time). Ignoring `recorded_at` and `timing_ms`:
+
+| Compared | Result |
+| --- | --- |
+| run 2 vs run 3 (committed) | **byte-identical** |
+| run 1 vs run 3 (committed) | one field: `steps[10].post_state.dom_digest` |
+
+Every locator chain was identical across all three — including step 7's, which is the one
+ADR-0006 flagged as a phantom-churn risk because the 9.5.21 panel-title input has no `name`, no
+`data-testid` and no `aria-label`, leaving a single structural candidate.
+
+The `dom_digest` difference is **measured, not shrugged at**. After the save click the page
+passes through three structural states in ~3.5 s:
+
+| Sampled | Visible buttons | Success alert | digest |
+| --- | --- | --- | --- |
+| +0 ms | 18 | no — drawer still mounted | `bcb92db7…` |
+| +500 ms → +3000 ms | 17 | **yes** | `7557bb5b…` |
+| +3500 ms onward | 16 | no — toast auto-dismissed | `caf04731…` |
+
+So that one field records which side of a toast's lifetime the capture landed on. It does not
+touch this step's assertion: `post_state.url_template` moves from `/dashboard/new` to
+`/d/{dashboard_uid}/{dashboard_slug}`, so the compiler synthesizes a **strong** `url-matches`
+(priority 3) and never reaches the digest fallback. It would matter for a step that fell all the
+way to priority 8 (`custom post_digest_changed_or_stable`) — no step in this task does, and
+that is a thing for [#25](https://github.com/DevToolie/Paragent/issues/25) to keep true.
+
+### What the recorder could not capture
+
+- **Nothing was dropped or hand-edited** — all 12 steps recorded cleanly.
+- **`assertion_hint` does not carry the success toast.** A click's hint is
+  `element-visible / "click target resolved"`, so the compiler's priority-1 rule (toast →
+  `text-matches`) has nothing to fire on. The save step is still strong via its URL change, but
+  "Dashboard saved" is evidence currently on the floor.
+- **Typed values are not asserted.** Steps 5–7 type values that Grafana renders straight back
+  into the page (series label, number of values, panel header); the recorder captures no signal
+  tying the two together, so the compiler will emit weak `element-visible`. ADR-0006 predicts
+  5 strong / 7 weak today and 8 strong / 4 weak once #25 exploits the echo.
+- **`post_action_target_visible` is `true` for the save click**, because the drawer's Save button
+  is still mounted for a moment after the click — see the toast table above. Correct as an
+  observation; it just means ADR-0007's "the control vanished" strong assertion is unavailable
+  there.
+
 ## Redaction (capture-time)
 
 | Never written | Written instead |
@@ -154,6 +252,22 @@ signals, not visibility claims.
 | Typed field values | `parameters: { name: type }` + `action.param_refs` |
 | Cookies / `storageState` | omitted entirely |
 | Concrete host/port in URLs | `{host}` / `{port}` (or `{fixture_root}`) holes |
+| Typed values **echoed back** into a URL or page title | `{param}` holes, lifted at emit time |
+| Server-assigned ids in URLs (dashboard uid, slug) | `{dashboard_uid}` / `{dashboard_slug}` |
+
+The last two rows exist because of this recording. Grafana puts the dashboard title into the
+document title and the saved uid and slug into the URL, so a fingerprint captured verbatim
+carried `Paragent Gate Dashboard - Dashboards - Grafana` and
+`/d/d82e967e-…/paragent-gate-dashboard` — a typed value in the artifact, and a field that
+differs between two recordings of the same task.
+
+`templatizeUrl` only knew about host/port/fixture_root, which was enough while the only live
+step was a navigation. `templatizeText` now lifts every bound value, and the pass runs at
+**emit** time rather than capture time: a uid is only knowable *after* the step that observed
+it, so lifting has to be able to reach backwards. It replaces literals with holes and does
+nothing else — it cannot invent a state, only stop one from naming a single run. Values shorter
+than four characters are left alone, because `"3"` as a series count would rewrite every digit
+on the page.
 
 ## Package layout
 
@@ -201,7 +315,10 @@ Validate: `npm run validate:contracts` && `npm run test`
 
 ## Open questions / what I could not verify
 
-- Final `site_key` / pinned Grafana version — blocked on ADR-0003 (B1).
+- ~~Final `site_key` / pinned Grafana version — blocked on ADR-0003.~~ **Answered (#24)** —
+  `site_key` is `grafana-oss@{host}:{port}` from the instance actually recorded, and
+  `provenance.testbed_version` is read from `/api/health`. No `pending-` placeholder remains on
+  the live path.
 - ~~Live Grafana first-login password-change interstitial stability across versions.~~
   **Answered (#60)** — it does not appear on any of the eight, because compose sets
   `GF_SECURITY_ADMIN_PASSWORD`. Unverified: what happens against a Grafana that does **not** set
@@ -211,9 +328,22 @@ Validate: `npm run validate:contracts` && `npm run test`
   or every version will fail step 1 for lack of a session — and on 13.0.3 the first-run dialog
   will occlude the app without Playwright noticing. That is scaffolding for the runner to
   own; it must **not** become version-conditional logic inside replayed steps.
-- The live trajectory currently has **one** measured step (`navigate /dashboards`) now that
-  login is a preamble. That is honest but far too thin to measure — exactly the gap
-  [#59](https://github.com/DevToolie/Paragent/issues/59) exists to close.
+- ~~The live trajectory has **one** measured step now that login is a preamble.~~
+  **Closed (#59 → ADR-0006, recorded in #24)** — 12 measured steps against 9.5.21.
+- **The task has only ever been recorded on the base version.** That is by design, but it means
+  the ADR-0006 claim that every step has a counterpart on 13.0.3 rests on a hand walk, not on a
+  second recording. The first live matrix run ([#62](https://github.com/DevToolie/Paragent/issues/62))
+  is where that gets tested.
+- **The success toast is unused evidence.** Wiring `assertion_hint.observed_signals` to notice a
+  success/notification element would give the compiler its priority-1 rule on the save step —
+  and, more importantly, would let steps that type a value point at where the page echoed it.
+  Not attempted here: it changes what the recorder claims, and #25 is where those claims get
+  tested against a real compile.
+- **Repeat runs against one instance will collide.** `{dashboard_title}` is a fixed default, so
+  a second recording against the *same* container creates a second dashboard with the same
+  title. Fine today (each recording used a fresh container, and each matrix version boots its
+  own), but [#66](https://github.com/DevToolie/Paragent/issues/66) will need `--dashboard-title`
+  per run or a uniquifier.
 - Whether `input[name=...]` stays stable past 13.0.3. It held across five majors, but nothing
   guarantees it; if it moves, the preamble fails loudly at `fill-credentials` rather than
   silently recording a broken session.
