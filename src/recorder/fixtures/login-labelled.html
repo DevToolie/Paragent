@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  Grafana login surface as observed on 10.4.19, 11.0.0, 11.5.2, 12.0.0, 12.2.1
+  and 13.0.3 (2026-07-27, #60).
+
+  Identity moved to a real <label> plus data-testid, and the aria-labels are
+  gone. This is the shape a `getByLabel("Username")` selector was written for on
+  the other side of the 10.4.19 boundary.
+
+  Reproduced from the live dump, not invented:
+    username: name=user, placeholder="email or username",
+              <label>Email or username</label>,
+              data-testid="data-testid Username input field", no aria-label
+    password: name=password, <label>Password</label>,
+              data-testid="data-testid Password input field"
+    submit:   <button type="submit" data-testid="data-testid Login button">Log in</button>
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Grafana</title>
+  </head>
+  <body>
+    <main>
+      <h1>Welcome to Grafana</h1>
+      <form id="login-form" method="post" action="/login-submit">
+        <label for="user-input">Email or username</label>
+        <input
+          name="user"
+          id="user-input"
+          placeholder="email or username"
+          data-testid="data-testid Username input field"
+        />
+        <label for="password-input">Password</label>
+        <input
+          name="password"
+          id="password-input"
+          type="password"
+          placeholder="password"
+          data-testid="data-testid Password input field"
+        />
+        <button
+          aria-label="Show password"
+          type="button"
+          aria-controls="password-input"
+          role="switch"
+          aria-checked="false"
+        ></button>
+        <button type="submit" data-testid="data-testid Login button">Log in</button>
+      </form>
+      <a href="/user/password/send-reset-email">Forgot your password?</a>
+    </main>
+  </body>
+</html>

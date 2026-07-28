@@ -6,6 +6,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { establishSession, LoginFailedError } from "./preamble.js";
 import { RECORDER_VERSION, TrajectoryRecorder } from "./session.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -128,27 +129,31 @@ async function main() {
           notes:
             "Live capture against working-assumption Grafana OSS. Credentials from env only — never in artifact.",
         },
+        // No `username` / `password` slots: since #60 the login is a preamble
+        // and no recorded step references those values, so declaring parameters
+        // for them would describe holes the trajectory does not have. The
+        // values were never written either way.
         parameters: {
           host: "string",
           port: "integer",
-          username: "string",
-          password: "secret_ref",
         },
         bindings: { host, port },
       });
-      await recorder.navigate("http://{host}:{port}/login", "Open the login page", ["host", "port"]);
-      await recorder.fill(
-        page.getByLabel("Email or username").or(page.getByLabel("Username")),
-        "username",
+      // Measured steps start AFTER this line. Login is scaffolding, not the
+      // measurement — see src/recorder/preamble.ts. Nothing above touches the
+      // recorder, so no preamble action reaches trajectory.steps or a
+      // step-validity denominator.
+      const session = await establishSession(page, {
+        baseUrl,
         username,
-        "Fill username field",
+        password: userPass,
+      });
+      console.log(
+        `preamble: session established as ${session.user_login} ` +
+          `(landed ${session.landed_url}` +
+          `${session.dismissed_first_run_modal ? ", dismissed first-run dialog" : ""})`,
       );
-      await recorder.fill(page.getByLabel("Password"), "password", userPass, "Fill username secret field");
-      await recorder.click(page.getByRole("button", { name: /log in/i }), "Submit login form");
-      const skipChange = page.getByRole("button", { name: /skip/i });
-      if (await skipChange.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await recorder.click(skipChange, "Skip first-login change prompt");
-      }
+
       await recorder.navigate(
         "http://{host}:{port}/dashboards",
         "Open Dashboards list page",
@@ -164,6 +169,15 @@ async function main() {
 }
 
 main().catch((err) => {
+  // A login failure is a preamble failure, not a gate datum. Say so plainly so
+  // it is never mistaken for step-1 churn in the recorded task.
+  if (err instanceof LoginFailedError) {
+    console.error(`recorder: LOGIN FAILED (stage: ${err.stage}) — ${err.message}`);
+    console.error(
+      "No trajectory was written. This is scaffolding failing, not a measured step.",
+    );
+    process.exit(3);
+  }
   console.error(err);
   process.exit(1);
 });
