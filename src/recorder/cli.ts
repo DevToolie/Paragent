@@ -94,6 +94,13 @@ async function main() {
       await recorder.fill(page.getByLabel("Password"), "password", userPass, "Fill username secret field");
       await recorder.click(page.getByRole("button", { name: "Log in" }), "Submit login form");
       await recorder.click(page.getByTestId("nav-dashboards"), "Navigate to Dashboards list");
+      // Self-hiding, non-navigating control — exercises ADR-0007
+      // post_action_target_visible=false so the committed fixture trajectory
+      // demonstrates the case that has no URL change to fall back on.
+      await recorder.click(
+        page.getByTestId("dismiss-notice"),
+        "Dismiss the preview notice",
+      );
       await mkdir(path.dirname(outPath), { recursive: true });
       await recorder.write(outPath);
       console.log(`wrote ${path.relative(ROOT, outPath)}`);

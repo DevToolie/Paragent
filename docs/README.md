@@ -38,7 +38,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [architecture.md](./architecture.md) | How the six `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-07-25 | Owns the **chain** between packages; `gate/*.md` own one hop each. Records two unwired hops (issue #52) |
 | [README-narrative.md](./README-narrative.md) | Story: thesis → census kill → pivot → two tracks → evidence now | draft | 2026-07-25 | Includes C5 FAIL |
 | [INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md) | Unsourced claims, placeholders, LOW load-bearing, contradictions | draft | 2026-07-25 | Surfaces conflicts; does not pick winners |
-| [../README.md](../README.md) | Repo root status | living | 2026-07-25 | May lag Track 3 / C5 — see INTEGRITY-AUDIT |
+| [../README.md](../README.md) | Repo root status | living | 2026-07-25 (status table refreshed) | Track 2 **FAIL** / Track 3 Wave-1 draft now match C5 + ADR-0004; INTEGRITY-AUDIT D-04 resolved |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Hard rules + YAML frontmatter standard | living | 2026-07-24 | Doc-shape source of truth |
 
 ---
@@ -52,6 +52,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0003](decisions/ADR-0003-testbed-grafana-oss.md) | Grafana OSS self-hosted Track-1 test-bed | accepted | 2026-07-25 | Pivot Track 1 (no partner / no SaaS ToS) |
 | [ADR-0004](decisions/ADR-0004-vertical-track2-fail.md) | Track-2 vertical **FAIL** — no surface lock | accepted | 2026-07-25 | [C5 DECISION.md](research/vertical-search/DECISION.md) after C4 kills |
 | [ADR-0005](decisions/ADR-0005-repo-public.md) | Repo is **PUBLIC**, single tree, nothing stripped | accepted | 2026-07-25 | Supersedes ADR-0002; founder decision on issue #42 |
+| [ADR-0007](decisions/ADR-0007-post-action-visibility.md) | `visible_landmarks` filtered for real; new `post_action_target_visible` | accepted | 2026-07-26 | Issue #71, out of PR #70. ADR-0006 reserved for the gate task (#59) |
 
 ---
 
@@ -140,7 +141,10 @@ precondition); M5 and M7 can run in parallel; M6 is blocked on the M4 gate numbe
 
 ## Open questions / what I could not verify
 
-- Root README Track 2/3 status lines are still stale (INTEGRITY-AUDIT D-04) — tracked as issue #54.
+- ~~Root README Track 2/3 status lines are still stale (INTEGRITY-AUDIT D-04) — tracked as issue #54.~~
+  **Resolved** — the root README status table now records Track 2 as FAIL and Track 3 as a
+  Wave-1 draft, both citing in-repo artifacts. The residual deck/objections prose flagged by
+  D-01 and E-12 is a separate, still-open lag.
 - Founder post-Track-1 choice (intermediary reframe vs shut search) — C5 next action; not decided in docs.
 - Measured gate number — still unset; do not invent.
 - Whether to buy GitHub Secret Protection. Non-provider patterns and validity checks are

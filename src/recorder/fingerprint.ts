@@ -46,6 +46,26 @@ export async function captureFingerprint(
     title_template = title_template.split(host).join("{host}");
   }
 
+  // ADR-0007: visible_landmarks must mean visible.
+  //
+  // visibilityProperty/contentVisibilityAuto are NOT optional. With default
+  // options checkVisibility() returns TRUE for a "visibility: hidden" element,
+  // while Playwright's isVisible() — which the runner asserts with, and which
+  // records post_action_target_visible — returns false. Measured in Chromium:
+  //
+  //   CSS                 default   with flags   playwright
+  //   display:none        false     false        false
+  //   visibility:hidden   TRUE      false        false   <- the disagreement
+  //   opacity:0           true      true         true
+  //   [hidden]            false     false        false
+  //
+  // The getClientRects() fallback shares the blind spot, so it consults
+  // computed style first.
+  // https://developer.mozilla.org/en-US/docs/Web/API/Element/checkVisibility
+  // access_date: 2026-07-26
+  //
+  // Keep prose OUT of the string below: it is a template literal, so a stray
+  // backtick or ${ terminates it. That is a build break, not a runtime one.
   const EXTRACT_PAGE_SIGNALS = new Function(`
     const landmarkRoles = new Set([
       "banner", "navigation", "main", "contentinfo",
@@ -53,6 +73,15 @@ export async function captureFingerprint(
     ]);
     const roleCounts = {};
     const landmarks = [];
+    // ADR-0007 visibility filter — see the note above this string in the .ts.
+    const isVisible = (el) => {
+      if (typeof el.checkVisibility === "function") {
+        return el.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true });
+      }
+      const cs = window.getComputedStyle(el);
+      if (cs && (cs.visibility === "hidden" || cs.display === "none")) return false;
+      return el.getClientRects().length > 0;
+    };
     const implicit = (el) => {
       const tag = el.tagName;
       if (tag === "FORM") return "form";
@@ -66,8 +95,10 @@ export async function captureFingerprint(
     const walk = (el) => {
       const role = el.getAttribute("role") || implicit(el);
       if (role) {
+        // Counts stay DOM-wide on purpose (ADR-0007): they are structural, and
+        // no field name promises they are visibility-scoped.
         roleCounts[role] = (roleCounts[role] || 0) + 1;
-        if (landmarkRoles.has(role) && !landmarks.includes(role)) {
+        if (landmarkRoles.has(role) && !landmarks.includes(role) && isVisible(el)) {
           landmarks.push(role);
         }
       }
