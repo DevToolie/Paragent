@@ -10,6 +10,18 @@ export interface MatrixVersion {
   github_release_url: string;
   whats_new_url?: string;
   access_date: string;
+  /**
+   * `"unavailable"` marks a pin that could not be made to work (issue #23).
+   * The row stays in the matrix on purpose — a shrinking matrix is a finding,
+   * and the gate writeup has to disclose it — but the gate harness skips it.
+   *
+   * No pin carries it today: #23 booted and seeded all eight. It exists for the
+   * day one stops resolving, so the denominator shrinks loudly rather than
+   * silently.
+   */
+  status?: string;
+  /** Why this version is `unavailable`. Required in practice when status is set. */
+  reason?: string;
 }
 
 export interface Matrix {
@@ -95,4 +107,17 @@ export function testdataTypeFor(versionId: string): string {
 
 export function listVersions(matrix = loadMatrix()): MatrixVersion[] {
   return [...matrix.versions];
+}
+
+/** True when a pin is recorded as not working and must not be walked. */
+export function isUnavailable(version: MatrixVersion): boolean {
+  return version.status === "unavailable";
+}
+
+/**
+ * Versions the gate harness may actually walk. Callers must report what was
+ * skipped rather than quietly shrinking their denominator.
+ */
+export function availableVersions(matrix = loadMatrix()): MatrixVersion[] {
+  return listVersions(matrix).filter((v) => !isUnavailable(v));
 }

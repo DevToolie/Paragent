@@ -3,9 +3,14 @@ import { parseArgs } from "../../src/testbed/args.js";
 import { PACKAGE } from "../../src/testbed/constants.js";
 import { buildComposeEnv } from "../../src/testbed/docker.js";
 import {
+  availableVersions,
   getVersion,
+  isUnavailable,
+  listVersions,
   loadMatrix,
   testdataTypeFor,
+  type Matrix,
+  type MatrixVersion,
 } from "../../src/testbed/matrix.js";
 import { composeProjectSlug } from "../../src/testbed/paths.js";
 import {
@@ -66,6 +71,48 @@ describe("testbed matrix", () => {
     expect(testdataTypeFor("10")).toBe("testdata");
     expect(testdataTypeFor("9")).toBe("testdata");
     expect(testdataTypeFor("11")).toBe("grafana-testdata-datasource");
+  });
+});
+
+describe("matrix availability (#26)", () => {
+  // `npm run gate:matrix` walks this list. A version that cannot be made to work
+  // stays in the matrix — a shrinking matrix is a finding the gate writeup has
+  // to disclose — but must not be walked, and must not vanish from the count.
+  const withStatus = (id: string, status?: string, reason?: string): MatrixVersion => ({
+    id,
+    image_tag: id,
+    released: "2025-01",
+    churn_role: "test",
+    docker_hub_tag_url: "https://example.invalid",
+    github_release_url: "https://example.invalid",
+    access_date: "2026-07-27",
+    ...(status === undefined ? {} : { status }),
+    ...(reason === undefined ? {} : { reason }),
+  });
+
+  const fake = (versions: MatrixVersion[]) =>
+    ({ ...loadMatrix(), versions }) as Matrix;
+
+  it("treats only `unavailable` as unwalkable", () => {
+    expect(isUnavailable(withStatus("1.0.0"))).toBe(false);
+    expect(isUnavailable(withStatus("1.0.0", "unavailable", "tag 404s"))).toBe(true);
+    // Any other status value is not a skip signal — do not guess.
+    expect(isUnavailable(withStatus("1.0.0", "verified"))).toBe(false);
+  });
+
+  it("filters unavailable versions out of the walkable list, keeping them in the matrix", () => {
+    const m = fake([
+      withStatus("1.0.0"),
+      withStatus("2.0.0", "unavailable", "tag 404s"),
+      withStatus("3.0.0"),
+    ]);
+    expect(availableVersions(m).map((v) => v.id)).toEqual(["1.0.0", "3.0.0"]);
+    // The skipped row is still there to be counted and reported.
+    expect(listVersions(m)).toHaveLength(3);
+  });
+
+  it("walks every pinned version today — none is marked unavailable", () => {
+    expect(availableVersions()).toHaveLength(listVersions().length);
   });
 });
 

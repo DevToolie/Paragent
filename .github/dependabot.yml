@@ -45,7 +45,8 @@ updates:
     ignore:
       # Playwright ships the browser build that gate measurements run against, so a
       # major bump changes churn results. Bump it deliberately in its own PR
-      # alongside experiments/gate-v1/versions.json. Security updates still land.
+      # alongside scripts/testbed/matrix.json (the single version matrix since
+      # #26 deleted experiments/gate-v1/versions.json). Security updates still land.
       - dependency-name: playwright
         update-types:
           - version-update:semver-major

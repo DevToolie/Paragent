@@ -70,3 +70,11 @@ npm run gate:report
 - Whether `compiled_trajectory` bundle `$id` becomes a first-class contract (B3 packaging convention today).
 - Fresh-reasoning cost capture for `cost_fresh` — measured separately; defaults to zeros when unwired.
 - Live `page` injection API for matrix vs caller-owned browser lifecycle — not locked yet.
+- ~~Which version list the gate matrix walks.~~ **Settled (#26)** — `scripts/testbed/matrix.json`
+  (ADR-0003 pins), read through `src/testbed/matrix.ts`. The placeholder
+  `experiments/gate-v1/versions.json` is deleted, so `npm run gate:matrix -- --dry-run` now
+  emits one run row per pinned version instead of one row for `pending-b1@placeholder`. Still a
+  dry run: outcomes are hard-coded `PASS`, every token count is 0, and the rows say so.
+- Whether walking eight versions changes anything the report can *conclude*. It does not — more
+  rows over the same hand-written 2-step program is a better-shaped denominator, not a
+  measurement. That waits on live execution ([#62](https://github.com/DevToolie/Paragent/issues/62)).
