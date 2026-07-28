@@ -4,7 +4,7 @@ doc_type: brief
 status: review
 owner: D2
 created: 2026-07-24
-updated: 2026-07-25
+updated: 2026-07-27
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -12,7 +12,8 @@ sources_verified: true
 
 # docs/ — map
 
-Live index. Update this file when you add or supersede a document.
+Live index. Update this file when you add or supersede a document — `npm run lint:docs`
+fails the build on any `docs/*.md` this file does not link to, so it cannot go quietly stale.
 Reading order: **[README-narrative.md](./README-narrative.md)** (~20 min).
 Current state and what to work on: **[ROADMAP.md](./ROADMAP.md)**.
 How to run and ship: **[DEVELOPMENT.md](./DEVELOPMENT.md)**.
@@ -71,7 +72,9 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | Doc | What it is | Status | Last true | Notes |
 | --- | --- | --- | --- | --- |
 | [census-week0/README.md](research/census-week0/README.md) | Archive index | killed | 2026-07-24 | Observability anchor killed |
-| [A1](research/census-week0/A1-datadog.md)–[A3](research/census-week0/A3-sentry.md) | Scouts | killed | 2026-07-24 | Enumeration only |
+| [A1-datadog.md](research/census-week0/A1-datadog.md) | Scout | killed | 2026-07-24 | Enumeration only |
+| [A2-grafana.md](research/census-week0/A2-grafana.md) | Scout | killed | 2026-07-24 | Enumeration only |
+| [A3-sentry.md](research/census-week0/A3-sentry.md) | Scout | killed | 2026-07-24 | Enumeration only |
 | [A4-adversary.md](research/census-week0/A4-adversary.md) | **51/70 FULLY_API** kill list | killed | 2026-07-24 | Primary Week-0 falsification |
 | [A5-evidence.md](research/census-week0/A5-evidence.md) | Frequency/pain proxies | killed | 2026-07-24 | Many LOW — A8 warns |
 | [A6-tos.md](research/census-week0/A6-tos.md) | ToS overlay | killed | 2026-07-24 | HIGH for DD/GC |
@@ -119,7 +122,11 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 
 | Doc | What it is | Status | Last true | Notes |
 | --- | --- | --- | --- | --- |
-| [pitch/](pitch/) | Wave-1 pack | draft | 2026-07-25 | D2 refreshed for C5; some objections prose may lag — INTEGRITY-AUDIT |
+| [pitch/README.md](pitch/README.md) | Pack index | draft | 2026-07-25 | D2 refreshed for C5; some objections prose may lag — INTEGRITY-AUDIT |
+| [one-pager.md](pitch/one-pager.md) | One-pager | draft | 2026-07-25 | Wave-1 draft |
+| [narrative.md](pitch/narrative.md) | Pitch narrative | draft | 2026-07-25 | Wave-1 draft |
+| [deck-outline.md](pitch/deck-outline.md) | Deck outline | draft | 2026-07-25 | Residual slides may lag C5 — INTEGRITY-AUDIT D-01 / E-12 |
+| [objections.md](pitch/objections.md) | Objection handling | draft | 2026-07-25 | Two FAILs present tense (D-07); residual prose flagged E-12 |
 | [proof-points.md](pitch/proof-points.md) | Claim register | draft | 2026-07-25 | Diligence map |
 
 ---

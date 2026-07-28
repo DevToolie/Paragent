@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
+    "lint:docs": "node scripts/lint-docs.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run tests/unit",
     "test:watch": "vitest",
@@ -23,7 +24,7 @@
     "compile": "node --import tsx src/compiler/cli.ts",
     "gate:matrix": "node --import tsx experiments/gate-v1/run-matrix.ts",
     "gate:report": "node --import tsx experiments/gate-v1/report/generate-amortized.ts",
-    "ci": "npm run secret-scan && npm run validate:contracts && npm run lint && npm run typecheck && npm run test && npm run test:integration"
+    "ci": "npm run secret-scan && npm run validate:contracts && npm run lint && npm run lint:docs && npm run typecheck && npm run test && npm run test:integration"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

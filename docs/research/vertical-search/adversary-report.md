@@ -308,6 +308,17 @@ NO_PATH_FOUND residue concentrates in: identity/MFA, once-per-relationship KYC/S
 
 ---
 
+## Searches run (representative; not exhaustive)
+
+Healthcare: `CMS-0057-F prior authorization API`, `HIPAA ASC X12N 278`, `CAQH CORE 270/271 276/277`, `Availity Service Reviews API`, `Availity Digital Correspondence Hub API`, `Da Vinci DTR Questionnaire`.  
+Freight: `EDI 204 990 214`, `FedEx Track API`, `AES EDI Bulk Upload AESTIR X12 601`, `Opendock appointment API`, `regional LTL carrier public booking API`, `carrier freight invoice dispute API`.  
+Insurance: `AgentSync ProducerSync API`, `SureLC public API documentation`, `NIPR company appointment`.  
+Government: `IRS MeF A2A`, `SAM.gov entity update API registration write`, `unified state annual report filing API USA`, `Patent Center filing API`, `federal FOIA portal submit API`.  
+Security: `OneTrust vendor respondent API`, `ProcessUnity GRX third party submit assessment API respondent`, `Vanta questionnaire automation browser extension`, `Shared Assessments SIG`.  
+Procurement: `Coupa Supplier Portal API submit SIM`, `Ariba Network supplier API complete registration questionnaire`, `Coupa cXML invoices`, `cXML punchout Ariba`.
+
+---
+
 ## Open questions / what I could not verify
 
 - Exact % of US EEI filings via AESDirect click-path vs EDI/certified software — Census documents methods; **no percentage claimed** (searched AES intro + related; not found).
@@ -318,14 +329,3 @@ NO_PATH_FOUND residue concentrates in: identity/MFA, once-per-relationship KYC/S
 - Per-state SOS annual-report bulk/XML inventory — not completed this pass.
 - Change Healthcare / Optum clearinghouse API depth post-outage — pointed by scout; not re-censused here beyond Availity primary docs.
 - Live Coupa CSP Supplier REST write scope for Business Profile after onboarding — invoices docs mention retrieve APIs; full write census incomplete.
-
----
-
-## Searches run (representative; not exhaustive)
-
-Healthcare: `CMS-0057-F prior authorization API`, `HIPAA ASC X12N 278`, `CAQH CORE 270/271 276/277`, `Availity Service Reviews API`, `Availity Digital Correspondence Hub API`, `Da Vinci DTR Questionnaire`.  
-Freight: `EDI 204 990 214`, `FedEx Track API`, `AES EDI Bulk Upload AESTIR X12 601`, `Opendock appointment API`, `regional LTL carrier public booking API`, `carrier freight invoice dispute API`.  
-Insurance: `AgentSync ProducerSync API`, `SureLC public API documentation`, `NIPR company appointment`.  
-Government: `IRS MeF A2A`, `SAM.gov entity update API registration write`, `unified state annual report filing API USA`, `Patent Center filing API`, `federal FOIA portal submit API`.  
-Security: `OneTrust vendor respondent API`, `ProcessUnity GRX third party submit assessment API respondent`, `Vanta questionnaire automation browser extension`, `Shared Assessments SIG`.  
-Procurement: `Coupa Supplier Portal API submit SIM`, `Ariba Network supplier API complete registration questionnaire`, `Coupa cXML invoices`, `cXML punchout Ariba`.
