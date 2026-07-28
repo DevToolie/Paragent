@@ -15,6 +15,62 @@ export interface ActionResult {
   ok: boolean;
   outcome?: "LOCATOR_NOT_FOUND" | "TIMEOUT" | "PAGE_ERROR";
   message?: string;
+  /**
+   * `wait` steps only: whether the `networkidle` fallback actually fired.
+   * `false` means the bound elapsed and the step proceeded anyway — a settling
+   * hint that went unanswered, not a failure. See {@link NETWORK_IDLE_WAIT_MS}.
+   */
+  settled?: boolean;
+}
+
+/**
+ * Ceiling for the `networkidle` fallback of a parameterless `wait` step.
+ *
+ * This used to be an unbounded `page.waitForLoadState("networkidle")`, which
+ * inherits Playwright's 30s default — a number nobody in this repo chose. On a
+ * page that never goes quiet for 500ms, `networkidle` never fires, so the step
+ * burned the full 30s and then failed anyway: maximum latency for zero
+ * information. Measured at 30.0s in tests/unit/runner-bounded-wait.test.ts.
+ *
+ * **Honest scope of the risk.** The seeded Grafana dashboard does *not* trigger
+ * it — `networkidle` settles there in ~3ms (measured on 11.0.0, /d/paragent-seed,
+ * 2026-07-28), because the seed dashboard sets no refresh interval and TestData
+ * is generated client-side. So this is a latent worst case rather than one the
+ * current test-bed hits: it becomes reachable on any surface with continuous
+ * polling, streaming, or websockets. Bounding it is cheap insurance, not a fix
+ * for an observed test-bed hang.
+ *
+ * 5000ms happens to equal the assertion timeout the compiler emits
+ * (`DEFAULT_ASSERTION_TIMEOUT_MS` in src/compiler/assertions.ts), which keeps a
+ * step's wait and its post-condition the same order of magnitude. Nothing
+ * enforces the equality — they are independent constants in different packages,
+ * and either can move without the other.
+ *
+ * **Reaching the bound is not a step failure.** A parameterless `wait` is a
+ * settling *hint*; the post-condition is the assertion that runs immediately
+ * after it, with its own budget. So when the bound elapses the step proceeds
+ * and records `settled: false` — the same posture as the 250ms idle probe in
+ * page-state.ts, where a timeout means *no claim* rather than failure.
+ *
+ * Classifying it as `TIMEOUT` instead would route the step into the repair loop
+ * (replay.ts sends every non-PASS outcome there), spending repair budget twice
+ * on a condition no `corrected_action` can fix — "this page never goes quiet"
+ * is not a locator problem. `success_with_le_2_repairs` would then be reporting
+ * a scaffolding condition as churn, which is the one thing the gate number must
+ * not do. If the page really is broken, the assertion says so on its own and
+ * that failure *is* worth a repair attempt.
+ *
+ * **This still changes which steps pass.** A page that first goes quiet at, say,
+ * 12s used to hold the step until it did; now the step continues at 5s and the
+ * assertion decides on whatever is on screen. That is deliberate and is a good
+ * trade *now*, while no gate number exists — see docs/gate/runner.md. It would
+ * be a bad trade after a measurement had been published against the old value.
+ */
+export const NETWORK_IDLE_WAIT_MS = 5_000;
+
+export interface ExecuteActionOptions {
+  /** Override for {@link NETWORK_IDLE_WAIT_MS}. */
+  networkIdleWaitMs?: number;
 }
 
 function isTimeoutError(err: unknown): boolean {
@@ -39,6 +95,7 @@ export async function executeAction(
   page: Page,
   action: CompiledAction,
   params: ParamBindings = {},
+  options: ExecuteActionOptions = {},
 ): Promise<ActionResult> {
   try {
     switch (action.type) {
@@ -156,10 +213,23 @@ export async function executeAction(
               : 0;
         if (Number.isFinite(ms) && ms > 0) {
           await page.waitForTimeout(ms);
-        } else {
-          await page.waitForLoadState("networkidle");
+          return { ok: true };
         }
-        return { ok: true };
+        const bound = options.networkIdleWaitMs ?? NETWORK_IDLE_WAIT_MS;
+        try {
+          await page.waitForLoadState("networkidle", { timeout: bound });
+          return { ok: true, settled: true };
+        } catch (err) {
+          // Only an unanswered settling hint is tolerated here. Anything else
+          // (a closed page, a navigation error) is a real failure and falls
+          // through to the outer handler.
+          if (!isTimeoutError(err)) throw err;
+          return {
+            ok: true,
+            settled: false,
+            message: `networkidle not reached within ${bound}ms; proceeded — the assertion is the post-condition`,
+          };
+        }
       }
 
       case "upload": {

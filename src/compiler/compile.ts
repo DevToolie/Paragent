@@ -1,4 +1,7 @@
-import { synthesizeAssertion } from "./assertions.js";
+import {
+  synthesizeAssertion,
+  type SynthesizeAssertionOptions,
+} from "./assertions.js";
 import { buildLocatorFallbackChain } from "./locators.js";
 import { decidePoolEligibility } from "./pool.js";
 import {
@@ -50,13 +53,17 @@ export function compileStep(
   trajectory: Trajectory,
   step: TrajectoryStep,
   compiledAt: string,
+  assertionOptions: SynthesizeAssertionOptions = {},
 ): CacheRow {
   const { action, topologyOnly } = buildCompiledAction(step);
-  const assertion = synthesizeAssertion({
-    trajectory,
-    step,
-    locatorChain: action.locator_fallback_chain,
-  });
+  const assertion = synthesizeAssertion(
+    {
+      trajectory,
+      step,
+      locatorChain: action.locator_fallback_chain,
+    },
+    assertionOptions,
+  );
   const pool = decidePoolEligibility({
     chain: action.locator_fallback_chain,
     assertion,
@@ -101,6 +108,12 @@ export interface CompileOptions {
   compiledAt?: string;
   inputPath?: string;
   notes?: string;
+  /**
+   * Override the `timeout_ms` written onto every synthesized assertion.
+   * Defaults to `DEFAULT_ASSERTION_TIMEOUT_MS`. Read the note on that constant
+   * before changing it — it is an assertion-strength knob, not a perf one.
+   */
+  assertionTimeoutMs?: number;
 }
 
 export function compileTrajectory(
@@ -117,9 +130,13 @@ export function compileTrajectory(
   }
 
   const compiledAt = options.compiledAt ?? new Date().toISOString();
+  const assertionOptions: SynthesizeAssertionOptions =
+    options.assertionTimeoutMs === undefined
+      ? {}
+      : { timeoutMs: options.assertionTimeoutMs };
   const rows = [...trajectory.steps]
     .sort((a, b) => a.step_index - b.step_index)
-    .map((step) => compileStep(trajectory, step, compiledAt));
+    .map((step) => compileStep(trajectory, step, compiledAt, assertionOptions));
 
   const bundle: CompiledTrajectoryBundle = {
     schema_version: SCHEMA_VERSION,

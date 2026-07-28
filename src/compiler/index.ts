@@ -7,7 +7,12 @@ export type {
   Trajectory,
 } from "./types.js";
 export { compileTrajectory, compileStep } from "./compile.js";
-export { synthesizeAssertion, templateToRegex } from "./assertions.js";
+export {
+  DEFAULT_ASSERTION_TIMEOUT_MS,
+  synthesizeAssertion,
+  templateToRegex,
+} from "./assertions.js";
+export type { SynthesizeAssertionOptions } from "./assertions.js";
 export {
   buildLocatorFallbackChain,
   orderLocatorCandidates,

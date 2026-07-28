@@ -16,7 +16,7 @@ import {
 } from "../metrics/types.js";
 import { addCost, measureWallClock, zeroCost } from "../metrics/cost.js";
 import { MetricsEmitter } from "../metrics/emitter.js";
-import { executeAction } from "./actions.js";
+import { executeAction, NETWORK_IDLE_WAIT_MS } from "./actions.js";
 import { evaluateAssertion } from "./assertions.js";
 import { capturePageState, emptyPageState } from "./page-state.js";
 import {
@@ -51,6 +51,12 @@ export interface ReplayRunnerOptions {
   /** Fresh-reasoning baseline cost (measured separately). Defaults to zeros. */
   costFresh?: Cost;
   page?: Page;
+  /**
+   * Ceiling for a parameterless `wait` step's `networkidle` fallback.
+   * Defaults to `NETWORK_IDLE_WAIT_MS`; see the note on that constant for why
+   * it is bounded at all.
+   */
+  networkIdleWaitMs?: number;
 }
 
 function nowIso(): string {
@@ -69,6 +75,7 @@ export class ReplayRunner {
   private readonly metrics: MetricsEmitter;
   private readonly costFresh: Cost;
   private readonly page?: Page;
+  private readonly networkIdleWaitMs: number;
 
   constructor(options: ReplayRunnerOptions = {}) {
     this.dryRun = options.dryRun ?? false;
@@ -77,6 +84,7 @@ export class ReplayRunner {
     this.repairClient = options.repairClient ?? new StubRepairModelClient();
     this.metrics = options.metrics ?? new MetricsEmitter();
     this.costFresh = options.costFresh ?? zeroCost();
+    this.networkIdleWaitMs = options.networkIdleWaitMs ?? NETWORK_IDLE_WAIT_MS;
     if (options.page !== undefined) this.page = options.page;
   }
 
@@ -362,13 +370,19 @@ export class ReplayRunner {
     }
 
     const { result, wall_clock_ms } = await measureWallClock(async () => {
-      const actionResult = await executeAction(this.page!, action, params);
+      const actionResult = await executeAction(this.page!, action, params, {
+        networkIdleWaitMs: this.networkIdleWaitMs,
+      });
       if (!actionResult.ok) {
         return {
           outcome: (actionResult.outcome ?? "PAGE_ERROR") as StepOutcome,
           message: actionResult.message,
         };
       }
+      // A `wait` whose networkidle hint never fired is not a failure — it
+      // proceeds and says so, so the note has to survive a passing assertion.
+      const notes =
+        actionResult.settled === false ? actionResult.message : undefined;
       const assertionResult = await evaluateAssertion(
         this.page!,
         step.assertion,
@@ -377,6 +391,7 @@ export class ReplayRunner {
       return {
         outcome: assertionResult.outcome,
         message: assertionResult.message,
+        notes,
       };
     });
 
@@ -390,6 +405,7 @@ export class ReplayRunner {
     };
     if (mode === "repair") out.repair_attempt = repairAttempt;
     if (result.message !== undefined) out.error_message = result.message;
+    if (result.notes !== undefined) out.notes = result.notes;
     return out;
   }
 
