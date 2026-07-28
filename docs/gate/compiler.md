@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B3
 created: 2026-07-25
-updated: 2026-07-26
+updated: 2026-07-27
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -123,8 +123,10 @@ destination to assert. It is labelled `strong` because for such a control the di
 
 Note this also repaired the landmark fallback. `visible_landmarks` used to be collected by
 walking the DOM with no visibility filter, so a landmark that had just been hidden was still
-listed and the fallback was useless. It is now genuinely visibility-filtered in both the
-recorder and the runner's `page-state`.
+listed and the fallback was useless. It is now genuinely visibility-filtered, and since
+[#74](https://github.com/DevToolie/Paragent/issues/74) the recorder and the runner's
+`page-state` run **one** enumeration (`src/shared/landmarks.ts`) rather than two that agreed
+only on markup with redundant `role=` attributes.
 
 **Strength rule:** `strong` = unambiguous proof the step achieved its purpose;
 `weak` = consistent with success but also with several failures. Weak is allowed
