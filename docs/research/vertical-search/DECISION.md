@@ -259,16 +259,6 @@ Even if survivors had clustered, **measurement accessibility is poor across the 
 
 ---
 
-## Open questions / what I could not verify
-
-- Primary measured portals-per-FTE for any surface (scouts + C4 flag absence; access 2026-07-24/25).
-- Whether HP-10 correspondence volume is truly F≥2 outside anecdotal ops (CONFIDENCE: MED on survivor row).
-- Whether any QAuto vendor would buy a replay substrate rather than keep shipping extensions (out of scope; not scored).
-- Live counsel position on authorized-user automation of third-party portals (pivot §5; still pending).
-- Exact % AESDirect click-path vs EDI (C4 open question; not claimed).
-
----
-
 ## Method notes (integrity)
 
 - Joined C1–C3 task tables × C4 verdicts on `task_id`; surface durability from C4; FREQUENCY/PAIN/REPLAY from scout evidence only — no new APIs or $ TAM.
@@ -276,3 +266,13 @@ Even if survivors had clustered, **measurement accessibility is poor across the 
 - No path found ≠ no path exists.
 
 *Adjudicator: C5. Decision date: 2026-07-25.*
+
+---
+
+## Open questions / what I could not verify
+
+- Primary measured portals-per-FTE for any surface (scouts + C4 flag absence; access 2026-07-24/25).
+- Whether HP-10 correspondence volume is truly F≥2 outside anecdotal ops (CONFIDENCE: MED on survivor row).
+- Whether any QAuto vendor would buy a replay substrate rather than keep shipping extensions (out of scope; not scored).
+- Live counsel position on authorized-user automation of third-party portals (pivot §5; still pending).
+- Exact % AESDirect click-path vs EDI (C4 open question; not claimed).

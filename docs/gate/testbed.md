@@ -1,10 +1,10 @@
 ---
 title: Track-1 Grafana OSS test-bed
-doc_type: gate
+doc_type: spec
 status: draft
 owner: B1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-27
 confidence: HIGH
 supersedes: null
 sources_verified: true
