@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import type { Fingerprint } from "./types.js";
 import { digestSignals, templatizeUrl } from "./redact.js";
+import { LANDMARK_ENUMERATION_JS } from "../shared/landmarks.js";
 
 export interface FingerprintContext {
   bindings: Record<string, string | number | boolean>;
@@ -46,67 +47,29 @@ export async function captureFingerprint(
     title_template = title_template.split(host).join("{host}");
   }
 
-  // ADR-0007: visible_landmarks must mean visible.
+  // ADR-0007: visible_landmarks must mean visible. The enumeration — role
+  // vocabulary, implicit roles, visibility predicate, and which elements get
+  // tested — lives in src/shared/landmarks.ts and is shared verbatim with
+  // src/runner/page-state.ts (#74). Do not re-inline it here; two copies is
+  // what made the two sites disagree in the first place.
   //
-  // visibilityProperty/contentVisibilityAuto are NOT optional. With default
-  // options checkVisibility() returns TRUE for a "visibility: hidden" element,
-  // while Playwright's isVisible() — which the runner asserts with, and which
-  // records post_action_target_visible — returns false. Measured in Chromium:
-  //
-  //   CSS                 default   with flags   playwright
-  //   display:none        false     false        false
-  //   visibility:hidden   TRUE      false        false   <- the disagreement
-  //   opacity:0           true      true         true
-  //   [hidden]            false     false        false
-  //
-  // The getClientRects() fallback shares the blind spot, so it consults
-  // computed style first.
-  // https://developer.mozilla.org/en-US/docs/Web/API/Element/checkVisibility
-  // access_date: 2026-07-26
+  // Still a string body, not a callback: esbuild's keepNames wraps named
+  // function expressions in __name(...), which does not exist in the browser.
   //
   // Keep prose OUT of the string below: it is a template literal, so a stray
   // backtick or ${ terminates it. That is a build break, not a runtime one.
   const EXTRACT_PAGE_SIGNALS = new Function(`
-    const landmarkRoles = new Set([
-      "banner", "navigation", "main", "contentinfo",
-      "complementary", "form", "search", "region",
-    ]);
+    ${LANDMARK_ENUMERATION_JS}
     const roleCounts = {};
-    const landmarks = [];
-    // ADR-0007 visibility filter — see the note above this string in the .ts.
-    const isVisible = (el) => {
-      if (typeof el.checkVisibility === "function") {
-        return el.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true });
-      }
-      const cs = window.getComputedStyle(el);
-      if (cs && (cs.visibility === "hidden" || cs.display === "none")) return false;
-      return el.getClientRects().length > 0;
-    };
-    const implicit = (el) => {
-      const tag = el.tagName;
-      if (tag === "FORM") return "form";
-      if (tag === "MAIN") return "main";
-      if (tag === "NAV") return "navigation";
-      if (tag === "HEADER") return "banner";
-      if (tag === "FOOTER") return "contentinfo";
-      if (tag === "ASIDE") return "complementary";
-      return null;
-    };
-    const walk = (el) => {
-      const role = el.getAttribute("role") || implicit(el);
-      if (role) {
-        // Counts stay DOM-wide on purpose (ADR-0007): they are structural, and
-        // no field name promises they are visibility-scoped.
-        roleCounts[role] = (roleCounts[role] || 0) + 1;
-        if (landmarkRoles.has(role) && !landmarks.includes(role) && isVisible(el)) {
-          landmarks.push(role);
-        }
-      }
-      for (const child of Array.from(el.children)) walk(child);
-    };
-    walk(document.body);
+    // Counts stay DOM-wide on purpose (ADR-0007): they are structural signals,
+    // not visibility claims, and no field name promises otherwise. Same walk
+    // and same role resolution as the landmark pass, unfiltered.
+    paragentWalk(document.body, (el) => {
+      const role = paragentRoleOf(el);
+      if (role) roleCounts[role] = (roleCounts[role] || 0) + 1;
+    });
     return {
-      landmark_roles: landmarks,
+      landmark_roles: paragentVisibleLandmarks(document.body),
       role_counts: roleCounts,
       form_count: document.querySelectorAll("form").length,
       heading_count: document.querySelectorAll("h1,h2,h3,h4,h5,h6,[role='heading']").length,

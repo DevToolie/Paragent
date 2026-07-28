@@ -4,7 +4,7 @@ doc_type: adr
 status: accepted
 owner: B2
 created: 2026-07-26
-updated: 2026-07-26
+updated: 2026-07-27
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -109,15 +109,26 @@ second time after the action, which costs a round-trip per step.
    | `opacity:0` | true | true | true |
    | `[hidden]` | false | false | false |
 
-   **This shares the predicate, not the enumeration.** The two sites still disagree about
-   *which elements to test*: the recorder walks the whole tree mapping implicit roles for
-   `FORM MAIN NAV HEADER FOOTER ASIDE` against an 8-role landmark set, while `page-state`
-   checks 6 `[role=]` selectors with tag fallbacks for only `main`/`nav`/`form`. On semantic
-   markup without redundant `role` attributes the recorder reports `banner`,
-   `complementary`, and `contentinfo` that `page-state` misses. The in-tree fixture cannot
-   show this because it puts an explicit `role=` on every landmark. Tracked as
-   [#74](https://github.com/DevToolie/Paragent/issues/74) — closing it means extracting one
-   shared enumeration, not duplicating the walk.
+   **This shared the predicate, not the enumeration — closed 2026-07-27 by
+   [#74](https://github.com/DevToolie/Paragent/issues/74).** As accepted, the two sites still
+   disagreed about *which elements to test*: the recorder walked the whole tree mapping
+   implicit roles for `FORM MAIN NAV HEADER FOOTER ASIDE` against an 8-role landmark set,
+   while `page-state` checked 6 `[role=]` selectors with tag fallbacks for only
+   `main`/`nav`/`form`. On semantic markup without redundant `role` attributes the recorder
+   reported `banner`, `complementary`, and `contentinfo` that `page-state` missed — and the
+   in-tree fixture could not show it, because it puts an explicit `role=` on every landmark.
+
+   Both sites now run one enumeration from `src/shared/landmarks.ts`: the role vocabulary,
+   the implicit-role map, the predicate, and the tree walk. It is a **JS source string**, not
+   a TypeScript function — the string-body technique is what keeps esbuild's `__name` wrapper
+   out of the browser, so the shared unit had to preserve it. `tests/unit/landmarks.test.ts`
+   asserts the two agree on semantic markup with no `role=` attributes.
+
+   That is a **behaviour change to `RepairContext.page_state`**, not a pure refactor:
+   `capturePageState` now reports `complementary`, `contentinfo`, and `region`, which its old
+   selector list could not produce, and orders the list by DOM position rather than by its own
+   fixed role array. The recorder's output is unchanged — the fixture trajectory re-records
+   with an identical `dom_digest`.
 2. `trajectory.schema.json` `$defs.step` gains optional `post_action_target_visible: boolean`,
    recorded only for steps that acted through a locator. The recorder observes it with
    Playwright's `Locator.isVisible()`.
@@ -133,8 +144,8 @@ claims exactly what the runner will check. Using a DOM-level predicate there wou
 disagree at the edges.
 
 Landmarks are a bulk structural signal never asserted by locator, so an in-page pass is
-cheaper and lets both capture sites run the identical predicate. It does **not**, on its own,
-make the two sites agree — see the enumeration caveat above.
+cheaper and lets both capture sites run the identical predicate. On its own that did **not**
+make the two sites agree; sharing the enumeration as well is what did — see the caveat above.
 
 ### Strength of the new assertion
 
@@ -199,8 +210,16 @@ visibility. The right answer then is option B, adding a separate field, not un-f
   agree in every case we will meet on real Grafana. Measured agreement on `display:none`,
   `visibility:hidden`, `opacity:0` and `[hidden]`; zero-size-but-rendered elements and
   off-screen-but-painted elements are not covered by any test here.
-- When the shared-enumeration work lands, whether `page-state` reporting `complementary` /
-  `region` changes repair-model behaviour. Unknowable until #27 wires a real model.
+- Whether `page-state` reporting `complementary` / `contentinfo` / `region` changes
+  repair-model behaviour. The shared enumeration landed (#74), so the extra roles are now
+  really in `RepairContext.page_state` — but whether they help, cost tokens, or do nothing
+  stays unknowable until #27 wires a real model.
+- **`<search>` and named `<section>` are not enumerated.** `search` and `region` are in the
+  role set but have no implicit tag mapping, so they are found only through an explicit
+  `role=` attribute. HTML's `<search>` element carries an implicit `search` role, and a
+  `<section>` with an accessible name carries `region`. Adding them would change what the
+  recorder reports, which is a contract-field change and not in #74's scope. Revisit if the
+  live Grafana recording (#24) shows either element in use.
 - Whether `strong` is the right label once #61 audits a real 8–12 step task. If a self-hiding
   click turns out to be routinely ambiguous on Grafana, the label should drop to `weak` — that
   is a finding, not a bug in this ADR.
