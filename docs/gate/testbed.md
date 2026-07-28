@@ -77,11 +77,63 @@ npm run testbed -- --list
 npm run testbed -- --version 11.0.0 --dry-run
 npm run testbed -- --version 11.0.0
 npm run testbed -- --version 11.0.0 --port 3001
+npm run testbed -- --version 11.0.0 --ready-timeout 180
 npm run testbed -- --version 11.0.0 --down
 ```
 
-`--dry-run` prepares the provisioning overlay and prints the compose plan
-without requiring a Docker daemon.
+`--dry-run` prepares the provisioning overlay and prints the compose plan and the
+readiness plan, without requiring a Docker daemon and without making any network
+call.
+
+## Readiness gate (`--ready-timeout`)
+
+Between `docker compose up --wait` and the HTTP seed, the harness polls the API
+from the host until it is actually serving.
+
+**Readiness signal:** `GET /api/health` returning HTTP 200 with a JSON body whose
+`database` field is `"ok"`. Stable across the whole matrix range.
+Source: <https://grafana.com/docs/grafana/latest/developers/http_api/other/#returns-health-information-about-grafana>
+— access_date: 2026-07-26.
+
+| Setting | Value |
+| --- | --- |
+| Poll interval | 1s fixed |
+| Default budget | 120s, override with `--ready-timeout <seconds>` |
+| On success | prints elapsed time and probe count, then seeds |
+| On timeout | exit 1 with version, URL, elapsed, last status/error, and the last 20 lines of `docker compose logs` (credential-shaped strings redacted) |
+
+The predicate parses the body rather than grepping it. A 200 with
+`database: "failing"` is a *running* Grafana that cannot serve, and a substring
+test for `ok` on the raw body can pass on an unrelated field. `seed.ts`'s own
+defensive `waitForHealth` shares this predicate — two definitions of "ready" in
+one package is how they drift apart.
+
+**Why 120s.** Measured worst case so far is ~18s for a cold `11.0.0` pull plus
+boot locally and 14s for pull+boot+seed on a GitHub `ubuntu-latest` runner (the
+`testbed-smoke` CI job). 120s is roughly 8× that headroom — enough for a slow
+runner or a larger image, short enough not to mask a genuinely dead instance, and
+well inside the CI job's 10-minute ceiling.
+
+### What this gate does and does not fix
+
+Verified 2026-07-26: on this fixture, `--ready-timeout 1` on a **fresh** boot
+still succeeds. `docker compose up --wait` blocks until the container's own
+healthcheck passes, and that healthcheck already curls `/api/health` *inside* the
+container (see `scripts/testbed/docker-compose.yml`), so by the time compose
+returns the API is normally serving. The cold-pull race the gate was written for
+could not be reproduced locally.
+
+It is still worth having, for reasons that are not the original one:
+
+- It polls **through the host port mapping**, which is what the seed, recorder
+  and runner actually use. A container can be healthy on its internal port while
+  the published port does not serve; `--wait` cannot see that, and the seed would
+  fail as a bare `fetch failed`.
+- The container healthcheck greps for `ok` loosely; this gate parses the body.
+- It fails with a diagnostic instead of an opaque fetch error.
+- It does not depend on the compose healthcheck continuing to exist or stay
+  strict — a fixture edit that weakens it would silently remove the only
+  readiness check the harness had.
 
 ## Seed verification (`--verify`)
 
@@ -210,6 +262,11 @@ seed succeeded.
 - Whether the seed stays identical on `10.0.13`, `10.4.19`, `11.5.2`, `12.2.1`
   and `13.0.3`. `--verify --compare` now makes that a command rather than a
   judgement call, but the runs have not been done.
+- Whether the cold-pull readiness race the gate guards against is real on a slow
+  CI runner. It could not be reproduced locally, because compose `--wait` already
+  gates on a healthcheck that polls `/api/health` inside the container. The gate
+  is cheap and its diagnostic is the actual payoff, but its original motivation
+  remains unobserved rather than confirmed.
 - Whether `queryable` is the right depth for the datasource check. It proves the
   plugin answers a `random_walk` query; it does not prove the returned frames are
   shaped identically across versions. Deeper comparison would need a stable

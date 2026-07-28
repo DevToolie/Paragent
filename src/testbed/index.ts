@@ -19,8 +19,24 @@ export {
   composeUp,
   composeDown,
   composeConfig,
+  composeLogs,
   buildComposeEnv,
 } from "./docker.js";
+export {
+  DEFAULT_READY_TIMEOUT_SECONDS,
+  READY_POLL_INTERVAL_MS,
+  formatReadinessPlan,
+  formatTimeoutDiagnostic,
+  isHealthy,
+  probeHealth,
+  readinessPlan,
+  ReadinessTimeoutError,
+  scrubCredentials,
+  waitUntilReady,
+  type HealthProbe,
+  type ReadinessPlan,
+  type ReadyResult,
+} from "./readiness.js";
 export {
   waitForHealth,
   ensureDatasource,

@@ -14,9 +14,19 @@ import {
   buildComposeEnv,
   composeConfig,
   composeDown,
+  composeLogs,
   composeUp,
   dockerAvailable,
+  type ComposeEnv,
 } from "./docker.js";
+import {
+  formatReadinessPlan,
+  formatTimeoutDiagnostic,
+  readinessPlan,
+  ReadinessTimeoutError,
+  waitUntilReady,
+  type ReadinessPlan,
+} from "./readiness.js";
 import { getVersion, listVersions, loadMatrix } from "./matrix.js";
 import { verifyFingerprintPath } from "./paths.js";
 import { prepareProvisioningOverlay } from "./provisioning.js";
@@ -67,6 +77,41 @@ async function runVerify(
     console.log(`\nwrote ${path.relative(process.cwd(), out)}`);
   }
   process.exit(0);
+}
+
+/**
+ * Explicit API-readiness gate between compose-up and seed.
+ *
+ * `--wait` on compose is the container's own healthcheck; this is the API's.
+ * Compose can return before Grafana is serving, and seeding into a half-started
+ * API fails as a bare fetch error rather than "Grafana was not ready yet".
+ */
+async function gateOnReadiness(
+  versionId: string,
+  plan: ReadinessPlan,
+  env: ComposeEnv,
+): Promise<void> {
+  console.log(
+    `waiting for readiness: GET ${plan.healthUrl} (timeout ${plan.timeoutMs / 1000}s)`,
+  );
+  try {
+    const ready = await waitUntilReady({ versionId, plan });
+    console.log(
+      `ready after ${(ready.elapsedMs / 1000).toFixed(1)}s (${ready.attempts} probe(s))`,
+    );
+  } catch (err) {
+    if (!(err instanceof ReadinessTimeoutError)) throw err;
+    const logs = composeLogs(env, 20);
+    console.error(
+      formatTimeoutDiagnostic({
+        versionId,
+        plan,
+        error: err,
+        logTail: logs.stdout || logs.stderr,
+      }),
+    );
+    process.exit(1);
+  }
 }
 
 function loadFingerprint(versionId: string): SeedFingerprint {
@@ -206,9 +251,12 @@ async function main(): Promise<void> {
     process.exit(1);
     return;
   }
+  const plan = readinessPlan(baseUrl, args.readyTimeout);
+
   if (args.dryRun) {
     console.log(cfg.stdout);
-    console.log("dry-run: skipping docker compose up and seed");
+    console.log(formatReadinessPlan(ver.id, plan));
+    console.log("dry-run: skipping docker compose up, readiness poll and seed");
     process.exit(0);
     return;
   }
@@ -229,9 +277,15 @@ async function main(): Promise<void> {
     return;
   }
 
+  await gateOnReadiness(ver.id, plan, env);
+
   if (!args.skipSeed) {
     console.log("seeding…");
-    await seedInstance({ baseUrl, versionId: ver.id });
+    await seedInstance({
+      baseUrl,
+      versionId: ver.id,
+      timeoutMs: plan.timeoutMs,
+    });
     console.log("seed ok");
   } else {
     console.log("skip-seed: provisioning only");
