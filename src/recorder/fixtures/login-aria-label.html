@@ -1,0 +1,56 @@
+<!doctype html>
+<!--
+  Grafana login surface as observed on 9.5.21 and 10.0.13 (2026-07-27, #60).
+
+  Identity comes from aria-label; there is NO <label> for the username field and
+  NO data-testid anywhere. This is the shape that a `getByLabel("Email or
+  username")` selector cannot find, which is why the preamble selects on `name`.
+
+  Reproduced from the live dump, not invented:
+    username: name=user, placeholder="email or username",
+              aria-label="Username input field", no id, no data-testid
+    password: name=password, id=current-password, placeholder="password",
+              aria-label="Password input field", <label>Password</label>
+    submit:   <button type="submit" aria-label="Login button"><span>Log in</span></button>
+
+  The submit button's aria-label is load-bearing and MUST stay: aria-label wins
+  over text content for the accessible name, so this button is named "Login
+  button", not "Log in", and `getByRole("button", { name: /log in/i })` matches
+  nothing here. An earlier version of this fixture used a bare
+  <button type="submit">Log in</button> and let exactly that bug through to a
+  live run.
+
+  The "Show password" toggle is included because it is a second <button> on the
+  page — any submit selector has to not pick it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Grafana</title>
+  </head>
+  <body>
+    <main>
+      <h1>Welcome to Grafana</h1>
+      <form id="login-form" method="post" action="/login-submit">
+        <input name="user" placeholder="email or username" aria-label="Username input field" />
+        <label for="current-password">Password</label>
+        <input
+          name="password"
+          id="current-password"
+          type="password"
+          placeholder="password"
+          aria-label="Password input field"
+        />
+        <button
+          aria-label="Show password"
+          type="button"
+          aria-controls="current-password"
+          role="switch"
+          aria-checked="false"
+        ></button>
+        <button type="submit" aria-label="Login button"><span>Log in</span></button>
+      </form>
+      <a href="/user/password/send-reset-email">Forgot your password?</a>
+    </main>
+  </body>
+</html>

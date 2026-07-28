@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B4
 created: 2026-07-24
-updated: 2026-07-27
+updated: 2026-07-28
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -29,6 +29,60 @@ repairs **actions only** on failure (≤2 repairs/run by default), and emits
 | `repair.ts` | `RepairModelClient`, `StubRepairModelClient` (null action, zero tokens), `assertAssertionUnchanged` |
 | `replay.ts` | `ReplayRunner` — dry-run, repair loop, metrics emission |
 | `metrics/` | Sibling package: emitter + §9 aggregates |
+
+## Bounded waits
+
+Every wait the runner performs has an explicit ceiling. One did not: a `wait` step with no
+positive duration parameter called `page.waitForLoadState("networkidle")` with **no timeout**,
+inheriting Playwright's 30s default — a number nobody here chose. If the page never goes quiet
+for 500ms the step burned all 30s and then failed anyway: maximum latency for zero information.
+
+Now bounded by `NETWORK_IDLE_WAIT_MS` (5000ms, `src/runner/actions.ts`), overridable per run via
+`ReplayRunnerOptions.networkIdleWaitMs`. Measured in `tests/unit/runner-bounded-wait.test.ts`
+against a page that never reaches idle:
+
+| | unbounded (before) | bounded (after) |
+| --- | --- | --- |
+| default | 30.8 s | 5.0 s |
+| 1s override | 30.0 s | 1.0 s |
+
+**Honest scope.** The seeded Grafana dashboard does *not* trigger this — `networkidle` settles
+there in ~3 ms (measured on 11.0.0, `/d/paragent-seed`, 2026-07-28), because the seed dashboard
+sets no refresh interval and TestData is generated client-side. This is a **latent** worst case,
+reachable on any surface with continuous polling, streaming, or websockets — not a hang observed
+on the current test-bed. Bounding it is cheap insurance taken before the gate runs, not a fix
+for a live symptom.
+
+**It changes which steps pass.** A page that first goes quiet at 12 s held the step until it did
+and does not now — at 5 s the step continues and the assertion decides on whatever is on screen.
+Deliberate, and cheap *today* because no gate number exists (`gate:matrix` is dry-run only,
+[#62](https://github.com/DevToolie/Paragent/issues/62)). After a published measurement it would
+be an expensive silent shift.
+
+### Reaching the bound is not a step failure
+
+A parameterless `wait` is a settling **hint**. The step's post-condition is the assertion that
+runs immediately after it, with its own `timeout_ms` budget. So when the bound elapses the step
+**proceeds** and records `settled: false` (`ActionResult.settled`, surfaced as
+`StepAttemptResult.notes`) — the same posture as the 250 ms idle probe in
+`src/runner/page-state.ts`, where a timeout means *no claim* rather than failure.
+
+Classifying it as `TIMEOUT` would be worse than slow. `replay.ts` routes every non-`PASS`
+outcome into the repair loop, so a never-quiet page would fail deterministically at the bound,
+consume both repair attempts, and land on `REPAIR_EXHAUSTED` — and no `corrected_action` can
+make a polling page go quiet. The run's `success_with_le_2_repairs` would then be reporting a
+scaffolding condition as churn, which is the one thing the gate number must not do. On exactly
+the surfaces this bound exists for (polling, streaming, websockets), the bound would otherwise
+make a doomed step fail 6× faster without making it any less doomed.
+
+If the page really is broken, nothing is hidden: the assertion fails on its own evidence, and
+*that* failure is worth a repair attempt. And a step that genuinely needs idle as its
+post-condition can say so — `network-idle` is an assertion type
+(`src/runner/assertions.ts`), where a timeout is a real failure because it was a real claim.
+
+`tests/unit/runner-bounded-wait.test.ts` pins both halves: the clock (bounded, not 30 s) and the
+classification (`repair_count: 0` on a never-idle page, with the note still recorded). Reverting
+either fails it.
 
 ## Invariants
 
@@ -78,3 +132,12 @@ npm run gate:report
 - Whether walking eight versions changes anything the report can *conclude*. It does not — more
   rows over the same hand-written 2-step program is a better-shaped denominator, not a
   measurement. That waits on live execution ([#62](https://github.com/DevToolie/Paragent/issues/62)).
+- **`settled: false` is recorded but not aggregated.** It reaches `StepAttemptResult.notes` in
+  memory and stops there: `metrics.schema.json` has no field for it, so nothing counts how often
+  a wait's hint went unanswered across a matrix run. Adding one is a contract change, and there
+  is no measurement yet to justify the shape. Until then a reader cannot tell "this run met a
+  never-quiet page eight times" from "never".
+- Whether 5000 ms is the right *bound* rather than merely a chosen one. It equals
+  `DEFAULT_ASSERTION_TIMEOUT_MS` by coincidence, not by construction — two independent constants
+  in two packages, nothing enforcing the match. Neither number has been fitted to an observation
+  because no live run exists yet.

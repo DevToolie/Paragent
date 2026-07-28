@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   compileTrajectory,
+  DEFAULT_ASSERTION_TIMEOUT_MS,
   looksLikeTenantLiteral,
   orderLocatorCandidates,
   PACKAGE,
@@ -157,6 +158,68 @@ describe("click assertion target", () => {
     // The new branch is scoped to click-like actions; a fill that hides its
     // own field is not a pattern we have observed, so do not invent a rule.
     expect(assertion.expected?.visible).not.toBe(false);
+  });
+});
+
+describe("assertion timeout policy", () => {
+  // `timeout_ms` is an assertion-STRENGTH knob, not a perf one: a shorter
+  // timeout is a stricter check. The runner spends it on failure, so it is also
+  // the dominant term in worst-case replay latency. Nothing pinned the emitted
+  // value before, which meant it could be "tuned" for speed and silently move
+  // step-level replay-validity — the one number PRD §9 gates on.
+  const trajectory = (): Trajectory => ({
+    schema_version: "1.0.0",
+    trajectory_id: "traj-timeout",
+    site_key: "fixture@local",
+    task_key: "timeout-task",
+    recorded_at: "2026-07-25T00:00:00.000Z",
+    base_url_template: "http://{host}:{port}/app",
+    provenance: {
+      recorder: "test",
+      agent_model: "human",
+      testbed_version: "fixture-v1",
+    },
+    parameters: { host: "string", port: "integer" },
+    steps: [
+      {
+        step_index: 0,
+        intent: "Open the app",
+        action: { type: "navigate" as const, url_template: "http://{host}:{port}/app" },
+        locator_candidates: [],
+        pre_state: {
+          url_template: "about:blank",
+          title_template: "",
+          dom_digest: "d0",
+          visible_landmarks: [],
+          network_idle: false,
+        },
+        post_state: {
+          url_template: "http://{host}:{port}/app",
+          title_template: "App",
+          dom_digest: "d1",
+          visible_landmarks: ["main"],
+          network_idle: true,
+        },
+        timing_ms: { started_offset_ms: 0, duration_ms: 5 },
+      },
+    ],
+  });
+
+  it("emits the documented default on every assertion", () => {
+    expect(DEFAULT_ASSERTION_TIMEOUT_MS).toBe(5000);
+    const bundle = compileTrajectory(trajectory());
+    for (const row of bundle.rows) {
+      expect(row.assertion.timeout_ms).toBe(DEFAULT_ASSERTION_TIMEOUT_MS);
+    }
+  });
+
+  it("can be overridden per compile without touching the default", () => {
+    const bundle = compileTrajectory(trajectory(), { assertionTimeoutMs: 1234 });
+    for (const row of bundle.rows) {
+      expect(row.assertion.timeout_ms).toBe(1234);
+    }
+    // The override must not leak into the module-level policy.
+    expect(DEFAULT_ASSERTION_TIMEOUT_MS).toBe(5000);
   });
 });
 

@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B3
 created: 2026-07-25
-updated: 2026-07-27
+updated: 2026-07-28
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -127,6 +127,23 @@ listed and the fallback was useless. It is now genuinely visibility-filtered, an
 [#74](https://github.com/DevToolie/Paragent/issues/74) the recorder and the runner's
 `page-state` run **one** enumeration (`src/shared/landmarks.ts`) rather than two that agreed
 only on markup with redundant `role=` attributes.
+
+### `timeout_ms` is part of strength, not a performance knob
+
+Every synthesized assertion carries `DEFAULT_ASSERTION_TIMEOUT_MS` (5000 ms,
+`src/compiler/assertions.ts`) — previously seven separate `5000` literals, now one named
+constant, overridable per compile via `CompileOptions.assertionTimeoutMs`.
+
+**The value is deliberately unmoved.** A shorter timeout is a *stricter* check and a longer one
+laxer, so "tuning it for speed" would move step-level replay-validity — the number PRD §9 gates
+on — while looking like a perf change. That is the shape the assertion-immutability invariant
+forbids.
+
+It is also the dominant term in worst-case replay latency, because
+`src/runner/assertions.ts` spends the full budget on **failure**: a 12-step task with three
+stale locators waits 3 × 5 s before repair even starts. That is a real cost worth revisiting —
+but on evidence, after a measurement, not before one. `tests/unit/compiler.test.ts` pins the
+emitted default so it cannot drift silently.
 
 **Strength rule:** `strong` = unambiguous proof the step achieved its purpose;
 `weak` = consistent with success but also with several failures. Weak is allowed

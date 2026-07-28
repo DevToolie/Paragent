@@ -4,6 +4,8 @@
  */
 export { PACKAGE, RECORDER_VERSION, TrajectoryRecorder } from "./session.js";
 export { captureFingerprint } from "./fingerprint.js";
+export { establishSession, LoginFailedError } from "./preamble.js";
+export type { EstablishSessionOptions, SessionInfo } from "./preamble.js";
 export { collectLocatorCandidates } from "./locators.js";
 export {
   assertNoLiteralSecrets,
