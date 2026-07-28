@@ -18,11 +18,14 @@ on SaaS observability config, especially where the person doing the work is the
 | Track | Question | Status |
 | --- | --- | --- |
 | Track 1 | Do compiled trajectories survive site churn? | Harness in progress — **no gate number yet** |
-| Track 2 | Is there a vertical where the counterparty hypothesis holds? | Search in progress |
-| Track 3 | Narrative / pitch | Placeholders only until Track 1 + 2 land |
+| Track 2 | Is there a vertical where the counterparty hypothesis holds? | **FAIL — no vertical locked** ([C5 DECISION](docs/research/vertical-search/DECISION.md), [ADR-0004](docs/decisions/ADR-0004-vertical-track2-fail.md)) |
+| Track 3 | Narrative / pitch | Wave-1 draft in [docs/pitch/](docs/pitch/); all performance claims **[PENDING TRACK-1]** |
 
-Week-0 census (**observability config**): **FAIL** — 2 survivors of 70; archived under
-`docs/research/census-week0/`.
+Two consecutive vertical FAILs — Week-0 observability config (2 survivors of 70,
+archived under [docs/research/census-week0/](docs/research/census-week0/)) and Track-2
+counterparty (2 of 75, 0 DURABLE) — mean the company now rests on the Track-1
+mechanism number. See
+[README-narrative.md §6](docs/README-narrative.md#6-where-evidence-stands-now).
 
 ## Public repo — write accordingly
 
@@ -50,6 +53,12 @@ npm install
 npm run ci
 ```
 
+`npm run ci` is the one command that must be green before any PR: secret-scan,
+contract validation, lint, typecheck, unit tests, then the end-to-end integration
+test, in that order. The privacy canary (`npm run test:canary`) is merge-blocking
+as a separate CI job. Full command list and the pre-PR checklist:
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
 Contracts live in `contracts/`. Wave-1 agents build against those schemas — not
 against each other.
 
@@ -59,9 +68,16 @@ against each other.
 contracts/           # JSON Schema — build against these
 src/testbed|recorder|compiler|runner|cache|metrics/
 experiments/gate-v1/ # throwaway gate harness
+scripts/             # secret-scan, contract validation, branch protection, testbed compose
+tests/unit|canary|integration/
+artifacts/           # committed compiled bundles
 docs/                # map: docs/README.md
 archive/             # superseded scaffolds (Python hello) + preserved history
 ```
+
+How the six packages connect: [docs/architecture.md](docs/architecture.md).
+Where the project is and what to pick up next: [docs/ROADMAP.md](docs/ROADMAP.md).
+How to run, test, and ship a change: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Stack
 
