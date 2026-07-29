@@ -4,7 +4,7 @@ doc_type: spec
 status: review
 owner: B5
 created: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-29
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -89,6 +89,34 @@ When no pool-safe locator remains but `flow_topology` is present: pool row uses
    proving the rule is load-bearing.
 
 CI: `.github/workflows/ci.yml` → `privacy-canary` → `npm run test:canary`.
+
+## Persistence — two files, append-only (#63)
+
+The cache was write-only until #63: `CacheStore` had a single `write`, and the canary pipeline
+passed a store whose body was an empty comment. Rows were classified correctly and then thrown
+away.
+
+`JsonlCacheStore` (`src/cache/store.ts`) persists them, and three properties carry the privacy
+weight:
+
+| Property | Why it is not optional |
+| --- | --- |
+| **Two files, routed on `pool_eligible`** | `pool.jsonl` and `tenant.jsonl` never mix. The routing is one comparison, so no code path can merge them by accident |
+| **Append-only** | The file *is* the audit trail. A rewriting store would let the next correct write erase the evidence that a tenant string once reached the pool file |
+| **The store is dumb** | `writeCacheRow()` stays the only gatekeeper. No validation lives in the store, and nothing reaches a store without passing through the write path |
+
+Last write wins on read; every superseded version stays on disk. That is what PRD §5.3 needs — a
+current answer plus the history of how it got there.
+
+**Cache files are never committed.** `.gitignore` matches `.cache/` and also `pool.jsonl` /
+`tenant.jsonl` by name anywhere, because the store takes an explicit directory and a caller can
+point it elsewhere. A committed `tenant.jsonl` is a privacy incident, not a bug — it holds
+tenant-scoped rows by design.
+
+`tests/canary/store-leak.test.ts` is the check that matters: it runs the canary pipeline against
+a real store in a temp directory and greps the **bytes on disk**. It also asserts the *counter*
+case — that `tenant.jsonl` does carry the canary material — because a clean pool file proves
+nothing if the strings were dropped everywhere or nothing was written at all.
 
 ## Attacks this does NOT defend against
 

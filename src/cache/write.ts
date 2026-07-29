@@ -4,6 +4,7 @@
  */
 
 import { isChromeName, isTemplateOnly } from "./allowlist.js";
+import type { CacheStore } from "./store.js";
 import { checkLocatorTaint, createTaintChecker, type TaintRule } from "./taint.js";
 import type {
   AssertionLike,
@@ -27,10 +28,6 @@ export class CacheWriteRejectedError extends Error {
 export interface WriteLogSink {
   info?(message: string, meta?: Record<string, unknown>): void;
   debug?(message: string, meta?: Record<string, unknown>): void;
-}
-
-export interface CacheStore {
-  write(row: CacheRow): void;
 }
 
 export interface WriteOptions {
@@ -224,8 +221,36 @@ export function writeCacheRowPair(
   candidate: CacheRowCandidate,
   options?: WriteOptions,
 ): { pool: CacheRow; tenant: CacheRow } {
-  return {
-    pool: writeCacheRow(candidate, options),
-    tenant: buildTenantRow(candidate, options),
-  };
+  const pool = writeCacheRow(candidate, options);
+  const tenant = buildTenantRow(candidate, options);
+
+  // The tenant row is persisted too, and only from here — the store routes it
+  // to the tenant file on `pool_eligible: false` (src/cache/store.ts). Before
+  // #63 nothing wrote it anywhere, so "keep the two apart all the way to disk"
+  // was vacuously true: only one of them ever reached a store.
+  //
+  // This is still the gatekeeper path. `pool` went through writeCacheRow's
+  // fail-closed checks above; `tenant` is by construction not pool-eligible, so
+  // those checks do not apply to it — it is the row that is *allowed* to carry
+  // tenant-scoped locators. What must never happen is a tenant row reaching the
+  // pool file, and that is the store's routing rule, asserted from disk in
+  // tests/canary/store-leak.test.ts.
+  if (tenant.pool_eligible) {
+    throw new CacheWriteRejectedError(
+      "buildTenantRow produced a pool_eligible row; refusing to persist it",
+      "pool_leak_refused",
+    );
+  }
+  options?.log?.info?.("cache.write.tenant", {
+    row_id: tenant.row_id,
+    site_key: tenant.site_key,
+    task_key: tenant.task_key,
+    step_index: tenant.step_index,
+    pool_eligible: false,
+    pool_ineligible_reason: tenant.pool_ineligible_reason ?? null,
+    locator_count: tenant.compiled_action.locator_fallback_chain.length,
+  });
+  options?.store?.write(tenant);
+
+  return { pool, tenant };
 }

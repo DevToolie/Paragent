@@ -3,6 +3,7 @@
  */
 
 import { writeCacheRowPair, type WriteLogSink, type WriteOptions } from "./write.js";
+import { MemoryCacheStore, type CacheStore } from "./store.js";
 import type { CacheRow, CacheRowCandidate, CompiledLocator } from "./types.js";
 
 export const CANARY_TENANT = {
@@ -117,12 +118,17 @@ export interface PipelineResult {
   tenantRows: CacheRow[];
   log: PipelineLogBuffer;
   metrics: MemoryMetrics;
+  /** What the write path actually persisted. Empty before #63. */
+  store: CacheStore;
 }
 
 export function runCanaryPipeline(options?: WriteOptions): PipelineResult {
   const log = createLogBuffer();
   const metrics = createMemoryMetrics();
-  const store = { write(_row: CacheRow) { /* sink */ } };
+  // Was a black hole (`write(_row) {}`). It is a real in-memory store now, so
+  // the canary suite can assert on what a store actually received rather than
+  // only on the rows the write path returned. #63.
+  const store = options?.store ?? new MemoryCacheStore();
   const writeOpts: WriteOptions = { ...options, store, log };
   const poolRows: CacheRow[] = [];
   const tenantRows: CacheRow[] = [];
@@ -137,7 +143,7 @@ export function runCanaryPipeline(options?: WriteOptions): PipelineResult {
       outcome: "PASS",
     });
   }
-  return { poolRows, tenantRows, log, metrics };
+  return { poolRows, tenantRows, log, metrics, store };
 }
 
 export function findCanariesIn(text: string): string[] {

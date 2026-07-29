@@ -56,3 +56,12 @@ playwright/.cache/
 
 # Gate-v1 harness outputs
 experiments/gate-v1/out/
+
+# Trajectory cache (#63). NEVER commit these: tenant.jsonl holds tenant-scoped
+# rows by design, so a committed cache file is a privacy incident, and the
+# append-only history means one bad line is permanent. The file names are
+# matched anywhere, not just under .cache/, because the store takes an explicit
+# directory and a caller can point it somewhere else.
+.cache/
+pool.jsonl
+tenant.jsonl
