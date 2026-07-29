@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  buildLocatorFallbackChain,
   compileTrajectory,
+  decidePoolEligibility,
   DEFAULT_ASSERTION_TIMEOUT_MS,
   looksLikeTenantLiteral,
+  looksLikeTenantSelector,
   orderLocatorCandidates,
   PACKAGE,
   validateCompiledBundle,
@@ -44,6 +47,156 @@ describe("tenant literal heuristics", () => {
     ).toBe(true);
     expect(looksLikeTenantLiteral("Username")).toBe(false);
     expect(looksLikeTenantLiteral("http://{host}:{port}/login")).toBe(false);
+  });
+});
+
+// All three of these were found by compiling the live 12-step recording
+// (issue #25). None of them could fire on contracts/examples/trajectory.example.json,
+// whose locators are short and whose assertions carry no expected.template.
+describe("selectors are topology, not prose", () => {
+  const REAL_PATH =
+    "body > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div > div > button";
+
+  it("does not read a descendant combinator as three words of tenant text", () => {
+    // looksLikeTenantLiteral ends with "3+ whitespace-separated words is prose".
+    // A CSS path is nothing but whitespace-separated tokens.
+    expect(looksLikeTenantLiteral(REAL_PATH)).toBe(true);
+    expect(looksLikeTenantSelector(REAL_PATH)).toBe(false);
+    expect(looksLikeTenantSelector("body > button")).toBe(false);
+  });
+
+  it("still flags identifier-shaped tenant data inside a selector", () => {
+    expect(
+      looksLikeTenantSelector('div[data-uid="d82e967e-cef0-482a-9456-2a3429353824"]'),
+    ).toBe(true);
+    expect(looksLikeTenantSelector('a[href*="user@example.com"]')).toBe(true);
+  });
+
+  it("keeps a structural candidate out of the tainted pile, so the chain is not degraded", () => {
+    const { chain, topologyOnly } = buildLocatorFallbackChain([
+      { strategy: "role_name", rank: 1, role: "button", name: "Add new panel", tenant_scoped: true },
+      { strategy: "structural", rank: 2, structural_path: REAL_PATH, tenant_scoped: false },
+    ]);
+    // Before the fix every candidate looked tainted, so the chain gained a
+    // topology_only entry and 11 of 12 live rows reported topology_only_degraded.
+    expect(topologyOnly).toBe(false);
+    expect(chain.map((l) => l.strategy)).toEqual(["role_name", "structural"]);
+  });
+});
+
+describe("count-equals is not triggered by a parameter name", () => {
+  const fillStep = {
+    step_index: 0,
+    intent: "Set how many series the query returns",
+    action: { type: "fill" as const, param_refs: ["series_count"] },
+    locator_candidates: [
+      {
+        strategy: "structural" as const,
+        rank: 1,
+        structural_path: "body > form > input",
+        tenant_scoped: false,
+      },
+    ],
+    pre_state: {
+      url_template: "http://{host}:{port}/dashboard/new",
+      title_template: "New dashboard",
+      dom_digest: "aaaa",
+      visible_landmarks: ["main"],
+      network_idle: true,
+    },
+    post_state: {
+      url_template: "http://{host}:{port}/dashboard/new",
+      title_template: "New dashboard",
+      dom_digest: "bbbb",
+      visible_landmarks: ["main"],
+      network_idle: true,
+    },
+    timing_ms: { started_offset_ms: 0, duration_ms: 1 },
+    assertion_hint: {
+      suggested_type: "element-value-bound" as const,
+      // The recorder's real signal. "series_count" contains "count".
+      observed_signals: ["param slot series_count filled"],
+    },
+  };
+
+  const wrapFill = (step: typeof fillStep): Trajectory => ({
+    schema_version: "1.0.0",
+    trajectory_id: "traj-count",
+    site_key: "fixture@local",
+    task_key: "count-task",
+    recorded_at: "2026-07-25T00:00:00.000Z",
+    base_url_template: "http://{host}:{port}",
+    provenance: { recorder: "test", agent_model: "human", testbed_version: "fixture-v1" },
+    parameters: { series_count: "integer" },
+    steps: [step],
+  });
+
+  it("does not assert a count because the slot is named *_count", () => {
+    const assertion = compileTrajectory(wrapFill(fillStep), {
+      compiledAt: "2026-07-25T00:00:00.000Z",
+    }).rows[0]!.assertion;
+    // Was count-equals with expected.count = 0 — an assertion about a text
+    // input that could never be satisfied.
+    expect(assertion.type).toBe("element-visible");
+    expect(assertion.strength).toBe("weak");
+  });
+
+  it("still honours a real count signal", () => {
+    const withCount = {
+      ...fillStep,
+      assertion_hint: {
+        suggested_type: "element-value-bound" as const,
+        observed_signals: ["3 rows rendered"],
+      },
+    };
+    expect(
+      compileTrajectory(wrapFill(withCount), {
+        compiledAt: "2026-07-25T00:00:00.000Z",
+      }).rows[0]!.assertion.type,
+    ).toBe("count-equals");
+  });
+});
+
+describe("pool pre-check never outruns the B5 authority", () => {
+  const chain = [
+    { strategy: "structural" as const, structural_path: "body > button", tenant_scoped: false },
+  ];
+
+  it("refuses a URL assertion whose template has a literal path", () => {
+    // B5's assertionHasTenantLiteral treats anything left after the holes as a
+    // literal, so a url-matches row it would reject must not be claimed here.
+    const decision = decidePoolEligibility({
+      chain,
+      topologyOnly: false,
+      assertion: {
+        schema_version: "1.0.0",
+        assertion_id: "a",
+        type: "url-matches",
+        strength: "strong",
+        expected: { template: "http://{host}:{port}/dashboard/new?orgId=1" },
+        timeout_ms: 5000,
+        failure_classification: "assertion_failed",
+      },
+    });
+    expect(decision.pool_eligible).toBe(false);
+    expect(decision.pool_ineligible_reason).toBe("literal_in_assertion");
+  });
+
+  it("still pools an assertion whose template is only holes", () => {
+    const decision = decidePoolEligibility({
+      chain,
+      topologyOnly: false,
+      assertion: {
+        schema_version: "1.0.0",
+        assertion_id: "a",
+        type: "text-matches",
+        strength: "strong",
+        expected: { template: "{success_message}" },
+        timeout_ms: 5000,
+        failure_classification: "assertion_failed",
+      },
+    });
+    expect(decision.pool_eligible).toBe(true);
   });
 });
 
