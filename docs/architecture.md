@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B0
 created: 2026-07-25
-updated: 2026-07-27
+updated: 2026-07-29
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -61,8 +61,8 @@ flowchart LR
   CACHE -->|"cache-row.schema.json"| POOL
   CACHE -->|"cache-row.schema.json"| TEN
 
-  BUNDLE -.->|"NO ADAPTER — see break 2"| PROG
-  FIX -->|"what gate:matrix actually loads"| PROG
+  BUNDLE -->|"src/runner/program.ts (#62)"| PROG
+  FIX -->|"default program when no bundle is passed"| PROG
   PROG -->|"cache-row + assertion shapes"| RUN
   RUN -->|"on assertion failure, max 2 per run"| REP
   REP -->|"corrected_action only, never the assertion"| RUN
@@ -70,7 +70,6 @@ flowchart LR
   NDJSON -->|"PRD §9 aggregates, no_data-safe"| REPORT
 
   linkStyle 4 stroke:#c00,stroke-width:2px
-  linkStyle 7 stroke:#c00,stroke-width:2px
 ```
 
 ### Reading the diagram
@@ -90,10 +89,13 @@ synthesized assertion and writes a `compiled_trajectory` bundle to `artifacts/co
    (`src/compiler/pool.ts`, `decidePoolEligibility`), *not* from the authoritative write-time
    boundary (`src/cache/write.ts`, `writeCacheRow`). Both fail closed, and the compiler's own
    doc calls itself a pre-check — but today nothing calls the authority.
-2. **The bundle never reaches the runner.** The runner consumes `CompiledProgram`
-   (`src/runner/types.ts`) — a different shape from `CompiledTrajectoryBundle`
-   (`program_id`, `testbed_version`, `steps[]`) — and no adapter exists. `npm run gate:matrix`
-   loads a hand-written `experiments/gate-v1/fixtures/compiled-program.json` instead.
+2. ~~**The bundle never reaches the runner.**~~ **Closed by
+   [#62](https://github.com/DevToolie/Paragent/issues/62).** The runner consumes
+   `CompiledProgram` (`src/runner/types.ts`), a different shape from
+   `CompiledTrajectoryBundle`; the adapter now lives in `src/runner/program.ts` and
+   `npm run gate:matrix -- --program <bundle>` replays a committed bundle directly. The
+   hand-written `experiments/gate-v1/fixtures/compiled-program.json` remains the default, because
+   it is the only program that runs without a recording.
 
 Issue [#52](https://github.com/DevToolie/Paragent/issues/52) (end-to-end integration test:
 record → compile → cache-write → replay) is the issue that closes both.
@@ -179,11 +181,11 @@ The section a new agent needs most. Blunt, and current as of `605c384` + ADR-000
 | --- | --- | --- | --- | --- |
 | 1 | **Repair proposes nothing.** `StubRepairModelClient` always returns `corrected_action: null`, `tokens_in: 0`, `tokens_out: 0` | `src/runner/repair.ts:17-27` | Every repair attempt lands on `REPAIR_EXHAUSTED`. Self-heal rate is structurally 0; `cost_repair` tokens are structurally 0 | [#27](https://github.com/DevToolie/Paragent/issues/27) |
 | 2 | **`cost_fresh` is always zeros.** `ReplayRunner` defaults it to `zeroCost()` and no caller ever passes it | `src/runner/replay.ts:79`; no `costFresh` argument anywhere in `src/` or `experiments/` | The §9 kill line "repair cost ≥ 70% of fresh" has no denominator. `repairCostVsFresh` correctly returns `status: no_data` rather than a ratio | [#39](https://github.com/DevToolie/Paragent/issues/39) |
-| 3 | **The matrix runner refuses to run live.** `--dry-run` is mandatory; anything else exits 2 | `experiments/gate-v1/run-matrix.ts:49-54` | No browser is ever driven by the harness. Dry-run outcomes are hard-coded `PASS` with zero tokens — explicitly *not* a gate measurement | [#62](https://github.com/DevToolie/Paragent/issues/62) |
+| 3 | ~~**The matrix runner refuses to run live.**~~ **Fixed by [#62](https://github.com/DevToolie/Paragent/issues/62)** — `npm run gate:matrix` brings up each pin, drives Chromium, and emits real outcomes; `--dry-run` is retained for the no-Docker path CI uses | `experiments/gate-v1/live-run.ts` | **Still not a gate number.** One run per version is not a sample (§9 wants ≥42 runs / ≥400 step-executions), and the only Grafana bundle on `main` is a compile of a hand-written example whose step-0 assertion matches nothing on real Grafana | [#66](https://github.com/DevToolie/Paragent/issues/66), [#25](https://github.com/DevToolie/Paragent/issues/25) |
 | 4 | ~~`versions.json` is a placeholder, not the matrix.~~ **Fixed by [#26](https://github.com/DevToolie/Paragent/issues/26)** — deleted; `run-matrix.ts` reads `scripts/testbed/matrix.json` through `src/testbed/matrix.ts` | `experiments/gate-v1/run-matrix.ts` | The harness now walks the real eight ADR-0003 pins, one run row each, and records skipped versions in `out/matrix-run.json`. **Still not a measurement** — dry-run outcomes remain hard-coded `PASS` with zero tokens (stub 3) | — |
 | 5 | **The cache has a write path only.** No read path, no persistence — the only `CacheStore` in the tree is `{ write(_row) { /* sink */ } }`; no `writeFile`/`appendFile` anywhere in `src/cache/` | `src/cache/pipeline.ts:125`; `src/cache/write.ts` | Nothing can be replayed *from* cache. There is no cache hit, so there is no cache hit-rate | [#63](https://github.com/DevToolie/Paragent/issues/63) |
 | 6 | **Confidence never moves.** `confidence`, `success_count`, `failure_count` are written as `0` and never updated by any code path | `src/compiler/compile.ts:85-87`; `src/cache/pipeline.ts:91` | PRD §5.3's self-invalidating, self-healing cache does not exist. The fields are shape, not behaviour | [#64](https://github.com/DevToolie/Paragent/issues/64) |
-| 7 | **Bundle → cache and bundle → runner are unwired *in the runtime*** (the two dashed edges above) | no import of `src/cache/` outside `src/cache/` and `tests/`; the `CompiledTrajectoryBundle` → `CompiledProgram` adapter lives in `tests/integration/pipeline.test.ts`, deliberately not in `src/` | Narrower than it was: since [#52](https://github.com/DevToolie/Paragent/issues/52) the seam **is** exercised end to end by the integration test, which caught a real compiler bug on its first run. What is still missing is a *product* path — nothing outside a test walks bundle → cache → replay | [#62](https://github.com/DevToolie/Paragent/issues/62), [#63](https://github.com/DevToolie/Paragent/issues/63) |
+| 7 | **Bundle → cache and bundle → runner are unwired *in the runtime*** (the two dashed edges above) | no import of `src/cache/` outside `src/cache/` and `tests/`; the `CompiledTrajectoryBundle` → `CompiledProgram` adapter now lives in `src/runner/program.ts` (moved there by [#62](https://github.com/DevToolie/Paragent/issues/62), which made the runtime need it) | Narrower than it was: since [#52](https://github.com/DevToolie/Paragent/issues/52) the seam **is** exercised end to end by the integration test, which caught a real compiler bug on its first run. Narrower again since #62: the gate matrix now walks bundle → runner outside a test. What is still missing is the **cache** hop — nothing anywhere walks bundle → cache → replay | [#62](https://github.com/DevToolie/Paragent/issues/62), [#63](https://github.com/DevToolie/Paragent/issues/63) |
 | 8 | **Cache hit-rate is missing from §9.** `buildGateReport` returns seven sections; hit-rate is not one of them — and could not be computed anyway, given stub 5 | `src/metrics/aggregate.ts:282-291` | One §9 secondary metric cannot be reported at all | [#67](https://github.com/DevToolie/Paragent/issues/67) |
 
 What **is** real, and should not be re-litigated: the testbed boots and seeds a pinned Grafana
