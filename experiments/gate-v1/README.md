@@ -63,7 +63,8 @@ exercises the harness without Docker and the CI job depends on it.
 | `--dry-run` | No Docker, no browser. Hard-coded `PASS`, zero tokens, rows labelled not-a-measurement |
 | `--versions <list>` | Comma-separated ids, or `all` (default) |
 | `--program <path>` | A `CompiledProgram` **or** a `compiled_trajectory` bundle from `artifacts/compiled/` |
-| `--param k=v` | Bind one of the program's own `param_refs`. Repeatable |
+| `--param k=v` | Bind one of the program's own `param_refs`. Repeatable. `{run}` in a value is replaced by the run number |
+| `--runs <n>` | Repeats per version (default 3). See below |
 | `--port <n>` | Host port for the test-bed (default 3000) |
 | `--headed` | Show the browser |
 | `--keep-up` | Leave each container running for inspection |
@@ -84,9 +85,69 @@ valid ids (scripts/testbed/matrix.json): 9.5.21, 10.0.13, 10.4.19, 11.0.0, 11.5.
 Exit codes: **2** for a usage error, an unknown id, or a live run with no Docker daemon; **1** if
 the run measured zero versions — an empty NDJSON is a missing denominator, not a successful run.
 
+## Repeat runs (`--runs`)
+
+One run per version is not a sample. PRD §9 specifies 3×/day for 14 days — **≥42 runs and ≥400
+step-executions** — and the pivot to a version matrix swaps the calendar, not the statistics.
+Eight pins at one run each is 8 runs, an order of magnitude short, and it cannot tell "this
+locator broke on v12" from "that run flaked".
+
+**Default 3.** Enough to *see* disagreement between repeats, cheap enough that people actually
+run it. Clearing the §9 floor across the eight pins needs `--runs 6`:
+
+| `--runs` | Runs across 8 pins | Clears ≥42? |
+| --- | --- | --- |
+| 1 | 8 | no |
+| 3 (default) | 24 | no |
+| 5 | 40 | **no** — two short |
+| 6 | 48 | yes |
+
+The shortfall is **reported, not enforced**: `gate:matrix` prints it before the first boot and
+`report.json` carries a `sample` section with `meets_floor` and the exact gap. A short sample is
+still worth looking at; what must not happen is a short sample being read as a gate measurement.
+
+**Each run is independent.** A fresh browser context and a fresh login per run — not per version.
+Reusing a context would let run 1's cookies and cache decide run 2's outcome, the repeats would
+correlate, and the spread would understate the real variance that repeats exist to measure.
+
+**State-mutating tasks need help.** The gate task creates a dashboard, so replaying it twice
+against one container collides on the second run and fails for a reason that is not churn. Put
+`{run}` in the value and it becomes unique per run:
+
+```bash
+npm run gate:matrix -- --runs 3 --param 'dashboard_title=Paragent Gate {run}'
+```
+
+This is deliberately explicit rather than automatic — auto-suffixing every param would silently
+change values a recording captured, while the assertion templates still compared against the
+recorded hole.
+
+**Interrupting is safe.** Ctrl-C finishes the run in flight, tears down the container, and stops:
+the completed runs stay in the NDJSON as real measurements and the version is recorded as
+`SKIPPED (interrupted)` with how far it got. A second Ctrl-C aborts immediately and may orphan a
+container. Rows are appended after every run rather than written once at the end, so a partial
+NDJSON is always valid.
+
+### Per-version variance in the report
+
+`report.json` gained a `per_version` section, because pooled ratios hide the finding:
+
+```json
+{"testbed_version": "11.0.0", "runs_attempted": 3, "runs_succeeded": 2,
+ "step_validity_per_run": [1, 0.5, 1], "step_validity_spread": 0.5, "status": "computed"}
+```
+
+A version at 3/3 and one at 2/3 are different findings, and pooling makes them one number. A
+non-zero `step_validity_spread` on repeats of an **unchanged** version is harness flakiness, not
+churn — and that has to be understood before any matrix number is trusted.
+
+`status: "no_data"` (not `0`) when a run emitted no step rows: zero would be indistinguishable
+from every step having failed.
+
 ### `out/matrix-run.json` — the skip ledger
 
-Written every run beside the NDJSON. Records `mode`, the selection, `versions_in_matrix`,
+Written every run beside the NDJSON. Records `mode`, the selection, `runs_per_version`,
+`runs_planned` vs `runs_completed`, `interrupted`, `section9_floor`, `versions_in_matrix`,
 `versions_walked`, `state_baseline_version`, and `versions_skipped[] {id, stage, reason}`.
 Without it a later reader cannot tell "8 pins, 3 unavailable" from "5 pins", and the denominator
 shrinks silently.
@@ -94,7 +155,11 @@ shrinks silently.
 **A skip is not a failure.** A version whose container never started, whose image would not pull,
 whose login broke, or whose seed state differs from the base version produced *no measurement*.
 It is recorded with the stage it died at and never reaches the NDJSON. The stages are
-`compose-up`, `readiness`, `seed`, `fingerprint`, `browser`, `login-preamble`.
+`compose-up`, `readiness`, `seed`, `fingerprint`, `browser`, `login-preamble`, `interrupted`.
+
+**No run is ever discarded.** Every attempted run appears in the NDJSON, including a run that
+failed and a run cut short by an interrupt. Dropping an outlier is the single easiest way to
+manufacture a passing gate, and it would be undetectable in the report.
 
 The ledger also carries the pre-repair outcome per step, which the NDJSON cannot:
 
@@ -140,10 +205,13 @@ Empty NDJSON → scaffold with `status: no_data` and null values (never invented
   `<form>` has no ARIA role. The driver reported that honestly on its first live run, which is
   the harness working, not the gate measuring. The gate task bundle arrives with
   [#25](https://github.com/DevToolie/Paragent/issues/25).
-- **One run per version is not a sample.** §9 asks for ≥42 runs and ≥400 step-executions; eight
-  versions × one run is neither, and nothing here can yet separate churn from flakiness.
-  [#66](https://github.com/DevToolie/Paragent/issues/66) is where `--runs` and per-version
-  variance land — and it needed this driver first, because repeat runs of a dry run all produce
-  the same hard-coded row.
+- ~~One run per version is not a sample.~~ **Addressed (#66)** — `--runs`, per-version variance,
+  and a reported §9 floor. What it does **not** settle: whether the harness is flaky under a
+  *realistic* task. Three live repeats of one unchanged version agreed exactly
+  (`step_validity_spread: 0`), but the program was the 2-step example bundle. A 12-step task with
+  drawer and picker interactions is where flakiness would appear, and that task arrives with #25.
+- Nothing reseeds between runs. `{run}` substitution makes a mutating task's state unique, which
+  is enough for a dashboard title; a task that mutates state it cannot parameterise away would
+  need a container recreated per run, which is not implemented.
 - Whether a metric row should carry the pre-repair outcome. Today it cannot, so the ledger holds
   it instead; see [gate/runner.md](../../docs/gate/runner.md).

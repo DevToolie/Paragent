@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url";
 import { MetricsEmitter } from "../../src/metrics/emitter.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
 import { bundleToProgram, isCompiledBundle } from "../../src/runner/program.js";
-import type { CompiledProgram } from "../../src/runner/types.js";
+import type { CompiledProgram, RunResult } from "../../src/runner/types.js";
 import type { StepOutcome } from "../../src/metrics/types.js";
 import { dockerAvailable } from "../../src/testbed/docker.js";
 import {
@@ -39,7 +39,12 @@ import {
 } from "../../src/testbed/matrix.js";
 import { DEFAULT_HOST_PORT } from "../../src/testbed/constants.js";
 import type { SeedFingerprint } from "../../src/testbed/verify.js";
-import { formatRunLine, runVersionLive, type VersionSkip } from "./live-run.js";
+import {
+  DEFAULT_RUNS_PER_VERSION,
+  runsToClearSection9,
+  runVersionLive,
+  type VersionSkip,
+} from "./live-run.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.join(__dirname, "out");
@@ -65,6 +70,8 @@ interface Args {
    * value the recording never used.
    */
   params: Record<string, string>;
+  /** Repeats per version. See DEFAULT_RUNS_PER_VERSION for why the default is 3. */
+  runs: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -75,8 +82,9 @@ function parseArgs(argv: string[]): Args {
     keepUp: false,
     preamble: true,
     params: {},
+    runs: DEFAULT_RUNS_PER_VERSION,
   };
-  const valued = new Set(["--versions", "--program", "--port", "--param"]);
+  const valued = new Set(["--versions", "--program", "--port", "--param", "--runs"]);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? "";
     if (a === "--dry-run") args.dryRun = true;
@@ -105,6 +113,10 @@ export function assignValue(args: Args, key: string, value: string): void {
     const eq = value.indexOf("=");
     if (eq <= 0) throw new Error(`--param expects key=value, got: ${value}`);
     args.params[value.slice(0, eq)] = value.slice(eq + 1);
+  } else if (key === "runs") {
+    const n = Number.parseInt(value, 10);
+    if (!Number.isFinite(n) || n < 1) throw new Error(`--runs must be >= 1, got: ${value}`);
+    args.runs = n;
   } else if (key === "port") {
     const n = Number.parseInt(value, 10);
     if (!Number.isFinite(n) || n <= 0) throw new Error(`invalid --port: ${value}`);
@@ -125,6 +137,10 @@ function usage(): void {
   --param k=v        Bind one of the program's own param_refs. Repeatable.
                      base_url/host/port are bound by the driver; anything else
                      the program declares is the caller's to supply.
+  --runs <n>         Repeats per version (default ${DEFAULT_RUNS_PER_VERSION}). One run per
+                     version cannot separate churn from flakiness. PRD §9 wants
+                     >=42 runs and >=400 step-executions across the matrix; the
+                     report states the shortfall rather than hiding it.
   --headed           Show the browser (live runs only).
   --keep-up          Leave each container running after its run, for inspection.
   --no-preamble      Skip the login preamble, for programs that log in as part
@@ -216,6 +232,9 @@ interface WalkOptions {
   args: Args;
   port: number;
   skipped: VersionSkip[];
+  /** Append buffered metric rows to the NDJSON. Called after every run. */
+  persist: () => Promise<void>;
+  shouldStop: () => boolean;
 }
 
 /**
@@ -237,7 +256,10 @@ async function walkVersions(
     console.log(`[${index + 1}/${opts.walked.length}] ${ver.id}`);
 
     if (opts.args.dryRun) {
-      runs.push(await runDryVersion(ver, opts.program, opts.emitter));
+      for (let i = 1; i <= opts.args.runs; i++) {
+        runs.push(await runDryVersion(ver, opts.program, opts.emitter, i, opts.args.runs));
+      }
+      await opts.persist();
       continue;
     }
 
@@ -252,15 +274,26 @@ async function walkVersions(
       keepUp: opts.args.keepUp,
       preamble: opts.args.preamble,
       extraParams: opts.args.params,
+      runs: opts.args.runs,
+      // Persist after every run, not at the end. An interrupt during version 6
+      // must not discard versions 1-5.
+      onRunComplete: async () => {
+        await opts.persist();
+      },
+      shouldStop: opts.shouldStop,
       ...(baseline ? { baseline } : {}),
     });
+
+    // A skip can now arrive *with* completed runs (interrupted partway, or the
+    // login broke on repeat 2). Those runs happened and are kept — discarding
+    // them is the easiest way to manufacture a passing gate.
+    for (const r of outcome.results) runs.push(ledgerRow(ver.id, r));
 
     if (outcome.skip) {
       opts.skipped.push(outcome.skip);
       console.log(
         `  ${ver.id}: SKIPPED (${outcome.skip.stage}) — ${outcome.skip.reason}`,
       );
-      continue;
     }
 
     // The first version that yields a fingerprint becomes the state baseline
@@ -269,29 +302,32 @@ async function walkVersions(
       baseline = { id: ver.id, fingerprint: outcome.fingerprint };
     }
 
-    const r = outcome.result!;
-    console.log(`  ${formatRunLine(ver.id, r)}`);
-    runs.push({
-      version: ver.id,
-      run_id: r.run_id,
-      task_success: r.task_success,
-      repair_count: r.repair_count,
-      steps_replay_valid: r.steps_replay_valid,
-      steps_total: r.steps_total,
-      // Both, on purpose. `outcome` is what the NDJSON carries; every genuine
-      // failure reads REPAIR_EXHAUSTED there because stub repair always
-      // proposes null, which flattens "locator gone" and "assertion false"
-      // into one value. `first_pass` is what actually happened.
-      outcomes: r.step_results.map((s) => ({
-        step: s.step_index,
-        outcome: s.outcome,
-        ...(s.first_pass_outcome ? { first_pass: s.first_pass_outcome } : {}),
-      })),
-      wall_clock_total_ms: r.wall_clock_total_ms,
-    });
+    await opts.persist();
+    if (opts.shouldStop?.()) break;
   }
 
   return baseline ? { runs, baseline } : { runs };
+}
+
+function ledgerRow(versionId: string, r: RunResult): Record<string, unknown> {
+  return {
+    version: versionId,
+    run_id: r.run_id,
+    task_success: r.task_success,
+    repair_count: r.repair_count,
+    steps_replay_valid: r.steps_replay_valid,
+    steps_total: r.steps_total,
+    // Both, on purpose. `outcome` is what the NDJSON carries; every genuine
+    // failure reads REPAIR_EXHAUSTED there because stub repair always
+    // proposes null, which flattens "locator gone" and "assertion false"
+    // into one value. `first_pass` is what actually happened.
+    outcomes: r.step_results.map((s) => ({
+      step: s.step_index,
+      outcome: s.outcome,
+      ...(s.first_pass_outcome ? { first_pass: s.first_pass_outcome } : {}),
+    })),
+    wall_clock_total_ms: r.wall_clock_total_ms,
+  };
 }
 
 async function main(): Promise<void> {
@@ -356,14 +392,48 @@ async function main(): Promise<void> {
   }
 
   const mode = args.dryRun ? "dry-run" : "live";
+  const plannedRuns = walked.length * args.runs;
+  const plannedSteps = plannedRuns * program.steps.length;
   console.log(
     `gate:matrix ${mode} — ${matrix.target} matrix, ` +
-      `${walked.length} version(s) to walk, program=${program.program_id} ` +
-      `(${program.steps.length} step(s))`,
+      `${walked.length} version(s) × ${args.runs} run(s) = ${plannedRuns} run(s), ` +
+      `program=${program.program_id} (${program.steps.length} step(s))`,
   );
+  // Say up front whether this run can carry a §9 claim. Discovering it in the
+  // report after 45 minutes of container boots is too late to be useful.
+  if (plannedRuns < 42 || plannedSteps < 400) {
+    const need = runsToClearSection9(walked.length);
+    console.log(
+      `  note: ${plannedRuns} runs / ${plannedSteps} step-executions is below the ` +
+        `PRD §9 floor (>=42 / >=400). Use --runs ${need} over ${walked.length} ` +
+        "version(s) to clear it. The report records the shortfall either way.",
+    );
+  }
   for (const s of skipped) {
     console.log(`  skipped ${s.id}: ${s.reason}`);
   }
+
+  // Truncate once, then append per run. `flush()` overwrites, so using it at the
+  // end means an interrupt loses every row the matrix produced; appending as we
+  // go is what makes a partial NDJSON valid and complete-as-far-as-it-got.
+  await writeFile(ndjsonPath, "", "utf8");
+  const persist = async (): Promise<void> => {
+    await emitter.appendFlush();
+  };
+
+  // Cooperative, checked between runs. Killing mid-run would leave a half-emitted
+  // run and an orphaned container; the second Ctrl-C is the escape hatch.
+  let stopRequested = false;
+  const onSignal = (): void => {
+    if (stopRequested) process.exit(130);
+    stopRequested = true;
+    console.log(
+      "\ngate:matrix: interrupt received — finishing the current run, then " +
+        "tearing down. Press Ctrl-C again to abort immediately (may orphan a container).",
+    );
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
 
   const port = args.port ?? DEFAULT_HOST_PORT;
   const { runs, baseline } = await walkVersions({
@@ -374,9 +444,13 @@ async function main(): Promise<void> {
     args,
     port,
     skipped,
+    persist,
+    shouldStop: () => stopRequested,
   });
 
-  await emitter.flush();
+  await persist();
+  process.off("SIGINT", onSignal);
+  process.off("SIGTERM", onSignal);
 
   // The skip ledger. Without it a later report cannot tell "8 versions, 3 of
   // them unavailable" from "5 versions" — the denominator silently shrinks.
@@ -393,8 +467,21 @@ async function main(): Promise<void> {
         matrix_source: "scripts/testbed/matrix.json",
         matrix_target: matrix.target,
         selection: selectionLabel,
+        runs_per_version: args.runs,
+        interrupted: stopRequested,
+        // Planned vs actual, both. A reader comparing them can see at a glance
+        // whether the matrix finished or was cut short, without inferring it
+        // from array lengths.
+        runs_planned: plannedRuns,
+        runs_completed: runs.length,
+        section9_floor: {
+          min_runs: 42,
+          min_step_executions: 400,
+          meets_floor: runs.length >= 42 && runs.length * program.steps.length >= 400,
+          runs_needed_per_version: runsToClearSection9(walked.length),
+        },
         versions_in_matrix: all.length,
-        versions_walked: runs.map((r) => r["version"]),
+        versions_walked: [...new Set(runs.map((r) => r["version"]))],
         versions_skipped: skipped,
         program_id: program.program_id,
         program_path: path.relative(process.cwd(), programPath),
@@ -430,6 +517,8 @@ async function runDryVersion(
   ver: MatrixVersion,
   program: CompiledProgram,
   emitter: MetricsEmitter,
+  runIndex: number,
+  totalRuns: number,
 ): Promise<Record<string, unknown>> {
   // Only testbed_version varies. site_key/task_key stay whatever the compiled
   // program actually is — relabelling a local-demo program as a Grafana one
@@ -450,6 +539,7 @@ async function runDryVersion(
 
   const row = {
     version: ver.id,
+    run: `${runIndex}/${totalRuns}`,
     run_id: result.run_id,
     task_success: result.task_success,
     repair_count: result.repair_count,
