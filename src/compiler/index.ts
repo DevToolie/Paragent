@@ -18,5 +18,5 @@ export {
   orderLocatorCandidates,
 } from "./locators.js";
 export { decidePoolEligibility } from "./pool.js";
-export { looksLikeTenantLiteral } from "./literals.js";
+export { looksLikeTenantLiteral, looksLikeTenantSelector } from "./literals.js";
 export { validateCompiledBundle } from "./validate.js";
