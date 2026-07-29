@@ -53,7 +53,8 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0003](decisions/ADR-0003-testbed-grafana-oss.md) | Grafana OSS self-hosted Track-1 test-bed | accepted | 2026-07-25 | Pivot Track 1 (no partner / no SaaS ToS) |
 | [ADR-0004](decisions/ADR-0004-vertical-track2-fail.md) | Track-2 vertical **FAIL** — no surface lock | accepted | 2026-07-25 | [C5 DECISION.md](research/vertical-search/DECISION.md) after C4 kills |
 | [ADR-0005](decisions/ADR-0005-repo-public.md) | Repo is **PUBLIC**, single tree, nothing stripped | accepted | 2026-07-25 | Supersedes ADR-0002; founder decision on issue #42 |
-| [ADR-0007](decisions/ADR-0007-post-action-visibility.md) | `visible_landmarks` filtered for real; new `post_action_target_visible` | accepted | 2026-07-26 | Issue #71, out of PR #70. ADR-0006 reserved for the gate task (#59) |
+| [ADR-0006](decisions/ADR-0006-track1-gate-task.md) | Track-1 gate task = build + save a TestData Stat dashboard (12 steps) | accepted | 2026-07-28 | Issue #59. Walked by hand on 9.5.21 and 13.0.3; answers ADR-0003's "browser-meaningful" question |
+| [ADR-0007](decisions/ADR-0007-post-action-visibility.md) | `visible_landmarks` filtered for real; new `post_action_target_visible` | accepted | 2026-07-26 | Issue #71, out of PR #70 |
 
 ---
 
