@@ -4,7 +4,7 @@ doc_type: brief
 status: draft
 owner: D2
 created: 2026-07-25
-updated: 2026-07-27
+updated: 2026-07-29
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -21,7 +21,7 @@ D2 consolidator pass (2026-07-25), **after** C4 + C5 merges. **Surfaces conflict
 | A. Unsourced / under-sourced claims | 10 |
 | B. Placeholder / unmeasured metrics | 8 |
 | C. LOW-confidence findings load-bearing in a decision | 6 |
-| D. Document disagreements | 8 |
+| D. Document disagreements (5 resolved) | 8 |
 | E. Documentation-standard violations (fixed or flagged) | 12 |
 | **Total** | **44** |
 
@@ -77,11 +77,11 @@ D2 consolidator pass (2026-07-25), **after** C4 + C5 merges. **Surfaces conflict
 | ID | Doc A | Doc B | Conflict | Severity |
 | --- | --- | --- | --- | --- |
 | D-01 **FOUNDER** | Historical A7 / early Wave-1 “conditionally credible” seller-portal lead | C4 ALREADY_SOLVED + **C5 FAIL** (do not lock “because A7 said so”) | Adjudicated by C5; residual deck slides may still lag | **Critical** if old pitch used without C5 cite |
-| D-02 **FOUNDER** | PRD §8: Grafana Cloud + Datadog anchors | ADR-0003 OSS bed; A8/C5 reject those locks | Residual PRD body | **Critical** |
-| D-03 **FOUNDER** | Pitch “no gate number” / unset thresholds | PRD §9 proposed 80/90/~50/70 | Unset measured vs proposed | **High** |
+| D-02 | PRD §8: Grafana Cloud + Datadog anchors | ADR-0003 OSS bed; A8/C5 reject those locks | **Resolved** — [v0.4 addendum](prd/PRD-v0.4-addendum.md) §1 carries a redirect table, and PRD §8 now opens with a superseded banner. v0.2 body unedited | Was Critical |
+| D-03 | Pitch “no gate number” / unset thresholds | PRD §9 proposed 80/90/~50/70 | **Resolved as a status label** — [v0.4 addendum](prd/PRD-v0.4-addendum.md) §2 marks the thresholds PROPOSED and UNVALIDATED and names who accepts them, at gate-memo time. No number was chosen. Whether the *values* stay binding remains **FOUNDER** | Was High |
 | D-04 | (was) Root README Track 2 “search in progress” / Track 3 “placeholders only” | C5 FAIL + ADR-0004; pitch pack on main | **Resolved** — status table now records Track 2 FAIL and Track 3 Wave-1 draft, each citing the artifact | Resolved in README; deck/objections prose may still lag (D-01, E-12) |
 | D-05 | Early D1 proof-points: PRD absent / C5 pending | Files + C5 FAIL on main | Stale diligence | Medium — register refreshed |
-| D-06 | PRD §8 “pivot if &lt;~6 survivors” | A8/C5 executed ≤2 FAIL gates | Different fail lines | Medium — historical |
+| D-06 | PRD §8 “pivot if &lt;~6 survivors” | A8/C5 executed ≤2 FAIL gates | **Resolved** — [v0.4 addendum](prd/PRD-v0.4-addendum.md) §4 records ~6 as historical. The executed line was *stricter*, so no outcome changed | Was Medium — historical |
 | D-07 | (was) Objections denying two FAILs | A8 + C5 | **Updated in this PR** to present-tense two FAILs | Resolved in objections; deck may lag |
 | D-08 | Pivot “5-day vertical search” optimism | C5: do not re-run same-shape census | Next-action across time | Low–medium — C5 wins |
 
