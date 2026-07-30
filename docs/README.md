@@ -63,8 +63,9 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | Doc | What it is | Status | Last true | Supersedes / notes |
 | --- | --- | --- | --- | --- |
 | [prd/README.md](prd/README.md) | Folder map | accepted | 2026-07-25 | — |
-| [PRD v0.2](prd/PRD-trajectory-cache-v0.2.md) | Mechanism, §6 privacy, §9 *proposed* gates, build plan | accepted | 2026-07-24 | §8 **selection rule** superseded by pivot; residual §8 still names Datadog / Grafana Cloud |
+| [PRD v0.2](prd/PRD-trajectory-cache-v0.2.md) | Mechanism, §6 privacy, §9 *proposed* gates, build plan | accepted | 2026-07-29 | §8 selection rule superseded by pivot; **§8 residual + §9 status now redirected by the [v0.4 addendum](prd/PRD-v0.4-addendum.md)** |
 | [Pivot brief v0.3](prd/pivot-brief-v0.3.md) | Structural finding + counterparty rule + two-track plan | accepted | 2026-07-24 | **Supersedes PRD §8 selection rule**; trigger A8 FAIL; Wave-2 lock later FAIL (C5) |
+| [PRD v0.4 addendum](prd/PRD-v0.4-addendum.md) | §8 anchor redirect, §9 thresholds labelled **proposed**, kill-line precedence | accepted | 2026-07-29 | Resolves INTEGRITY-AUDIT D-02 / D-03 / D-06; **§9 controls** the Track-1 gate, pivot's ~50% is shorthand |
 
 ---
 
