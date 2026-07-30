@@ -4,7 +4,7 @@ doc_type: spec
 status: review
 owner: B5
 created: 2026-07-24
-updated: 2026-07-29
+updated: 2026-07-30
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -117,6 +117,15 @@ tenant-scoped rows by design.
 a real store in a temp directory and greps the **bytes on disk**. It also asserts the *counter*
 case — that `tenant.jsonl` does carry the canary material — because a clean pool file proves
 nothing if the strings were dropped everywhere or nothing was written at all.
+
+**A malformed line is skipped, not fatal (#96).** Because the file is append-only, a bad line —
+a process killed mid-`appendFileSync`, a disk-full condition — is never removed by anything. A
+constructor that threw on it would fail every future `new JsonlCacheStore({ dir })` against that
+directory too, turning a one-time crash into a permanent outage of the cache. `loadInto` catches
+a `JSON.parse` failure per line, skips only that line, and reports it through `log.warn` (or
+`console.warn` with no sink configured — silence is not an option). This is safe *because* the
+cache is not the ledger: a row that never fully landed on disk is exactly as good as a cache
+miss, and the write path can produce it again.
 
 ## Attacks this does NOT defend against
 

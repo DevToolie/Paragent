@@ -10,7 +10,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   JsonlCacheStore,
   MemoryCacheStore,
@@ -225,5 +225,77 @@ describe("JsonlCacheStore", () => {
     const store = new JsonlCacheStore({ dir: path.join(tempDir(), "not-created-yet") });
     expect(store.list()).toEqual([]);
     expect(store.readRaw("pool")).toBe("");
+  });
+
+  // --- #96: a corrupted line must not permanently block the store ----------
+  //
+  // The file is append-only and a bad line is never removed by anything, so
+  // throwing here would mean every *future* construction against this
+  // directory fails too — a one-time crash turning into a permanent outage.
+
+  it("skips a truncated last line instead of throwing", () => {
+    const dir = tempDir();
+    const file = path.join(dir, POOL_FILE);
+    new JsonlCacheStore({ dir }); // create the dir
+    const good = JSON.stringify(row({ step_index: 0 }));
+    // The shape a process killed mid-append actually leaves: a complete line,
+    // then a JSON object cut off partway through.
+    const truncated = JSON.stringify(row({ step_index: 1 })).slice(0, 20);
+    writeFileSync(file, `${good}\n${truncated}`, "utf8");
+
+    expect(() => new JsonlCacheStore({ dir })).not.toThrow();
+    const rows = new JsonlCacheStore({ dir }).list();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.step_index).toBe(0);
+  });
+
+  it("still loads every good line before and after a bad one", () => {
+    const dir = tempDir();
+    const file = path.join(dir, POOL_FILE);
+    new JsonlCacheStore({ dir });
+    const lines = [
+      JSON.stringify(row({ step_index: 0 })),
+      "{not valid json",
+      JSON.stringify(row({ step_index: 1 })),
+    ];
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+
+    const steps = new JsonlCacheStore({ dir })
+      .list()
+      .map((r) => r.step_index)
+      .sort();
+    expect(steps).toEqual([0, 1]);
+  });
+
+  it("reports the skipped line through the log sink, naming file and line number", () => {
+    const dir = tempDir();
+    const file = path.join(dir, POOL_FILE);
+    new JsonlCacheStore({ dir });
+    writeFileSync(file, `${JSON.stringify(row())}\ngarbage\n`, "utf8");
+
+    const warn = vi.fn();
+    new JsonlCacheStore({ dir, log: { warn } });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const [message, meta] = warn.mock.calls[0]!;
+    expect(message).toContain(file);
+    expect(message).toContain(":2:"); // 1-indexed; "garbage" is line 2
+    expect(meta).toMatchObject({ line: 2, preview: "garbage" });
+  });
+
+  it("falls back to console.warn — a missing log sink is not the same as nothing to report", () => {
+    const dir = tempDir();
+    const file = path.join(dir, POOL_FILE);
+    new JsonlCacheStore({ dir });
+    writeFileSync(file, "not json at all\n", "utf8");
+
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      new JsonlCacheStore({ dir });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0]?.[0]).toContain("skipping unparseable cache line");
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

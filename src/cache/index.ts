@@ -34,6 +34,7 @@ export {
   type CacheKey,
   type CacheListFilter,
   type CacheStore,
+  type CacheStoreLogSink,
   type JsonlCacheStoreOptions,
 } from "./store.js";
 export {
