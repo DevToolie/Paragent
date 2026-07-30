@@ -184,6 +184,9 @@ export class ReplayRunner {
               cost: proposeCost,
               repair_attempt: attempt,
               assertion_strength: step.assertion.strength,
+              // The path every failure takes while repair is a stub. Without
+              // this the real outcome is lost — see the field's note.
+              first_pass_outcome: first.outcome,
               error_message:
                 proposal.notes ??
                 lastMessage ??
@@ -245,6 +248,8 @@ export class ReplayRunner {
               mode: "repair",
               cost: final.cost,
               assertion_strength: step.assertion.strength,
+              // Keep what actually went wrong; see the field's note.
+              first_pass_outcome: first.outcome,
             };
             if (repairCount > 0) exhausted.repair_attempt = repairCount;
             const msg = final.error_message ?? lastMessage;
@@ -262,6 +267,7 @@ export class ReplayRunner {
             mode: "replay",
             cost: first.cost,
             assertion_strength: step.assertion.strength,
+            first_pass_outcome: first.outcome,
           };
           if (first.error_message !== undefined) {
             exhausted.error_message = first.error_message;

@@ -18,19 +18,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TrajectoryRecorder } from "../../src/recorder/index.js";
 import type { Trajectory as RecordedTrajectory } from "../../src/recorder/types.js";
 import { compileTrajectory, validateCompiledBundle } from "../../src/compiler/index.js";
-import type {
-  CompiledTrajectoryBundle,
-  Trajectory as CompilerTrajectory,
-} from "../../src/compiler/types.js";
+import type { Trajectory as CompilerTrajectory } from "../../src/compiler/types.js";
 import { writeCacheRowPair } from "../../src/cache/index.js";
 import type { CacheRowCandidate } from "../../src/cache/types.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
-import type {
-  Assertion,
-  CompiledAction,
-  CompiledProgram,
-  ParamBindings,
-} from "../../src/runner/types.js";
+import { bundleToProgram } from "../../src/runner/program.js";
+import type { ParamBindings } from "../../src/runner/types.js";
 import { MetricsEmitter } from "../../src/metrics/emitter.js";
 import { buildGateReport } from "../../src/metrics/aggregate.js";
 import type { MetricRow } from "../../src/metrics/types.js";
@@ -96,32 +89,10 @@ function buildParams(port: number): FixtureParams {
   };
 }
 
-/**
- * Bundle -> CompiledProgram.
- *
- * Local to this test on purpose: the runtime never needs it today, and adding an
- * adapter to src/compiler/ would be a contract change (CONTRIBUTING: extend
- * schemas via ADR, not ad-hoc fields). The two shapes are structurally identical
- * per step; only the wrapper differs.
- */
-function toCompiledProgram(
-  bundle: CompiledTrajectoryBundle,
-  testbedVersion: string,
-): CompiledProgram {
-  return {
-    schema_version: "1.0.0",
-    program_id: `prog-${bundle.source_trajectory_id}`,
-    site_key: bundle.site_key,
-    task_key: bundle.task_key,
-    testbed_version: testbedVersion,
-    steps: bundle.rows.map((row) => ({
-      step_index: row.step_index,
-      row_id: row.row_id,
-      compiled_action: row.compiled_action as CompiledAction,
-      assertion: row.assertion as Assertion,
-    })),
-  };
-}
+// Bundle -> CompiledProgram now lives in `src/runner/program.ts`. It was local
+// to this test while "the runtime never needs it today" was true; #62's live
+// matrix driver made it needed, so this test now exercises the same adapter the
+// gate runs rather than a copy that could drift from it.
 
 /** Drive the fixture gate task, matching the recorder CLI's step sequence. */
 async function recordFixtureTask(
@@ -292,7 +263,7 @@ describe("pipeline: record -> compile -> cache -> replay", () => {
           maxRepairsPerRun: 0,
         });
         result = await runner.run(
-          toCompiledProgram(bundle, "fixture-v1"),
+          bundleToProgram(bundle, "fixture-v1"),
           params,
         );
       } finally {
