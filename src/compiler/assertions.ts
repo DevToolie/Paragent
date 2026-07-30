@@ -69,13 +69,29 @@ function newLandmarks(step: TrajectoryStep): string[] {
   return (step.post_state.visible_landmarks ?? []).filter((l) => !pre.has(l));
 }
 
+/**
+ * Whole-word match over the recorder's `observed_signals`.
+ *
+ * Was a substring match, which read a **parameter name** as a page signal:
+ * filling the ADR-0006 series-count field emits the signal
+ * `"param slot series_count filled"`, whose "count" tripped the `count-equals`
+ * branch below. The live compile therefore asserted a count on a text input
+ * (issue #25). `_` is a word character, so `\bcount\b` does not match inside
+ * `series_count` — which is exactly the distinction wanted here: a signal is a
+ * word the recorder observed, not a fragment of an identifier it happens to
+ * carry.
+ */
 function signalMentions(
   signals: string[] | undefined,
   ...needles: string[]
 ): boolean {
   if (!signals) return false;
   const joined = signals.join(" ").toLowerCase();
-  return needles.some((n) => joined.includes(n.toLowerCase()));
+  return needles.some((n) =>
+    new RegExp(`\\b${n.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(
+      joined,
+    ),
+  );
 }
 
 function sanitizeTemplate(value: string): string {

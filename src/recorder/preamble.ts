@@ -98,6 +98,24 @@ export interface SessionInfo {
 const LOGIN_TIMEOUT_MS = 45_000;
 
 /**
+ * How long to wait for a first-run dialog to *appear* after login.
+ *
+ * It used to be a 2s visibility *sample*, which lost a race and made this whole
+ * function a no-op on the one version that needs it. Measured on a fresh 13.0.3
+ * container (issue #24, 2026-07-28): `establishSession` returned at +2149ms and
+ * the Assistant dialog mounted at +2327ms — **178ms too late to be seen.** So
+ * `dismissed_first_run_modal` reported `false` while the dialog sat over the
+ * app, and step 1 of any recorded task met a modal instead of the page.
+ *
+ * Waiting instead of sampling costs this budget on the seven versions that
+ * never show a dialog, which is the right trade for scaffolding that runs once
+ * per recording: an unnecessary 3s beats a task recorded against a covered UI.
+ * Kept small deliberately — a dialog that takes longer than this to mount would
+ * also arrive mid-task, and no preamble can fix that.
+ */
+export const FIRST_RUN_DIALOG_WAIT_MS = 3_000;
+
+/**
  * Log in and prove it worked. Records nothing.
  *
  * Throws {@link LoginFailedError} naming the stage that failed, so a broken
@@ -212,10 +230,24 @@ async function guardAgainstPasswordChangeScreen(page: Page): Promise<void> {
  *
  * Note this is occlusion, not hiding: Playwright's isVisible() reports elements
  * underneath the dialog as visible, so nothing downstream would notice.
+ *
+ * **Correction, measured 2026-07-28 (#24).** The dialog appears once per
+ * *container*, not once per page load, and the dismissal is stored server-side:
+ * after closing it, a brand-new browser context on the same container never
+ * sees it again. `gate/testbed.md`'s "nothing persists the dismissal" is true
+ * only across `--down`, which re-creates the database the testbed keeps on no
+ * volume. What made it look per-page-load was this function silently failing —
+ * see {@link FIRST_RUN_DIALOG_WAIT_MS}.
  */
 async function dismissFirstRunModal(page: Page): Promise<boolean> {
   const dialog = page.locator('[role="dialog"], [aria-modal="true"]').first();
-  if (!(await dialog.isVisible({ timeout: 2_000 }).catch(() => false))) return false;
+  // Wait for it to appear, do not sample for it: it mounts ~180ms after login
+  // returns on 13.0.3, so a sample answers "no dialog" before it exists.
+  const appeared = await dialog
+    .waitFor({ state: "visible", timeout: FIRST_RUN_DIALOG_WAIT_MS })
+    .then(() => true)
+    .catch(() => false);
+  if (!appeared) return false;
 
   for (const closer of [
     dialog.getByRole("button", { name: /close|dismiss|no thanks|maybe later/i }),
