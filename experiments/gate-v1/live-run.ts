@@ -54,6 +54,63 @@ import {
   type SeedFingerprint,
 } from "../../src/testbed/verify.js";
 
+/**
+ * Default repeats per version.
+ *
+ * PRD §9 asks for **≥42 runs and ≥400 step-executions**. Against the eight
+ * ADR-0003 pins that needs `--runs 6` (48 runs); `--runs 5` is 40 and lands two
+ * runs short, so the arithmetic in #66's suggestion of 5 does not quite clear
+ * its own floor.
+ *
+ * The default is nevertheless **3**, and the gap is reported rather than hidden:
+ *
+ * - 3 is enough to *see* flakiness. Any disagreement between repeats of one
+ *   unchanged version is the harness's, and one run per version cannot show it
+ *   at all. That is the question blocking every later number.
+ * - 6 × 8 versions is 48 container boots. A default nobody runs teaches nothing,
+ *   and the floor is a property of the *published measurement*, not of the loop
+ *   you run while developing.
+ * - `section9SampleFloor()` puts the shortfall in the report, so a 24-run matrix
+ *   can never be mistaken for a §9 measurement. Clearing the floor is an
+ *   explicit `--runs 6`, stated in the run that claims it.
+ */
+export const DEFAULT_RUNS_PER_VERSION = 3;
+
+/** Repeats needed to clear §9's ≥42 runs across a matrix of `versionCount` pins. */
+export function runsToClearSection9(versionCount: number): number {
+  if (versionCount <= 0) return 0;
+  return Math.ceil(42 / versionCount);
+}
+
+/**
+ * Substitute `{run}` in a caller-supplied param value.
+ *
+ * The gate task creates a dashboard, so replaying it twice against one container
+ * collides on the second run and produces a **spurious failure** — a run that
+ * failed for a reason that is not churn, which is exactly the kind of data point
+ * #66 exists to keep out of the denominator.
+ *
+ * Making the value unique per run is the cheap fix, and it is deliberately
+ * explicit rather than automatic: the caller writes
+ * `--param dashboard_title="Gate {run}"` and can see in the command that state
+ * is being varied. Auto-suffixing every param would silently change values a
+ * recording captured, and the assertion templates would still be comparing
+ * against the recorded hole.
+ *
+ * The alternative — `--fresh-container-per-run` — is the correct-but-expensive
+ * option for tasks whose mutation cannot be parameterised away.
+ */
+export function substituteRunIndex(
+  params: Record<string, string>,
+  runIndex: number,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(params)) {
+    out[key] = value.replaceAll("{run}", String(runIndex));
+  }
+  return out;
+}
+
 /** Stage at which a version was abandoned before any step could be measured. */
 export type SkipStage =
   | "compose-up"
@@ -61,7 +118,9 @@ export type SkipStage =
   | "seed"
   | "fingerprint"
   | "browser"
-  | "login-preamble";
+  | "login-preamble"
+  /** Operator stopped the matrix. Runs already completed are kept. */
+  | "interrupted";
 
 export interface VersionSkip {
   id: string;
@@ -70,9 +129,19 @@ export interface VersionSkip {
 }
 
 export interface LiveRunOutcome {
-  /** Present when the version was measured. */
-  result?: RunResult;
-  /** Present when the version produced no measurement. */
+  /**
+   * One entry per **completed** run, in order. Empty when the version was
+   * skipped before any run started.
+   *
+   * Never filtered. A run that failed is a measurement; dropping it is the
+   * single easiest way to manufacture a passing gate, and it would be invisible
+   * in the report (#66).
+   */
+  results: RunResult[];
+  /**
+   * Present when the version produced no measurement *at all*, or when repeats
+   * were cut short. A skip after run 1 of 3 keeps the run it did complete.
+   */
   skip?: VersionSkip;
   /** Seed fingerprint observed, when we got far enough to read one. */
   fingerprint?: SeedFingerprint;
@@ -98,6 +167,16 @@ export interface LiveRunOptions {
   extraParams?: Record<string, string>;
   readyTimeoutSeconds?: number;
   maxRepairsPerRun?: number;
+  /** Repeats of the program against this version. Defaults to 1. */
+  runs?: number;
+  /**
+   * Called after each run's rows are emitted, so the caller can persist them
+   * before the next run starts. Without it an interrupt loses every row the
+   * matrix has produced so far.
+   */
+  onRunComplete?: (runIndex: number, result: RunResult) => Promise<void>;
+  /** Cooperative cancellation — checked between runs, never mid-run. */
+  shouldStop?: () => boolean;
   /**
    * Baseline to compare this version's seed state against. Undefined for the
    * first version walked, which *becomes* the baseline.
@@ -170,6 +249,7 @@ export async function runVersionLive(
     const up = composeUp(env, false);
     if (!up.ok) {
       return {
+        results: [],
         skip: {
           id: ver.id,
           stage: "compose-up",
@@ -187,6 +267,7 @@ export async function runVersionLive(
     } catch (err) {
       if (!(err instanceof ReadinessTimeoutError)) throw err;
       return {
+        results: [],
         skip: { id: ver.id, stage: "readiness", reason: err.message },
       };
     }
@@ -199,6 +280,7 @@ export async function runVersionLive(
       });
     } catch (err) {
       return {
+        results: [],
         skip: { id: ver.id, stage: "seed", reason: errText(err) },
       };
     }
@@ -209,6 +291,7 @@ export async function runVersionLive(
       observed = (await buildFingerprint(baseUrl)).fingerprint;
     } catch (err) {
       return {
+        results: [],
         skip: { id: ver.id, stage: "fingerprint", reason: errText(err) },
       };
     }
@@ -217,6 +300,7 @@ export async function runVersionLive(
       const mismatch = fingerprintMismatch(opts.baseline, observed);
       if (mismatch) {
         return {
+          results: [],
           fingerprint: observed,
           skip: { id: ver.id, stage: "fingerprint", reason: mismatch },
         };
@@ -225,68 +309,116 @@ export async function runVersionLive(
 
     // --- browser ------------------------------------------------------------
     try {
-      browser = await chromium.launch({ headless: !opts.headed });
+      browser = await chromium.launch({
+        headless: !opts.headed,
+        // Playwright installs its own signal handlers by default and closes the
+        // browser on SIGINT. That fires *during* an in-flight run, so the next
+        // `capturePageState` throws "Target page, context or browser has been
+        // closed" and the matrix dies with a stack trace instead of finishing
+        // the run it was told to finish. The driver owns this lifecycle: it
+        // closes the browser in its own `finally`, after the current run.
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false,
+      });
     } catch (err) {
       return {
+        results: [],
         fingerprint: observed,
         skip: { id: ver.id, stage: "browser", reason: errText(err) },
       };
     }
 
-    // A fresh context per version: carried-over storage would let one version's
-    // state decide another version's outcome.
-    const context = await browser.newContext();
-    const page: Page = await context.newPage();
-
-    if (opts.preamble) {
-      try {
-        const session = await establishSession(page, {
-          baseUrl,
-          username: FIXTURE_ADMIN_USER,
-          password: FIXTURE_ADMIN_PASS,
-        });
-        log(
-          `  ${ver.id}: session as ${session.user_login}` +
-            `${session.dismissed_first_run_modal ? " (dismissed first-run dialog)" : ""}`,
-        );
-      } catch (err) {
-        // Login is scaffolding, not a measured step (#60). A broken login is a
-        // version we could not measure, not a version that failed the task.
-        const stage = err instanceof LoginFailedError ? err.stage : "unknown";
-        return {
-          fingerprint: observed,
-          skip: {
-            id: ver.id,
-            stage: "login-preamble",
-            reason: `login failed at ${stage}: ${errText(err)}`,
-          },
-        };
-      }
-    }
-
-    // --- measure ------------------------------------------------------------
+    // --- measure, `runs` times ----------------------------------------------
     const runProgram: CompiledProgram = {
       ...opts.program,
       testbed_version: ver.id,
     };
-    const runner = new ReplayRunner({
-      dryRun: false,
-      page,
-      metrics: opts.emitter,
-      maxRepairsPerRun: opts.maxRepairsPerRun ?? 2,
-    });
+    const totalRuns = Math.max(1, opts.runs ?? 1);
+    const results: RunResult[] = [];
 
-    const params: ParamBindings = {
-      ...(opts.extraParams ?? {}),
-      base_url: baseUrl,
-      host: hostOf(baseUrl),
-      port: opts.hostPort,
-    };
+    for (let runIndex = 1; runIndex <= totalRuns; runIndex++) {
+      if (opts.shouldStop?.()) {
+        return {
+          results,
+          fingerprint: observed,
+          skip: {
+            id: ver.id,
+            stage: "interrupted",
+            reason:
+              `interrupted after ${results.length} of ${totalRuns} run(s); ` +
+              "the completed runs are in the NDJSON and are real measurements",
+          },
+        };
+      }
 
-    // Deliberately unguarded. An exception here is a harness bug and must not be
-    // laundered into a skip — that would hide a broken driver as missing data.
-    const result = await runner.run(runProgram, params);
-    return { result, fingerprint: observed };
+      // A fresh context per run, not merely per version. Reusing one would let
+      // run 1's cookies, storage and cache decide run 2's outcome — the repeats
+      // would correlate and the spread would understate real variance, which is
+      // the one thing repeat runs exist to measure.
+      const context = await browser.newContext();
+      try {
+        const page: Page = await context.newPage();
+
+        if (opts.preamble) {
+          try {
+            const session = await establishSession(page, {
+              baseUrl,
+              username: FIXTURE_ADMIN_USER,
+              password: FIXTURE_ADMIN_PASS,
+            });
+            if (runIndex === 1) {
+              log(
+                `  ${ver.id}: session as ${session.user_login}` +
+                  `${session.dismissed_first_run_modal ? " (dismissed first-run dialog)" : ""}`,
+              );
+            }
+          } catch (err) {
+            // Login is scaffolding, not a measured step (#60). A broken login is
+            // a run we could not measure, not a run that failed the task.
+            const stage = err instanceof LoginFailedError ? err.stage : "unknown";
+            return {
+              results,
+              fingerprint: observed,
+              skip: {
+                id: ver.id,
+                stage: "login-preamble",
+                reason:
+                  `login failed at ${stage} on run ${runIndex}/${totalRuns}: ` +
+                  errText(err),
+              },
+            };
+          }
+        }
+
+        const runner = new ReplayRunner({
+          dryRun: false,
+          page,
+          metrics: opts.emitter,
+          maxRepairsPerRun: opts.maxRepairsPerRun ?? 2,
+        });
+
+        const params: ParamBindings = {
+          ...substituteRunIndex(opts.extraParams ?? {}, runIndex),
+          base_url: baseUrl,
+          host: hostOf(baseUrl),
+          port: opts.hostPort,
+        };
+
+        // Deliberately unguarded. An exception here is a harness bug and must
+        // not be laundered into a skip — that would hide a broken driver as
+        // missing data.
+        const result = await runner.run(runProgram, params);
+        results.push(result);
+        const label = `${ver.id} run ${runIndex}/${totalRuns}`;
+        log(`  ${formatRunLine(label, result)}`);
+        await opts.onRunComplete?.(runIndex, result);
+      } finally {
+        await context.close().catch(() => undefined);
+      }
+    }
+
+    return { results, fingerprint: observed };
   } finally {
     await browser?.close().catch(() => undefined);
     if (opts.keepUp) {

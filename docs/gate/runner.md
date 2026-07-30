@@ -90,10 +90,34 @@ either fails it.
 1. **Assertions are immutable in repair.** `deepFreeze` + `assertAssertionUnchanged` — proposals may only supply `corrected_action`.
 2. **No invented metrics.** Stub repair and unwired fresh baselines emit **zeros**; aggregates report `no_data` when denominators are empty.
 3. **`maxRepairsPerRun` default 2** — aligns with `success_with_le_2_repairs` on run metrics.
-4. **A skip is not a failure.** A version the matrix could not bring up produced no measurement;
+4. **Repeats are independent.** `--runs` gives each run a fresh browser context and a fresh
+   login. Reusing either would correlate the repeats and understate the spread — the one thing
+   repeat runs exist to measure. No run is discarded, including a failed one.
+5. **A skip is not a failure.** A version the matrix could not bring up produced no measurement;
    it is recorded in `out/matrix-run.json` with a stage and a reason and never reaches the
    NDJSON. Counting it as a failed run would invent a data point, dropping it would shrink the
    denominator in silence.
+
+## Repeat runs and the §9 sampling floor (#66)
+
+`--runs <n>` (default 3) replays the program N times per version. §9 specifies 3×/day for 14 days
+— **≥42 runs and ≥400 step-executions** — and swapping the calendar for the version matrix does
+not change the statistics. Eight pins at one run each is 8 runs; clearing the floor needs
+`--runs 6` (48). `--runs 5` gives 40 and lands two short.
+
+The shortfall is **reported, never enforced**: `section9SampleFloor()` puts `meets_floor` and the
+exact gap into `report.json`, and the CLI prints it before the first container boots. A short
+sample is worth looking at; a short sample read as a gate measurement is not.
+
+`perVersionBreakdown()` adds `runs_attempted`, `runs_succeeded`, `step_validity_per_run` and
+`step_validity_spread` per version. A pooled ratio makes 3/3 and 2/3 the same number; the spread
+is what shows they are different findings. Non-zero spread across repeats of an **unchanged**
+version is harness flakiness rather than churn, and it has to be understood before any matrix
+number is trusted.
+
+**Measured so far:** three live repeats of 9.5.21 against one unchanged container agreed exactly
+— `step_validity_per_run: [1, 1, 1]`, spread 0. That is a weak probe: the program was the 2-step
+example bundle, and the 12-step gate task (#25) is where flakiness would surface.
 
 ## Live matrix (#62)
 
