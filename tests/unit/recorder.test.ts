@@ -8,6 +8,7 @@ import {
   assertNoLiteralSecrets,
   PACKAGE,
   TrajectoryRecorder,
+  templatizeText,
   templatizeUrl,
 } from "../../src/recorder/index.js";
 
@@ -29,6 +30,50 @@ describe("recorder package", () => {
     });
     expect(template).toBe("http://{host}:{port}/login");
     expect(paramRefs.sort()).toEqual(["host", "port"]);
+  });
+
+  // Live recording (#24) found the hole this closes: Grafana echoes typed values
+  // and server-assigned ids straight back into the URL and the document title,
+  // so a fingerprint captured verbatim carries `Paragent Gate Dashboard - …` and
+  // `/d/<uid>/<slug>` as literals — a typed value in the artifact, and a field
+  // that differs between two recordings of the same task.
+  describe("lifting bound values out of captured text", () => {
+    const bindings = {
+      host: "127.0.0.1",
+      port: 3000,
+      dashboard_title: "Paragent Gate Dashboard",
+      dashboard_uid: "d82e967e-cef0-482a-9456-2a3429353824",
+      dashboard_slug: "paragent-gate-dashboard",
+      series_count: 3,
+    };
+
+    it("replaces typed values echoed into the page title", () => {
+      expect(
+        templatizeText("Paragent Gate Dashboard - Dashboards - Grafana", bindings),
+      ).toBe("{dashboard_title} - Dashboards - Grafana");
+    });
+
+    it("replaces server-assigned ids in a saved-dashboard URL", () => {
+      expect(
+        templatizeText(
+          "http://{host}:{port}/d/d82e967e-cef0-482a-9456-2a3429353824/paragent-gate-dashboard?orgId=1",
+          bindings,
+        ),
+      ).toBe("http://{host}:{port}/d/{dashboard_uid}/{dashboard_slug}?orgId=1");
+    });
+
+    it("leaves host and port to templatizeUrl instead of double-substituting", () => {
+      expect(templatizeText("http://{host}:{port}/dashboards", bindings)).toBe(
+        "http://{host}:{port}/dashboards",
+      );
+    });
+
+    it("ignores values too short to substitute safely", () => {
+      // series_count is "3": replacing it would rewrite every digit on the page.
+      expect(templatizeText("Last 30 days - 3 series", bindings)).toBe(
+        "Last 30 days - 3 series",
+      );
+    });
   });
 
   it("records fixture gate task with schema-valid, value-free trajectory", async () => {

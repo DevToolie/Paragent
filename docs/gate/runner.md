@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B4
 created: 2026-07-24
-updated: 2026-07-28
+updated: 2026-07-29
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -55,9 +55,10 @@ for a live symptom.
 
 **It changes which steps pass.** A page that first goes quiet at 12 s held the step until it did
 and does not now — at 5 s the step continues and the assertion decides on whatever is on screen.
-Deliberate, and cheap *today* because no gate number exists (`gate:matrix` is dry-run only,
-[#62](https://github.com/DevToolie/Paragent/issues/62)). After a published measurement it would
-be an expensive silent shift.
+Deliberate, and cheap *today* because no gate number exists yet: since
+[#62](https://github.com/DevToolie/Paragent/issues/62) `gate:matrix` runs live, but one run per
+version over an example program is not a measurement. After a published measurement this would be
+an expensive silent shift.
 
 ### Reaching the bound is not a step failure
 
@@ -89,7 +90,71 @@ either fails it.
 1. **Assertions are immutable in repair.** `deepFreeze` + `assertAssertionUnchanged` — proposals may only supply `corrected_action`.
 2. **No invented metrics.** Stub repair and unwired fresh baselines emit **zeros**; aggregates report `no_data` when denominators are empty.
 3. **`maxRepairsPerRun` default 2** — aligns with `success_with_le_2_repairs` on run metrics.
-4. **Dry-run required for gate matrix today.** Live matrix exits 2 until page injection + B1 pins land.
+4. **Repeats are independent.** `--runs` gives each run a fresh browser context and a fresh
+   login. Reusing either would correlate the repeats and understate the spread — the one thing
+   repeat runs exist to measure. No run is discarded, including a failed one.
+5. **A skip is not a failure.** A version the matrix could not bring up produced no measurement;
+   it is recorded in `out/matrix-run.json` with a stage and a reason and never reaches the
+   NDJSON. Counting it as a failed run would invent a data point, dropping it would shrink the
+   denominator in silence.
+
+## Repeat runs and the §9 sampling floor (#66)
+
+`--runs <n>` (default 3) replays the program N times per version. §9 specifies 3×/day for 14 days
+— **≥42 runs and ≥400 step-executions** — and swapping the calendar for the version matrix does
+not change the statistics. Eight pins at one run each is 8 runs; clearing the floor needs
+`--runs 6` (48). `--runs 5` gives 40 and lands two short.
+
+The shortfall is **reported, never enforced**: `section9SampleFloor()` puts `meets_floor` and the
+exact gap into `report.json`, and the CLI prints it before the first container boots. A short
+sample is worth looking at; a short sample read as a gate measurement is not.
+
+`perVersionBreakdown()` adds `runs_attempted`, `runs_succeeded`, `step_validity_per_run` and
+`step_validity_spread` per version. A pooled ratio makes 3/3 and 2/3 the same number; the spread
+is what shows they are different findings. Non-zero spread across repeats of an **unchanged**
+version is harness flakiness rather than churn, and it has to be understood before any matrix
+number is trusted.
+
+**Measured so far:** three live repeats of 9.5.21 against one unchanged container agreed exactly
+— `step_validity_per_run: [1, 1, 1]`, spread 0. That is a weak probe: the program was the 2-step
+example bundle, and the 12-step gate task (#25) is where flakiness would surface.
+
+## Live matrix (#62)
+
+`npm run gate:matrix` now drives a real browser. The exit-2 guard is gone; `--dry-run` stays,
+because it exercises the harness without Docker and the CI job depends on it.
+
+Per version, in `experiments/gate-v1/live-run.ts`: compose up → `/api/health` readiness → seed →
+**seed-fingerprint gate** → Chromium → login preamble → `ReplayRunner` with `dryRun: false` →
+teardown in a `finally`. Nothing in that file retries a step, downgrades an outcome, or catches
+an assertion failure — repair is the only permitted second attempt.
+
+The fingerprint gate is why a version can be skipped for a reason that is not infrastructure: if
+its seeded state differs from the base version's, a step failure could be the seed's fault rather
+than the surface's, and no honest attribution is possible after the fact. That version yields no
+data point instead of a misleading one.
+
+**Dry-run rows stay labelled.** `mode` is recorded per run and dry rows carry
+`dry-run — tokens remain 0; not a gate measurement`. Mixing the two in one report is the easiest
+way to publish a fabricated gate number.
+
+### The NDJSON cannot yet say *why* a step failed
+
+`contracts/metrics.schema.json` sets `additionalProperties: false` and has no field for a failure
+reason. Because `StubRepairModelClient` always proposes `null` (stub 1), every genuine failure
+ends as `REPAIR_EXHAUSTED` — so `LOCATOR_NOT_FOUND`, `ASSERTION_FAILED` and `TIMEOUT` are three
+findings the gate needs to tell apart, flattened into one value in the emitted row.
+
+Widening the metric row is a contract change and is deliberately **not** made here. Instead
+`StepAttemptResult.first_pass_outcome` carries the real outcome in memory, and the driver records
+it in its own ledger:
+
+```json
+{"step": 1, "outcome": "REPAIR_EXHAUSTED", "first_pass": "LOCATOR_NOT_FOUND"}
+```
+
+That is a workaround, not a fix. Until the contract question is answered, the NDJSON alone cannot
+distinguish failure modes, and any report built only from it will under-describe them.
 
 ## Outcomes
 
@@ -123,7 +188,18 @@ npm run gate:report
 - Model wiring for `RepairModelClient` — stub only (`TODO(model-wiring)`); real proposals PENDING.
 - Whether `compiled_trajectory` bundle `$id` becomes a first-class contract (B3 packaging convention today).
 - Fresh-reasoning cost capture for `cost_fresh` — measured separately; defaults to zeros when unwired.
-- Live `page` injection API for matrix vs caller-owned browser lifecycle — not locked yet.
+- ~~Live `page` injection API for matrix vs caller-owned browser lifecycle.~~ **Settled (#62)** —
+  the driver owns the lifecycle: a fresh Chromium and a fresh context per version, closed in the
+  same `finally` as the container. Carrying a context between versions would let one version's
+  state decide another's outcome.
+- **Whether a metric row should carry the pre-repair outcome.** Today it cannot
+  (`additionalProperties: false`, no field), so every failure reads `REPAIR_EXHAUSTED` and the
+  driver keeps the real outcome in its own ledger instead. Answering this needs an ADR, and it
+  matters before any report is published from the NDJSON alone.
+- **What a live run actually measures is still limited by the program.** #62 built the driver;
+  the only Grafana-targeted bundle on `main` is a compile of a hand-written example, and its
+  step-0 assertion (`getByRole("form")`) matches **zero** elements on real Grafana — an unnamed
+  `<form>` has no ARIA role. The gate task bundle arrives with #25.
 - ~~Which version list the gate matrix walks.~~ **Settled (#26)** — `scripts/testbed/matrix.json`
   (ADR-0003 pins), read through `src/testbed/matrix.ts`. The placeholder
   `experiments/gate-v1/versions.json` is deleted, so `npm run gate:matrix -- --dry-run` now

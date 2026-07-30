@@ -59,6 +59,144 @@ export function stepReplayValidity(
   };
 }
 
+/**
+ * Per-version breakdown — the thing a pooled ratio hides.
+ *
+ * Every §9 aggregate above pools across the whole matrix, so a version that
+ * succeeded 5/5 and one that succeeded 3/5 contribute to the same number and
+ * become indistinguishable. Those are different findings: the first is a version
+ * the task survives, the second is either real churn or harness flakiness, and
+ * the report has to let a reader see which versions moved.
+ *
+ * **Spread is the flakiness signal.** Repeat runs of one version against an
+ * unchanged instance should agree. If `step_validity_per_run` varies there, the
+ * variation is the harness's, not the surface's — and that has to be understood
+ * before any matrix number is trusted (#66).
+ *
+ * Counts only what the NDJSON contains, which is **attempted** runs. A version
+ * that was skipped never produced a row, and inferring it here would invent a
+ * denominator; the skip and its reason live in the driver's
+ * `out/matrix-run.json` ledger instead.
+ */
+export interface VersionBreakdown {
+  testbed_version: string;
+  runs_attempted: number;
+  runs_succeeded: number;
+  /** Step-level replay-validity per run, ordered as the runs were emitted. */
+  step_validity_per_run: number[];
+  /** null when there are no completed runs — never 0, which would read as agreement. */
+  step_validity_min: number | null;
+  step_validity_max: number | null;
+  /** max - min. null on no data; 0 means the repeats genuinely agreed. */
+  step_validity_spread: number | null;
+  status: "computed" | "no_data";
+}
+
+function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {
+  const map = new Map<K, T[]>();
+  for (const item of items) {
+    const list = map.get(key(item));
+    if (list) list.push(item);
+    else map.set(key(item), [item]);
+  }
+  return map;
+}
+
+function summarizeVersion(
+  version: string,
+  versionRuns: RunMetric[],
+  stepsByRun: Map<string, StepMetric[]>,
+): VersionBreakdown {
+  const validity = versionRuns
+    .map((r) => stepsByRun.get(r.run_id) ?? [])
+    // A run with no step rows has no validity to report. Scoring it 0 would be
+    // indistinguishable from a run where every step genuinely failed.
+    .filter((runSteps) => runSteps.length > 0)
+    .map((runSteps) => runSteps.filter((s) => s.replay_valid).length / runSteps.length);
+
+  if (validity.length === 0) {
+    return {
+      testbed_version: version,
+      runs_attempted: versionRuns.length,
+      runs_succeeded: versionRuns.filter((r) => r.task_success).length,
+      step_validity_per_run: [],
+      step_validity_min: null,
+      step_validity_max: null,
+      step_validity_spread: null,
+      status: "no_data",
+    };
+  }
+
+  const min = Math.min(...validity);
+  const max = Math.max(...validity);
+  return {
+    testbed_version: version,
+    runs_attempted: versionRuns.length,
+    runs_succeeded: versionRuns.filter((r) => r.task_success).length,
+    step_validity_per_run: validity,
+    step_validity_min: min,
+    step_validity_max: max,
+    step_validity_spread: max - min,
+    status: "computed",
+  };
+}
+
+export function perVersionBreakdown(
+  rows: readonly MetricRow[],
+): VersionBreakdown[] {
+  const stepsByRun = groupBy(dedupeLatestSteps(filterSteps(rows)), (s) => s.run_id);
+  const byVersion = groupBy(filterRuns(rows), (r) => r.testbed_version);
+
+  return [...byVersion.entries()]
+    .map(([version, versionRuns]) =>
+      summarizeVersion(version, versionRuns, stepsByRun),
+    )
+    // Stable order so two reports over the same data diff cleanly.
+    .sort((a, b) => a.testbed_version.localeCompare(b.testbed_version));
+}
+
+/**
+ * Whether the run count clears PRD §9's sampling floor.
+ *
+ * §9 specifies 3×/day for 14 days — **≥42 runs and ≥400 step-executions**. The
+ * pivot swaps the calendar for the version matrix, but the statistical floor
+ * survives the substitution: eight pins at one run each is 8 runs, an order of
+ * magnitude short, and cannot separate churn from noise.
+ *
+ * Reported rather than enforced. A short sample is still worth looking at; what
+ * must not happen is a short sample being read as a gate measurement, so this
+ * says plainly which one you are holding.
+ */
+export const SECTION9_MIN_RUNS = 42;
+export const SECTION9_MIN_STEP_EXECUTIONS = 400;
+
+export function section9SampleFloor(rows: readonly MetricRow[]): {
+  runs: number;
+  step_executions: number;
+  meets_floor: boolean;
+  shortfall: string | null;
+} {
+  const runs = filterRuns(rows).length;
+  const stepExecutions = dedupeLatestSteps(filterSteps(rows)).length;
+  const meets =
+    runs >= SECTION9_MIN_RUNS && stepExecutions >= SECTION9_MIN_STEP_EXECUTIONS;
+
+  const missing: string[] = [];
+  if (runs < SECTION9_MIN_RUNS) {
+    missing.push(`${runs}/${SECTION9_MIN_RUNS} runs`);
+  }
+  if (stepExecutions < SECTION9_MIN_STEP_EXECUTIONS) {
+    missing.push(`${stepExecutions}/${SECTION9_MIN_STEP_EXECUTIONS} step-executions`);
+  }
+
+  return {
+    runs,
+    step_executions: stepExecutions,
+    meets_floor: meets,
+    shortfall: missing.length > 0 ? `below PRD §9 floor: ${missing.join(", ")}` : null,
+  };
+}
+
 export function taskSuccessLe2Repairs(
   rows: readonly MetricRow[],
 ): GateReportSection {
@@ -267,7 +405,9 @@ export function buildGateReport(rows: readonly MetricRow[]): {
   prd_section: "§9";
   generated_at: string;
   row_counts: { step: number; run: number };
+  sample: ReturnType<typeof section9SampleFloor>;
   metrics: GateReportSection[];
+  per_version: VersionBreakdown[];
   amortized_points: Array<{ n: number; amortized_tokens: number }>;
 } {
   const repairVs = repairCostVsFresh(rows);
@@ -279,6 +419,9 @@ export function buildGateReport(rows: readonly MetricRow[]): {
       step: filterSteps(rows).length,
       run: filterRuns(rows).length,
     },
+    // Stated before the metrics, deliberately: a reader has to know whether the
+    // sample can carry them before reading the numbers.
+    sample: section9SampleFloor(rows),
     metrics: [
       stepReplayValidity(rows),
       taskSuccessLe2Repairs(rows),
@@ -288,6 +431,7 @@ export function buildGateReport(rows: readonly MetricRow[]): {
       meanTimeToRepair(rows),
       amortized.section,
     ],
+    per_version: perVersionBreakdown(rows),
     amortized_points: amortized.points,
   };
 }

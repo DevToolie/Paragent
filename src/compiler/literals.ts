@@ -69,6 +69,69 @@ export function looksLikeTenantLiteral(value: string): boolean {
   return false;
 }
 
+/**
+ * Tenant check for **selector-shaped** values — `structural_path`, `css`.
+ *
+ * `looksLikeTenantLiteral` ends with a prose heuristic: three or more
+ * whitespace-separated words is treated as human text, and human text near a
+ * locator is assumed to be tenant data. That is right for a name or a label and
+ * catastrophically wrong for a CSS path, where the whitespace is the descendant
+ * combinator. `body > button` is three tokens. Real Grafana paths are thirty.
+ *
+ * Measured consequence, issue #25: compiling the live 12-step trajectory marked
+ * **every** structural candidate tainted, so every chain came out `allTainted`,
+ * gained a `topology_only` entry, and reported `pool_ineligible_reason:
+ * topology_only_degraded` — 11 of 12 rows, for a reason that was an artifact of
+ * the heuristic rather than anything in the page. The example trajectory never
+ * showed it because its hand-written paths are short.
+ *
+ * Identifier-shaped tenant data inside a selector still counts: a uid in
+ * `div[data-uid="…"]`, an email in an attribute selector, a bearer-looking
+ * blob. Only the prose rule is dropped, because a selector is not prose.
+ */
+export function looksLikeTenantSelector(value: string): boolean {
+  if (!value || value.trim() === "") return false;
+  const probe = hasTemplateHoles(value)
+    ? value.replace(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g, "")
+    : value;
+  return (
+    EMAIL_RE.test(probe) ||
+    UUID_RE.test(probe) ||
+    SECRETISH_RE.test(probe) ||
+    OPAQUE_ID_RE.test(probe)
+  );
+}
+
+/** Object keys whose values are selectors, not prose. */
+export const SELECTOR_KEYS = new Set(["structural_path", "css", "count_scope"]);
+
+/**
+ * String leaves with the key they were found under, so a caller can apply the
+ * prose rule to prose and the selector rule to selectors. `collectStringLeaves`
+ * throws the key away, which is why `assertion.target.locator.structural_path`
+ * used to be judged as if it were a sentence.
+ */
+export function collectStringEntries(
+  value: unknown,
+  key = "",
+  out: { key: string; value: string }[] = [],
+): { key: string; value: string }[] {
+  if (typeof value === "string") {
+    out.push({ key, value });
+    return out;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectStringEntries(item, key, out);
+    return out;
+  }
+  if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      collectStringEntries(v, k, out);
+    }
+  }
+  return out;
+}
+
 export function collectStringLeaves(value: unknown, out: string[] = []): string[] {
   if (typeof value === "string") {
     out.push(value);
