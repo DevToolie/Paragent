@@ -21,10 +21,22 @@ export {
   buildTenantRow,
   writeCacheRow,
   writeCacheRowPair,
-  type CacheStore,
   type WriteLogSink,
   type WriteOptions,
 } from "./write.js";
+export {
+  JsonlCacheStore,
+  MemoryCacheStore,
+  POOL_FILE,
+  TENANT_FILE,
+  cacheKeyOf,
+  cacheKeyString,
+  type CacheKey,
+  type CacheListFilter,
+  type CacheStore,
+  type CacheStoreLogSink,
+  type JsonlCacheStoreOptions,
+} from "./store.js";
 export {
   CANARY_TENANT,
   allCanaryStrings,
