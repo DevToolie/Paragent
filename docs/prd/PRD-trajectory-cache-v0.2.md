@@ -7,8 +7,14 @@ created: 2026-07-24
 updated: 2026-07-24
 confidence: HIGH
 supersedes: null
+superseded_by: "docs/prd/pivot-brief-v0.3.md (§8 selection rule); docs/prd/PRD-v0.4-addendum.md (§8 residual body, §9 threshold status)"
 sources_verified: false
 ---
+
+> **⚠️ Partly superseded — read [PRD v0.4 addendum](./PRD-v0.4-addendum.md) before acting on §8 or §9.**
+> §8's anchors (Grafana Cloud, Datadog) and gate task are stale; §9's thresholds are **proposed,
+> not accepted**. The body below is kept unedited as the historical record. Editorial pointers
+> added 2026-07-29 (#68); no original text was changed.
 
 # PRD — Stateful Execution Layer for Browser Agents
 ### (working title: *the trajectory cache*)
@@ -124,6 +130,8 @@ Roadmap under Fork A:
 
 ## 8. Anchor + first task — DECIDED (with one honesty fix)
 
+> **Superseded — see [PRD v0.4 addendum §1](./PRD-v0.4-addendum.md#1-if-you-are-reading-prd-8-read-this-instead-d-02).** The test-bed is self-hosted Grafana OSS (ADR-0003), there is no commercial anchor, and no vertical is locked (ADR-0004). Text below unchanged.
+
 **v0.1 had a self-contradiction:** the selection rule excludes anything with a clean API, but Datadog monitors, Grafana dashboards, and Sentry alerts all have APIs and mature Terraform providers. The defense is real but must be earned per-task, not assumed per-vendor: (a) most mid-market customers do not IaC their observability config, and (b) meaningful sub-flows are genuinely UI-only (integration tiles and their OAuth dances, SSO/SAML setup, team/permission flows, usage/billing navigation).
 
 **Decision:**
@@ -136,6 +144,8 @@ Roadmap under Fork A:
 Selection rule (unchanged, now actually enforced by the census): **high-frequency + browser-only + no meaningful API + painful enough to pay for.**
 
 ## 9. Success metrics — now defined
+
+> **Thresholds below are PROPOSED and UNVALIDATED — see [PRD v0.4 addendum §2](./PRD-v0.4-addendum.md#2-9s-thresholds-are-proposed-not-accepted-d-03).** They are not accepted gates and must not be cited as measured results. Text below unchanged.
 
 **The one number: replay-validity**, defined precisely:
 
