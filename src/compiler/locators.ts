@@ -1,4 +1,4 @@
-import { looksLikeTenantLiteral } from "./literals.js";
+import { looksLikeTenantLiteral, looksLikeTenantSelector } from "./literals.js";
 import {
   LOCATOR_PREFERENCE,
   type CompiledLocator,
@@ -37,16 +37,17 @@ function candidateToCompiled(c: LocatorCandidate): CompiledLocator {
 }
 
 function locatorFieldsLookTainted(loc: CompiledLocator): boolean {
-  const fields = [
-    loc.name,
-    loc.label,
-    loc.text,
-    loc.testid,
-    loc.css,
-    loc.structural_path,
-  ];
-  for (const f of fields) {
+  // Prose fields: a human-readable string near a locator is assumed to be
+  // tenant data until B5's vocabulary says otherwise.
+  for (const f of [loc.name, loc.label, loc.text, loc.testid]) {
     if (f !== undefined && looksLikeTenantLiteral(f)) return true;
+  }
+  // Selector fields are topology, not prose — a descendant combinator is not a
+  // sentence. Identifier-shaped tenant data inside them still counts. See
+  // looksLikeTenantSelector: applying the prose rule here marked every real
+  // structural path tainted and degraded 11 of 12 live rows to topology_only.
+  for (const f of [loc.css, loc.structural_path]) {
+    if (f !== undefined && looksLikeTenantSelector(f)) return true;
   }
   return loc.tenant_scoped === true;
 }
@@ -78,7 +79,7 @@ export function buildLocatorFallbackChain(
     if (
       compiled.strategy === "css_vocab" &&
       compiled.css !== undefined &&
-      looksLikeTenantLiteral(compiled.css)
+      looksLikeTenantSelector(compiled.css)
     ) {
       compiled.tenant_scoped = true;
     }

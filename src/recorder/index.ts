@@ -12,6 +12,7 @@ export {
   digestSignals,
   inferParamType,
   resolveTemplate,
+  templatizeText,
   templatizeUrl,
 } from "./redact.js";
 export type {

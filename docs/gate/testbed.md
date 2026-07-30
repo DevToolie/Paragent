@@ -136,10 +136,13 @@ it has not been re-read on this machine.
 Recorded because they are surface churn the recorder will meet, not defects:
 
 - **13.0.3 opens a first-run "Grafana Assistant is now available to OSS users" modal** over the
-  dashboard on a fresh container. Panels render behind it. Nothing persists user preferences
-  (no volume), so it appears on **every** boot. Any recorded 13.0.3 trajectory has to dismiss
-  it, and a Playwright visibility check will not notice the occlusion — `isVisible()` is not
-  occlusion-aware.
+  dashboard on a fresh container. Panels render behind it, and a Playwright visibility check will
+  not notice the occlusion — `isVisible()` is not occlusion-aware. It appears on **every boot**,
+  because the testbed mounts no volume and each `--down` re-creates the database.
+  *(Corrected 2026-07-28, issue #24: it is **once per container**, not once per page load, and
+  the dismissal is stored **server-side** — after closing it, a brand-new browser context on the
+  same container never sees it again. "Nothing persists the dismissal" was measured through a
+  preamble check that was silently failing; see `gate/recorder.md`.)*
 - **12.0.0** decorates the Drilldown nav item with a `New!` badge; **12.x/13.x** replace the
   burger-menu nav with a docked sidebar. Expect locator churn across the 11 → 12 boundary.
 - **9.5.21** raises a `DashboardQueryRunner failed / Failed to fetch` toast on the dashboard.

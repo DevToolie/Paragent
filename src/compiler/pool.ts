@@ -1,4 +1,10 @@
-import { collectStringLeaves, looksLikeTenantLiteral } from "./literals.js";
+import {
+  collectStringEntries,
+  isChromeLabel,
+  looksLikeTenantLiteral,
+  looksLikeTenantSelector,
+  SELECTOR_KEYS,
+} from "./literals.js";
 import type {
   Assertion,
   CompiledLocator,
@@ -48,12 +54,44 @@ export function decidePoolEligibility(args: {
     };
   }
 
+  // Mirror of B5's `assertionHasTenantLiteral` (src/cache/write.ts): anything
+  // left in `expected.template` after the holes are removed is treated as a
+  // literal. This pre-check must never be *more permissive* than the authority
+  // — `writeCacheRow` throws `CacheWriteRejectedError` when a caller claims
+  // pool_eligible and B5 disagrees, so a permissive pre-check is a crash, not a
+  // leak, but a crash in the one path that has to work.
+  //
+  // Found by routing the live bundle through the write path (issue #25): the
+  // compiler called every `url-matches` row poolable and B5 refused all four,
+  // because a URL template's residue is its *path*. Whether refusing a path is
+  // right is B5's call and a separate question — see docs/gate/compiler.md. The
+  // compiler's job is to agree with it.
+  const expectedTemplate = assertion.expected?.template;
+  if (expectedTemplate !== undefined) {
+    const residue = expectedTemplate
+      .replace(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g, "")
+      .trim();
+    if (residue.length > 0 && !isChromeLabel(residue) && !isChromeLabel(expectedTemplate)) {
+      return {
+        pool_eligible: false,
+        pool_ineligible_reason: "literal_in_assertion",
+      };
+    }
+  }
+
   const payload = {
     target: assertion.target,
     expected: assertion.expected,
   };
-  for (const leaf of collectStringLeaves(payload)) {
-    if (looksLikeTenantLiteral(leaf)) {
+  // Key-aware on purpose: an assertion target can embed the same selector the
+  // locator chain carries (`structural_path`, `count_scope`), and judging a CSS
+  // path by the prose rule marked a live row `literal_in_assertion` for owning
+  // a long DOM path — see looksLikeTenantSelector.
+  for (const { key, value } of collectStringEntries(payload)) {
+    const tainted = SELECTOR_KEYS.has(key)
+      ? looksLikeTenantSelector(value)
+      : looksLikeTenantLiteral(value);
+    if (tainted) {
       return {
         pool_eligible: false,
         pool_ineligible_reason: "literal_in_assertion",
