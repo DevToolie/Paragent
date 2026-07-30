@@ -45,6 +45,42 @@ export function templatizeUrl(
   return { template, paramRefs: [...refs] };
 }
 
+/** Bindings `templatizeUrl` already handles positionally; do not double-replace. */
+const URL_SPECIAL_BINDINGS = new Set(["host", "port", "fixture_root"]);
+
+/**
+ * Replace every bound value in `text` with its `{param}` hole.
+ *
+ * `templatizeUrl` only knows about host/port/fixture_root, which was enough
+ * while the only live step was a navigation. It is not enough for a task that
+ * types values into a page: Grafana echoes them straight back into the document
+ * title and the URL — `"Paragent Gate Dashboard - Dashboards - Grafana"`,
+ * `/d/{uid}/paragent-gate-dashboard` — so a typed value ends up a literal in
+ * the artifact, which is exactly what the parameter discipline forbids
+ * (issue #24).
+ *
+ * Only string bindings of 4+ characters are substituted. Short values would
+ * match half the page (`"3"` as a series count would rewrite every digit), and
+ * numeric ids are handled by the caller binding them explicitly.
+ * Longest-first so overlapping values cannot leave a half-substituted string.
+ */
+export function templatizeText(
+  text: string,
+  bindings: Record<string, string | number | boolean>,
+): string {
+  const candidates = Object.entries(bindings)
+    .filter(([name]) => !URL_SPECIAL_BINDINGS.has(name))
+    .map(([name, value]) => [name, String(value)] as const)
+    .filter(([, value]) => value.length >= 4)
+    .sort((a, b) => b[1].length - a[1].length);
+
+  let out = text;
+  for (const [name, value] of candidates) {
+    if (out.includes(value)) out = out.split(value).join(`{${name}}`);
+  }
+  return out;
+}
+
 export function resolveTemplate(
   template: string,
   bindings: Record<string, string | number | boolean>,

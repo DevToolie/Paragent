@@ -18,6 +18,7 @@ const pairs = [
 /** Extra trajectory artifacts that must stay schema-valid (B2 gate recordings). */
 const extraTrajectories = [
   "experiments/gate-v1/trajectories/grafana-fixture-login-dashboards.json",
+  "experiments/gate-v1/trajectories/grafana-create-stat-dashboard-from-testdata-9.5.21.json",
 ];
 
 async function loadJson(rel) {

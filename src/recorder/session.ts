@@ -6,6 +6,7 @@ import {
   assertNoLiteralSecrets,
   inferParamType,
   resolveTemplate,
+  templatizeText,
   templatizeUrl,
 } from "./redact.js";
 import {
@@ -19,6 +20,37 @@ import {
 
 export const PACKAGE = "recorder" as const;
 export const RECORDER_VERSION = "0.1.0-b2" as const;
+
+/**
+ * How long a step may wait for the URL to change before `post_state` is taken.
+ *
+ * Why this exists (issue #24, measured on 9.5.21): clicking **Save** in the
+ * dashboard drawer saves over XHR and *then* routes to `/d/{uid}/{slug}`. The
+ * first live recording captured `post_state` in between, so the most important
+ * step in the ADR-0006 task recorded "URL unchanged" — and the compiler, seeing
+ * no navigation, would synthesize a weak `element-visible` for a step whose
+ * real post-condition is a URL and a success toast.
+ *
+ * The runner does not have this problem: its assertions carry a 5s budget
+ * (`DEFAULT_ASSERTION_TIMEOUT_MS`), so it sees the settled page. Capturing the
+ * unsettled one means recording a state the replay will never assert against.
+ * This closes that gap.
+ *
+ * It can only ever *wait* for a change, never invent one: if the URL does not
+ * move within the budget, `post_state` records the URL that is actually there,
+ * exactly as before. Bounded for the same reason every other wait here is —
+ * the timeout means "no change observed", not failure.
+ */
+export const POST_ACTION_URL_SETTLE_MS = 1_000;
+
+/** Poll until the URL differs from `before`, or the budget runs out. */
+async function settleUrl(page: Page, before: string): Promise<void> {
+  const deadline = Date.now() + POST_ACTION_URL_SETTLE_MS;
+  while (Date.now() < deadline) {
+    if (page.url() !== before) return;
+    await page.waitForTimeout(50);
+  }
+}
 
 /**
  * Instruments a Playwright Page into contracts/trajectory.schema.json.
@@ -72,6 +104,7 @@ export class TrajectoryRecorder {
   }): Promise<void> {
     const started = this.offsetMs();
     const pre_state = await this.fingerprint(false);
+    const urlBefore = this.page.url();
     const locator_candidates = args.locator
       ? await collectLocatorCandidates(args.locator)
       : [];
@@ -96,6 +129,11 @@ export class TrajectoryRecorder {
         .isVisible()
         .catch(() => undefined);
     }
+
+    // Only after the ADR-0007 observation above: give a client-side route change
+    // a bounded chance to land, so post_state is the page the runner will
+    // actually assert against. See POST_ACTION_URL_SETTLE_MS.
+    await settleUrl(this.page, urlBefore);
 
     const post_state = await this.fingerprint(args.awaitNetworkIdle ?? true);
     const duration_ms = Math.max(0, this.offsetMs() - started);
@@ -152,6 +190,10 @@ export class TrajectoryRecorder {
 
   async fill(locator: Locator, paramName: string, value: string, intent: string): Promise<void> {
     this.ensureParam(paramName, value);
+    // Bind, so the value can be lifted back out of anything the page echoes it
+    // into. Bindings drive Playwright and redaction only — `toTrajectory` never
+    // serializes them.
+    this.bindings[paramName] = value;
     await this.recordStep({
       intent,
       action: { type: "fill", param_refs: [paramName] },
@@ -168,6 +210,7 @@ export class TrajectoryRecorder {
 
   async select(locator: Locator, paramName: string, value: string, intent: string): Promise<void> {
     this.ensureParam(paramName, value);
+    this.bindings[paramName] = value;
     await this.recordStep({
       intent,
       action: { type: "select", param_refs: [paramName] },
@@ -240,8 +283,35 @@ export class TrajectoryRecorder {
     });
   }
 
+  /** Measured steps recorded so far. Preamble actions are not among them. */
+  stepCount(): number {
+    return this.steps.length;
+  }
+
   currentUrlTemplate(): string {
     return templatizeUrl(this.page.url(), this.bindings).template;
+  }
+
+  /**
+   * Lift bound values out of a captured fingerprint, at emit time.
+   *
+   * Deferred on purpose: a value is often only *knowable* after the step that
+   * observed it. The dashboard uid in `/d/{dashboard_uid}/…` is assigned by the
+   * server during the save click, so the step that recorded that URL could not
+   * have templatized it while capturing. Running the pass over the finished
+   * steps lifts it everywhere it appears, including backwards.
+   *
+   * This replaces literals with holes and does nothing else — it cannot invent
+   * a state, only stop one from naming a run-specific value.
+   */
+  private liftFingerprint<T extends { url_template: string; title_template: string }>(
+    fp: T,
+  ): T {
+    return {
+      ...fp,
+      url_template: templatizeText(fp.url_template, this.bindings),
+      title_template: templatizeText(fp.title_template, this.bindings),
+    };
   }
 
   toTrajectory(): Trajectory {
@@ -257,7 +327,12 @@ export class TrajectoryRecorder {
       base_url_template: this.options.base_url_template,
       provenance,
       parameters: { ...this.parameters },
-      steps: this.steps.map((s) => structuredClone(s)),
+      steps: this.steps.map((s) => {
+        const clone = structuredClone(s);
+        clone.pre_state = this.liftFingerprint(clone.pre_state);
+        clone.post_state = this.liftFingerprint(clone.post_state);
+        return clone;
+      }),
     };
   }
 
