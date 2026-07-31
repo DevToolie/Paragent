@@ -117,6 +117,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | Doc | What it is | Status | Last true | Notes |
 | --- | --- | --- | --- | --- |
 | [boundary-spec.md](privacy/boundary-spec.md) | Write-time allowlist | review | 2026-07-24 | PRD §6; canary merge-blocking |
+| [session-custody.md](privacy/session-custody.md) | Session-custody checklist + gap analysis | draft | 2026-07-30 | PRD §7; distinct from §6's pooling allowlist — see doc. Not merge-blocking yet, gaps filed as #98-#103 |
 
 ---
 
