@@ -199,6 +199,31 @@ export interface StepAttemptResult {
   notes?: string;
 }
 
+/**
+ * What a caller may observe after each step settles (issue #64).
+ *
+ * Declared structurally so the runner keeps no dependency on `src/cache/` — the
+ * cache is written *to*, and a runner -> cache import would be backwards. The
+ * cache supplies an implementation via `createCacheUpdateSink()`.
+ *
+ * Purely an observer. Nothing the sink does or returns can change an outcome,
+ * skip a step, or alter a metric row: confidence is recorded during Track 1,
+ * never acted on, or a low-confidence row would quietly shrink the
+ * step-validity denominator. See docs/gate/cache.md.
+ */
+export interface StepOutcomeObservation {
+  site_key: string;
+  task_key: string;
+  step_index: number;
+  outcome: StepOutcome;
+  /** Set only when the outcome was REPAIRED_PASS. */
+  repair?: {
+    run_id: string;
+    repair_attempt: number;
+    corrected_action: CompiledAction;
+  };
+}
+
 export interface RunResult {
   run_id: string;
   site_key: string;

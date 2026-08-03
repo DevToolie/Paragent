@@ -4,7 +4,7 @@ doc_type: brief
 status: review
 owner: D2
 created: 2026-07-24
-updated: 2026-07-27
+updated: 2026-08-03
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -55,6 +55,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0005](decisions/ADR-0005-repo-public.md) | Repo is **PUBLIC**, single tree, nothing stripped | accepted | 2026-07-25 | Supersedes ADR-0002; founder decision on issue #42 |
 | [ADR-0006](decisions/ADR-0006-track1-gate-task.md) | Track-1 gate task = build + save a TestData Stat dashboard (12 steps) | accepted | 2026-07-28 | Issue #59. Walked by hand on 9.5.21 and 13.0.3; answers ADR-0003's "browser-meaningful" question |
 | [ADR-0007](decisions/ADR-0007-post-action-visibility.md) | `visible_landmarks` filtered for real; new `post_action_target_visible` | accepted | 2026-07-26 | Issue #71, out of PR #70 |
+| [ADR-0009](decisions/ADR-0009-cache-confidence.md) | Confidence decay (EWMA α=0.3), invalidation below 0.5, repair rewrite; `invalidated_at` + `repair_provenance` | accepted | 2026-08-03 | Issue #64. Thresholds are **chosen defaults, not measured** |
 
 ---
 
@@ -108,6 +109,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [recorder.md](gate/recorder.md) | Recorder | draft | 2026-07-24 | — |
 | [compiler.md](gate/compiler.md) | Compiler | draft | 2026-07-24 | — |
 | [runner.md](gate/runner.md) | Replay / repair | draft | 2026-07-24 | Measured gate number pending |
+| [cache.md](gate/cache.md) | Persistence, confidence, repair rewrite | draft | 2026-08-03 | ADR-0009; confidence **never gates** the measurement |
 | [assertion-audit.md](gate/assertion-audit.md) | Assertion-strength audit of the live bundle | draft | 2026-07-30 | Issue #61; found a strong assertion that is not load-bearing live (locator staleness, #24) |
 | [../experiments/gate-v1/README.md](../experiments/gate-v1/README.md) | Throwaway harness | draft | 2026-07-25 | Empty → `no_data` |
 

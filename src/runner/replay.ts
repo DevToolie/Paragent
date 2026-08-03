@@ -34,6 +34,7 @@ import type {
   RepairProposal,
   RunResult,
   StepAttemptResult,
+  StepOutcomeObservation,
 } from "./types.js";
 
 const SUCCESS_OUTCOMES: ReadonlySet<StepOutcome> = new Set([
@@ -58,6 +59,14 @@ export interface ReplayRunnerOptions {
    * it is bounded at all.
    */
   networkIdleWaitMs?: number;
+  /**
+   * Observer called once per step, after its metric row is emitted (#64).
+   *
+   * Optional, and a runner without one behaves exactly as it did before #64 —
+   * which is what keeps the gate matrix unaffected. It cannot influence the run:
+   * it is invoked after the outcome is final and its return value is ignored.
+   */
+  onStepOutcome?: (observation: StepOutcomeObservation) => void;
 }
 
 function nowIso(): string {
@@ -82,6 +91,7 @@ export class ReplayRunner {
   private readonly costFresh: Cost;
   private readonly page?: Page;
   private readonly networkIdleWaitMs: number;
+  private readonly onStepOutcome?: (o: StepOutcomeObservation) => void;
 
   constructor(options: ReplayRunnerOptions = {}) {
     this.dryRun = options.dryRun ?? false;
@@ -91,6 +101,7 @@ export class ReplayRunner {
     this.metrics = options.metrics ?? new MetricsEmitter();
     this.costFresh = options.costFresh ?? zeroCost();
     this.networkIdleWaitMs = options.networkIdleWaitMs ?? NETWORK_IDLE_WAIT_MS;
+    if (options.onStepOutcome !== undefined) this.onStepOutcome = options.onStepOutcome;
     if (options.page !== undefined) this.page = options.page;
   }
 
@@ -131,6 +142,10 @@ export class ReplayRunner {
       });
 
       let final: StepAttemptResult = first;
+      // The action a repair actually made work, when one did. Needed by the
+      // cache-update observer: a REPAIRED_PASS rewrites the entry, so the sink
+      // has to know what it was rewritten *to*.
+      let repairedAction: CompiledAction | undefined;
       costReplay = addCost(costReplay, first.cost);
 
       if (first.outcome === "PASS") {
@@ -245,6 +260,7 @@ export class ReplayRunner {
             timeToRepairTotal += timeToRepair;
             selfHealed = true;
             repaired = true;
+            repairedAction = currentAction;
             final = {
               step_index: step.step_index,
               outcome: "REPAIRED_PASS",
@@ -317,6 +333,9 @@ export class ReplayRunner {
 
       stepResults.push(final);
       this.emitStepMetric(program, runId, final);
+      // After the metric, deliberately: the observation must never be able to
+      // influence what was measured. See StepOutcomeObservation.
+      this.observeStep(program, runId, final, repairedAction);
 
       if (!SUCCESS_OUTCOMES.has(final.outcome)) {
         // Stop on hard failure after repair exhaustion.
@@ -444,6 +463,44 @@ export class ReplayRunner {
     if (result.message !== undefined) out.error_message = result.message;
     if (result.notes !== undefined) out.notes = result.notes;
     return out;
+  }
+
+  /**
+   * Hand the settled outcome to the optional observer (#64).
+   *
+   * Wrapped: a sink that throws must not take down a measurement run. The
+   * cache is a recording of what happened, and losing that recording is
+   * strictly better than losing the run that produced it — the run is the
+   * measurement. The failure is reported, never swallowed silently.
+   */
+  private observeStep(
+    program: CompiledProgram,
+    runId: string,
+    final: StepAttemptResult,
+    repairedAction: CompiledAction | undefined,
+  ): void {
+    if (!this.onStepOutcome) return;
+    const observation: StepOutcomeObservation = {
+      site_key: program.site_key,
+      task_key: program.task_key,
+      step_index: final.step_index,
+      outcome: final.outcome,
+    };
+    if (final.outcome === "REPAIRED_PASS" && repairedAction !== undefined) {
+      observation.repair = {
+        run_id: runId,
+        repair_attempt: final.repair_attempt ?? 1,
+        corrected_action: repairedAction,
+      };
+    }
+    try {
+      this.onStepOutcome(observation);
+    } catch (err) {
+      console.error(
+        `onStepOutcome failed for step ${final.step_index}: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   private emitStepMetric(
