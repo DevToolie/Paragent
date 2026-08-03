@@ -31,6 +31,7 @@ import type {
   CompiledStep,
   ParamBindings,
   RepairContext,
+  RepairProposal,
   RunResult,
   StepAttemptResult,
 } from "./types.js";
@@ -65,6 +66,11 @@ function nowIso(): string {
 
 function isFailureOutcome(outcome: StepOutcome): boolean {
   return !SUCCESS_OUTCOMES.has(outcome);
+}
+
+function errText(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.split("\n")[0]!.slice(0, 300);
 }
 
 export class ReplayRunner {
@@ -159,8 +165,33 @@ export class ReplayRunner {
           };
           if (lastMessage !== undefined) ctx.error_message = lastMessage;
 
-          const { result: proposal, wall_clock_ms: proposeMs } =
-            await measureWallClock(() => this.repairClient.propose(ctx));
+          let proposal: RepairProposal;
+          let proposeMs: number;
+          try {
+            ({ result: proposal, wall_clock_ms: proposeMs } =
+              await measureWallClock(() => this.repairClient.propose(ctx)));
+          } catch (err) {
+            // A repair client is an external call (a model API) and can fail
+            // for reasons that are not this run's fault — the same posture
+            // already given to a browser action or an assertion evaluation,
+            // both of which are caught into a StepOutcome rather than left to
+            // escape (src/runner/actions.ts, src/runner/assertions.ts). Before
+            // this, an uncaught throw here propagated out of run() entirely —
+            // one flaky repair call would abort the whole matrix run instead
+            // of recording one step's repair as failed.
+            final = {
+              step_index: step.step_index,
+              outcome: "REPAIR_EXHAUSTED",
+              replay_valid: false,
+              mode: "repair",
+              cost: zeroCost(),
+              repair_attempt: attempt,
+              assertion_strength: step.assertion.strength,
+              first_pass_outcome: first.outcome,
+              error_message: `repair client threw: ${errText(err)}`,
+            };
+            break;
+          }
 
           assertAssertionUnchanged(frozenAssertion, step.assertion);
           assertAssertionUnchanged(frozenAssertion, ctx.assertion);

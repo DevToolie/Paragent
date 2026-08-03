@@ -97,9 +97,26 @@ either fails it.
 
 ## Invariants
 
-1. **Assertions are immutable in repair.** `deepFreeze` + `assertAssertionUnchanged` — proposals may only supply `corrected_action`.
+1. **Assertions are immutable in repair.** `deepFreeze` + `assertAssertionUnchanged` — proposals
+   may only supply `corrected_action`. Two independent checks run after every proposal
+   (`replay.ts`): one against `ctx.assertion` (catches a client that reassigns the property it was
+   handed) and one against the live `step.assertion` (catches a client that mutates the original,
+   non-frozen object reachable via `ctx.step`) — a third check re-verifies `step.assertion` after
+   the retry executes, closing the window where a tampered assertion could otherwise decide a
+   spurious `PASS` before anyone looks at it again. `tests/unit/runner.test.ts` pins the equality
+   check itself; `tests/integration/repair-invariants.test.ts` drives `ReplayRunner` end to end
+   against hostile scripted clients (reassignment, in-place mutation, and the specific
+   strong→weak downgrade the contract language names) and — required by #65 — proves each guard
+   is load-bearing by disabling it and watching the corresponding attack go undetected (a silent
+   `REPAIRED_PASS`, once even reporting `assertion_strength: "weak"`) before restoring it.
 2. **No invented metrics.** Stub repair and unwired fresh baselines emit **zeros**; aggregates report `no_data` when denominators are empty.
-3. **`maxRepairsPerRun` default 2** — aligns with `success_with_le_2_repairs` on run metrics.
+3. **`maxRepairsPerRun` default 2, and the budget is per run, not per step.** `repairCount` is one
+   counter for the whole `run()` call, not reset between steps — a step that enters repair with
+   the budget already spent gets zero attempts of its own, immediately `REPAIR_EXHAUSTED`. Aligns
+   with `success_with_le_2_repairs` on run metrics, which is hard-coded to a threshold of 2
+   regardless of what `maxRepairsPerRun` was configured to, so raising the cap to study a harder
+   case can't accidentally raise the PRD §9 bar too. Both properties are pinned by
+   `tests/integration/repair-invariants.test.ts`.
 4. **Repeats are independent.** `--runs` gives each run a fresh browser context and a fresh
    login. Reusing either would correlate the repeats and understate the spread — the one thing
    repeat runs exist to measure. No run is discarded, including a failed one.
@@ -107,6 +124,14 @@ either fails it.
    it is recorded in `out/matrix-run.json` with a stage and a reason and never reaches the
    NDJSON. Counting it as a failed run would invent a data point, dropping it would shrink the
    denominator in silence.
+6. **A repair client's own failure cannot escape `run()`.** A `RepairModelClient.propose()` call
+   is an external dependency (a model API) exactly like a browser action or an assertion
+   evaluation, both of which are caught into a typed `StepOutcome` rather than left to throw
+   (`src/runner/actions.ts`, `src/runner/assertions.ts`) — until #65, `propose()` was the one
+   external call in the loop with no equivalent catch, so a client that threw aborted the entire
+   `run()` promise instead of failing one step. Fixed in `replay.ts`: a thrown proposal is now
+   caught and recorded as `REPAIR_EXHAUSTED` with the error message preserved, same as a `null`
+   proposal. Covered by `tests/integration/repair-invariants.test.ts`.
 
 ## Repeat runs and the §9 sampling floor (#66)
 

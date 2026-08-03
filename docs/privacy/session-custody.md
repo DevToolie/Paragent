@@ -1,0 +1,270 @@
+---
+title: Session-custody requirements checklist + gap analysis (PRD §7)
+doc_type: spec
+status: draft
+owner: B5
+created: 2026-07-30
+updated: 2026-07-30
+confidence: HIGH
+supersedes: null
+sources_verified: true
+---
+
+# Privacy — session custody (PRD §7, Fork A)
+
+PRD §7 commits to **Fork A**: the agent rides the user's own authenticated session, so the
+product holds the customer's cookies and storage-state — "sensitive infrastructure in its own
+right" — and names five v1 requirements. The pivot brief keeps Fork A unchanged under the
+counterparty model (decision 5) and escalates the standing problem, because the portal owner is
+now a third party with no contract (pivot brief §5).
+
+This is a **sizing and gap-analysis doc, not an implementation.** It restates PRD §7 as checkable
+requirements, reads the code at HEAD against each one, and files a follow-up issue per gap. One
+one-line documentation fix was taken inline (a stale citation in `docs/architecture.md`, noted
+below); everything else is sized, not built, here.
+
+## Requirements table
+
+| Id | Requirement (PRD §7) | Checkable restatement |
+| --- | --- | --- |
+| SC-01 | Storage-state encrypted at rest, per-tenant keys | Any persisted session material is unreadable without a per-tenant key; a canary test proves a plaintext write is impossible, not merely unobserved |
+| SC-02 | Never written to trajectories | No trajectory ever produced by the recorder contains a cookie/storage-shaped field, on disk, regardless of call path |
+| SC-03 | Never written to logs | No console output, CI log, or persisted log artifact ever contains cookie/storage-shaped content |
+| SC-04 | Session material excluded from the compiler's input by construction | The compiler's input type has no field capable of carrying it, so there is nothing to exclude at runtime — it was never representable |
+| SC-05 | Explicit customer consent language | A user automating their own account is shown "you are authorizing automation of your own account" (or equivalent) before the session is used, and this is enforced somewhere checkable |
+| SC-06 | Documented ToS position per anchor site | For each real (non-local) portal the agent authenticates against, a written position on authorized-user automation exists before any run against it |
+
+`SC-02` and `SC-03` split PRD's single "never written to logs or trajectories" clause into two
+rows because, verified below, they currently have different enforcement mechanisms and different
+status — collapsing them into one row would hide that difference.
+
+## Gap analysis against the code at HEAD
+
+Status values: **enforced by construction** (the bad state cannot be represented — cite the
+mechanism), **enforced by test** (representable, but a test fails the build if it happens),
+**conventional only** (relies on nobody doing the wrong thing; no automated check), **not
+addressed** (no mechanism, no test, nothing).
+
+### SC-01 — encrypted at rest, per-tenant keys — **not addressed**
+
+Verified by repo-wide search: no call to Playwright's `context.storageState()`, `context.cookies()`,
+`context.addCookies()`, or `chromium.launchPersistentContext()` (a persisted user-data directory)
+exists anywhere in `src/`, `experiments/`, or `tests/`. `TrajectoryRecorder` (`src/recorder/session.ts`)
+operates on a `Page` handed to it and never reaches into its `BrowserContext` for session state;
+`establishSession` (`src/recorder/preamble.ts`) and the live matrix driver
+(`experiments/gate-v1/live-run.ts`) both call `browser.newContext()` fresh per run and never save it.
+
+**The honest reading is not "safe by omission."** Nothing is encrypted because nothing is
+persisted — there is no artifact to audit yet, and no guarantee that the first one will be. PRD
+phase 1 names "persisted browser profiles (cookies/storage-state) for session continuity" as the
+actual v1 mechanism, so this gap is load-bearing the moment that lands, not hypothetical. Filed as
+[#98](https://github.com/DevToolie/Paragent/issues/98): an encrypted-at-rest persistence module
+gated by a canary that proves a plaintext write is impossible (mirroring
+`tests/canary/store-leak.test.ts`'s bytes-on-disk check, not a unit test on the function in
+isolation).
+
+### SC-02 — never written to trajectories — **enforced by construction**, one residual gap
+
+Three independent mechanisms, verified:
+
+1. **Nothing captures it to begin with.** Same absence as SC-01 — no cookie/storage read exists
+   anywhere the recorder could serialize it from.
+2. **The output object cannot carry it.** `TrajectoryRecorder.toTrajectory()`
+   (`src/recorder/session.ts:317-337`) constructs its return value from `this.parameters` and
+   `this.steps` only. `this.bindings` — the private field holding actual runtime values, including
+   anything a caller named like a secret — is never referenced in that method. The class docstring
+   states the intent directly: *"Typed values drive Playwright only — never written to JSON"*
+   (`session.ts:56`).
+3. **The schema has no slot for it, at every level.** `contracts/trajectory.schema.json` sets
+   `additionalProperties: false` on the root object and on `$defs.step`, `$defs.fingerprint`,
+   `$defs.provenance`, `$defs.locatorCandidate`, and `$defs.action` — verified by walking the
+   schema's `properties`/`additionalProperties` pairs directly. A `cookies` field is not merely
+   unpopulated, it is **invalid** anywhere in the document. `scripts/validate-contracts.mjs` checks
+   this in CI for the committed example and for the two files named in its `extraTrajectories`
+   array (`experiments/gate-v1/trajectories/*.json`) — **not** for every trajectory the recorder
+   might ever produce; a new recording not added to that list is not schema-checked at all. That is
+   the residual gap.
+
+Defense in depth, verified: `assertNoLiteralSecrets` (`src/recorder/redact.ts:102-117`) greps the
+serialized trajectory for `Set-Cookie`, `"cookies?":`, `"localStorage":`, `"sessionStorage":`,
+`"value":"..."`, and a literal `"password":"..."`, throwing on a match. Called at
+`session.ts:342` inside `write()`. Tested empirically against a synthetic (fake-valued) Playwright
+`storageState()`-shaped JSON blob during this audit — it correctly matched on all three of
+`"value":`, `"cookies?":`, and `"localStorage":`.
+
+**Residual gap:** `assertNoLiteralSecrets` only runs inside `write()`. A caller that serializes
+`toTrajectory()`'s return value directly bypasses it entirely — nothing in the tree does this
+today, but nothing stops it either. Filed as
+[#99](https://github.com/DevToolie/Paragent/issues/99), bundled with the auto-discovery fix for
+`extraTrajectories` above (same root cause: a guarantee that depends on one specific call path
+instead of the data shape itself).
+
+### SC-03 — never written to logs — **conventional only**, one verified hole in the one automated backstop
+
+No centralized logging module exists in this codebase — CLI output is scattered `console.log` /
+`console.error`, none of which is sourced from cookie/storage state, because (per SC-01/SC-02)
+nothing reads it in the first place. That absence is real but is a property of what the code
+doesn't do yet, not a tested guarantee.
+
+One narrow, positive, existing mechanism: `scrubCredentials` (`src/testbed/readiness.ts:129`)
+redacts `key=value` and basic-auth-in-URL patterns from Docker Compose log tails before they reach
+stdout on a readiness timeout. Verified its regex (`/((?:password|passwd|secret|token|api[_-]?key|authorization)["'\s]*[:=]\s*).../gi`)
+does **not** match a `Set-Cookie` response header or a JSON cookie array — it was written for the fixture admin
+password, not for session material, and does not claim otherwise.
+
+The repo-wide backstop is `npm run secret-scan` (`scripts/secret-scan.mjs`), which runs as part of
+the `lint-typecheck-test-secrets` job — confirmed a **required, merge-blocking** status check on
+`main` via `scripts/apply-branch-protection.mjs:26-27`. `CONTRIBUTING.md` rule 1 states plainly:
+"No credentials, cookies, session/storage dumps... Secret-scanning CI fails the build on matches."
+
+**Verified empirically that this claim is false for the shape that matters most.** A synthetic
+fixture shaped like a real Playwright `storageState()` dump —
+
+```json
+{"cookies":[{"name":"grafana_session","value":"...","domain":"...","httpOnly":true,"sameSite":"Lax"}],
+ "origins":[{"origin":"...","localStorage":[{"name":"...","value":"..."}]}]}
+```
+
+— run against all eight of `secret-scan.mjs`'s `PATTERNS` (`scripts/secret-scan.mjs:24-32`)
+matched **zero** of them. `cookie-header` requires the literal string `Set-` immediately followed by `Cookie:`; `session-json`
+requires a JSON key literally spelled `sessionid`/`sessiontoken`/`sessionkey`. Neither appears in a
+real cookie array, whose keys are `name`/`value`/`domain`/`httpOnly`/`sameSite`. No real session
+material was used to verify this — only synthetic placeholder values, disposed of after the check
+and never committed.
+
+`.gitignore` does carry `cookies*.json` and `storage-state*.json` (lines 47-48) — a real,
+pre-existing line, worth crediting — but it is a convention (`git add -f` or a differently-named
+file, e.g. Playwright's own common `auth.json` / `playwright/.auth/*.json` convention, bypasses
+it), not a test, and it only stops accidental inclusion, not a deliberate or careless commit.
+
+Filed as [#100](https://github.com/DevToolie/Paragent/issues/100): extend `secret-scan.mjs`'s
+patterns to match the storageState shape structurally, verified against every doc (including this
+one) that legitimately discusses cookies/storage in prose, so the fix does not trade a false
+negative for a false positive.
+
+### SC-04 — excluded from the compiler's input by construction — **enforced by construction**
+
+`src/compiler/types.ts` independently declares its own `Trajectory` / `TrajectoryStep` /
+`Fingerprint` interfaces (lines 109, 130, 146) for exactly the reason `src/runner/program.ts`
+gives for a similar duplication elsewhere: the compiler's input type is not the recorder's output
+type by reference, it is a separately-typed contract. None of the three has a cookie/storage
+field. The compiler's read paths (`src/compiler/assertions.ts`, `src/compiler/locators.ts`,
+reviewed for #61) only ever touch `pre_state`/`post_state`/`action`/`locator_candidates`/
+`assertion_hint` — fields the type makes exhaustive. Same schema-level backstop as SC-02: every
+contract downstream of the trajectory — `contracts/cache-row.schema.json`,
+`contracts/assertion.schema.json`, `contracts/metrics.schema.json` — also sets
+`additionalProperties: false` at every object level, verified directly. There is no point in the
+pipeline where an extra field could ride along even if one were accidentally produced upstream.
+
+Worth stating even though it is not literally a PRD §7 clause: the same guarantee already extends
+past the compiler to the (currently stubbed) repair-model path. `RepairContext.page_state`
+(`src/runner/types.ts`) is a `PageStateSnapshot` — `capturePageState()`
+(`src/runner/page-state.ts:22-62`) builds it from `page.url()`, `page.title()`, a landmark
+enumeration, and a network-idle probe only. No cookie read exists there either. The day a real
+repair-model client replaces `StubRepairModelClient`, the thing it gets shown already has this
+property for free.
+
+Filed as [#101](https://github.com/DevToolie/Paragent/issues/101): a tripwire test pinning the
+forbidden-key absence, so a future field addition to any of these types fails loudly instead of
+silently reopening this. Not new enforcement — this status stays "enforced by construction"
+regardless of whether #101 lands; the issue exists so the guarantee stays true on purpose rather
+than by nobody having changed it yet.
+
+### SC-05 — explicit consent language — **not addressed**
+
+Repo-wide search for consent/authorization language found nothing except the PRD requirement
+sentence itself. No onboarding flow, CLI banner, or stored-consent record exists. This is product
+and legal copy, not an engineering gap this doc can close by itself — filed as
+[#102](https://github.com/DevToolie/Paragent/issues/102) to force the "where does this moment
+live" decision before Fork A ever runs against a real account.
+
+### SC-06 — documented ToS position per anchor site — **not addressed, and currently inapplicable**
+
+Track 2 (vertical search) is a documented **FAIL** with no anchor locked
+([ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)) — there is no site to write a position
+for yet. Track 1's test-bed is self-hosted Grafana OSS, chosen specifically to carry "no partner or
+third-party SaaS ToS" exposure ([ADR-0003](../decisions/ADR-0003-testbed-grafana-oss.md)) — there
+is no third party involved in the gate at all. Pivot brief §5 already scopes this correctly:
+required **before any paid pilot**, not before Track-1's technical gate, and explicitly says the
+counterparty model makes the problem harder ("your user is an authorized guest in a portal owned
+by a third party you have no commercial relationship with"). Filed as
+[#103](https://github.com/DevToolie/Paragent/issues/103), triggered by a vertical actually being
+locked, not by a deadline.
+
+## The distinction this repo must not lose
+
+`docs/privacy/boundary-spec.md` (§6 of the PRD) governs a different question: **what may enter the
+cross-tenant pooled cache.** Its canary tests (`tests/canary/canary.test.ts`,
+`tests/canary/mutation.test.ts`, `tests/canary/store-leak.test.ts`) seed `CANARY_TENANT` —
+synthetic account ids, names, emails, and thresholds (`src/cache/pipeline.ts:9-16`) — and assert
+none of them reach `pool_eligible=true` rows, logs, or metrics, while confirming they **do** reach
+the tenant-scoped file, proving the split is real rather than merely dropped everywhere. That is a
+pooling-allowlist test. It is not a session-custody test — it never constructs a cookie or a
+storage-state object, and boundary-spec.md says so itself, in its "Attacks this does NOT defend
+against" list: *"Screenshots, HAR, cookies, storage dumps (repo policy, not this module)."*
+
+Session custody governs a different, broader question: **what may exist at rest anywhere**,
+including inside a tenant-scoped row that boundary-spec.md's allowlist was never meant to touch,
+and including logs, which the allowlist also does not cover except incidentally (its canary does
+check that pool-cache logging doesn't leak tenant *content*, which is adjacent but not the same
+claim as "no log anywhere leaks session material").
+
+They are different boundaries with different failure modes and, right now, different owners of
+proof: the pooling boundary has a merge-blocking canary; session custody, per the gap analysis
+above, mostly does not yet. An agent picking up privacy work in this repo must not read "the
+canary is green" as evidence that session custody is handled — it is evidence about a boundary one
+layer over, on a different kind of data, with a different threat model (cross-tenant leakage vs.
+credential/session exposure).
+
+## Track-1 relevance
+
+During the gate, `establishSession` (`src/recorder/preamble.ts`) authenticates to a local,
+self-hosted Grafana container using `FIXTURE_ADMIN_USER` / `FIXTURE_ADMIN_PASS`
+(`src/testbed/constants.ts`) — a fixture credential the project itself provisions via
+`GF_SECURITY_ADMIN_PASSWORD` in the test-bed's own compose config, torn down with the container.
+**There is no real customer session at risk in Track 1 today.** SC-05 (consent) and SC-06 (ToS)
+are inapplicable for the same reason ADR-0003 gives for choosing a self-hosted test-bed in the
+first place: there is no customer being automated and no third party being visited.
+
+**What changes the moment anything runs against a non-local target:** the fixture credential stops
+being a fixture. SC-05 becomes required before the first such run, not before a paid pilot — the
+consent requirement is about automating *anyone's* real account, not specifically a paying
+customer's. SC-06 becomes required the moment the target is a portal this project does not own,
+matching pivot brief §5's counterparty framing exactly. SC-01/02/03's current "not
+addressed"/"conventional only" statuses stop being acceptable the moment session material is real
+rather than absent — none of Track 1's current green checks (`npm run test:canary`,
+`npm run secret-scan`) were exercised against real session material, and this doc's empirical
+finding under SC-03 shows at least one of them would not catch it if it were.
+
+## Proposed enforcement (fed to the follow-up issues above)
+
+| Gap | Proposed test shape | Issue |
+| --- | --- | --- |
+| SC-01 | Canary: persist a fixture storage-state through the real path, read raw bytes on disk, assert not plaintext-parseable; mutation case proves a broken key leaves plaintext | [#98](https://github.com/DevToolie/Paragent/issues/98) |
+| SC-02 residual | Unit test: `toTrajectory()`'s return value, serialized directly (not via `write()`), still matches none of `assertNoLiteralSecrets`'s patterns. Replace the hand-maintained `extraTrajectories` list with a glob | [#99](https://github.com/DevToolie/Paragent/issues/99) |
+| SC-03 | New `secret-scan.mjs` pattern(s) for the storageState shape; fixture proves a catch; every existing doc discussing cookies/storage in prose proves a non-catch | [#100](https://github.com/DevToolie/Paragent/issues/100) |
+| SC-04 | Tripwire: forbidden-key list never appears in serialized compiler `Trajectory`/`Fingerprint` or runner `PageStateSnapshot` output | [#101](https://github.com/DevToolie/Paragent/issues/101) |
+| SC-05 | Not a test until the product decision lands; then a guard-function refusal path with a unit test | [#102](https://github.com/DevToolie/Paragent/issues/102) |
+| SC-06 | Not a test; a counsel packet per pivot brief §5, gated on a vertical being locked | [#103](https://github.com/DevToolie/Paragent/issues/103) |
+
+## One-line fix taken in this PR
+
+`docs/architecture.md` invariant 3 cited `src/recorder/redact.ts:66-81` for
+`assertNoLiteralSecrets`; the function is at lines 102-117 in the file at HEAD (verified while
+grounding SC-02). Corrected in place — a stale citation in a security-invariant list is worse than
+no citation, since it reads as verified when it silently is not.
+
+## Open questions / what I could not verify
+
+- Whether any future encrypted-storage implementation (SC-01) should use OS keychain integration,
+  a KMS, or a simpler per-install key file for v1 — not sized here, left to #98.
+- Whether Grafana's own container logs could ever surface a session cookie server-side (independent
+  of anything this repo writes) — out of this repo's control either way, not tested.
+- Whether `docs/privacy/boundary-spec.md`'s canary pipeline should grow a session-custody-style
+  check of its own, or whether keeping the two test suites (`tests/canary/` vs. whatever #98-#101
+  produce) fully separate is the right long-term shape. Leaning separate, given they test different
+  claims, but not decided here.
+- Real-world coverage of the `secret-scan.mjs` gap (#100) beyond the one synthetic shape tested —
+  Playwright's storageState format is the one this codebase would actually produce, but other
+  session-material shapes (a raw `document.cookie` string dump, a JWT in a header log) were not
+  separately fuzzed against the current patterns.

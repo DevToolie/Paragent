@@ -109,6 +109,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [recorder.md](gate/recorder.md) | Recorder | draft | 2026-07-24 | — |
 | [compiler.md](gate/compiler.md) | Compiler | draft | 2026-07-24 | — |
 | [runner.md](gate/runner.md) | Replay / repair | draft | 2026-07-24 | Measured gate number pending |
+| [assertion-audit.md](gate/assertion-audit.md) | Assertion-strength audit of the live bundle | draft | 2026-07-30 | Issue #61; found a strong assertion that is not load-bearing live (locator staleness, #24) |
 | [../experiments/gate-v1/README.md](../experiments/gate-v1/README.md) | Throwaway harness | draft | 2026-07-25 | Empty → `no_data` |
 
 ---
@@ -118,6 +119,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | Doc | What it is | Status | Last true | Notes |
 | --- | --- | --- | --- | --- |
 | [boundary-spec.md](privacy/boundary-spec.md) | Write-time allowlist | review | 2026-07-24 | PRD §6; canary merge-blocking |
+| [session-custody.md](privacy/session-custody.md) | Session-custody checklist + gap analysis | draft | 2026-07-30 | PRD §7; distinct from §6's pooling allowlist — see doc. Not merge-blocking yet, gaps filed as #98-#103 |
 
 ---
 
