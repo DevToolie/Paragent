@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B0
 created: 2026-07-25
-updated: 2026-07-29
+updated: 2026-07-30
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -215,7 +215,7 @@ emission all execute; the aggregates compute correctly and report `no_data` hone
    `parameters: { password: "secret_ref" }`, never the value. `assertNoLiteralSecrets` runs on
    the serialized trajectory before it is written and throws on `"value":`, `Set-Cookie`,
    `cookies`, `localStorage`, `sessionStorage`, or a typed `password`
-   (`src/recorder/redact.ts:66-81`). The schema says the same thing normatively: *"NEVER
+   (`src/recorder/redact.ts:102-117`). The schema says the same thing normatively: *"NEVER
    contains literal typed values, cookies, or storage."*
 4. **Aggregates report `no_data`, never an invented rate.** Every §9 section returns
    `value: null, status: "no_data"` on a zero denominator instead of `0`
