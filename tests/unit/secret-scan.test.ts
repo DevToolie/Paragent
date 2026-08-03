@@ -19,7 +19,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -145,9 +145,17 @@ describe("the whole repo stays clean", () => {
         if (ent.isDirectory()) walk(full);
         else if (ent.isFile() && textExt.test(ent.name)) {
           if (ent.name === "package-lock.json") continue;
-          if (statSync(full).size > 1_500_000) continue;
-          const hit = scan(readFileSync(full, "utf8"));
-          if (hit) offenders.push(`${path.relative(ROOT, full)} (${hit})`);
+          // Size-check and read the same descriptor, not the same path twice.
+          // Stat-then-read by name is a TOCTOU (CodeQL js/file-system-race):
+          // the file it measured need not be the file it then reads.
+          const fd = openSync(full, "r");
+          try {
+            if (fstatSync(fd).size > 1_500_000) continue;
+            const hit = scan(readFileSync(fd, "utf8"));
+            if (hit) offenders.push(`${path.relative(ROOT, full)} (${hit})`);
+          } finally {
+            closeSync(fd);
+          }
         }
       }
     };

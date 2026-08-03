@@ -3,7 +3,7 @@
  * Fail the build on content that looks like cookies, tokens, API keys, or .env material.
  * Allowlist: .env.example with commented placeholders only; LICENSE; package-lock.
  */
-import { readdir, readFile, stat } from "node:fs/promises";
+import { open, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -143,9 +143,19 @@ async function main() {
       continue;
     }
     if (explicit.length === 0 && !textExt.test(file) && !file.endsWith("Dockerfile")) continue;
-    const st = await stat(file);
-    if (st.size > 1_500_000) continue;
-    const body = await readFile(file, "utf8");
+    // Size-check and read through one handle. Stat-then-read by path is a
+    // time-of-check/time-of-use race: the file measured need not be the file
+    // then read. It matters more here than in most places — this is the check
+    // that is supposed to stop session material reaching the tree.
+    const fh = await open(file, "r");
+    /** @type {string} */
+    let body;
+    try {
+      if ((await fh.stat()).size > 1_500_000) continue;
+      body = await fh.readFile("utf8");
+    } finally {
+      await fh.close();
+    }
     // Allow .env.example placeholder comments only
     if (path.basename(file) === ".env.example") continue;
     const hit = scanText(body);
