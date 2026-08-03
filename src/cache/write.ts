@@ -109,6 +109,15 @@ function finalize(
     pool_ineligible_reason: poolEligible ? null : reason,
   };
   if (candidate.flow_topology) row.flow_topology = { ...candidate.flow_topology };
+  // finalize() builds the row explicitly rather than spreading, so anything the
+  // update path sets has to be carried here or writeCacheRow — the only writer —
+  // would silently drop it (ADR-0009).
+  if (candidate.invalidated_at !== undefined) {
+    row.invalidated_at = candidate.invalidated_at;
+  }
+  if (candidate.repair_provenance) {
+    row.repair_provenance = { ...candidate.repair_provenance };
+  }
 
   if (row.pool_eligible) {
     for (const loc of row.compiled_action.locator_fallback_chain) {

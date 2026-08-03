@@ -25,6 +25,24 @@ export {
   type WriteOptions,
 } from "./write.js";
 export {
+  CONFIDENCE_ALPHA,
+  INVALIDATION_THRESHOLD,
+  applyOutcome,
+  classifyOutcome,
+  isInvalidated,
+  isVerified,
+  nextConfidence,
+  type OutcomeContext,
+  type OutcomeKind,
+} from "./confidence.js";
+export {
+  createCacheUpdateSink,
+  recordStepOutcome,
+  type CacheUpdateOptions,
+  type CacheUpdateResult,
+  type StepOutcomeReport,
+} from "./update.js";
+export {
   JsonlCacheStore,
   MemoryCacheStore,
   POOL_FILE,
