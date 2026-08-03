@@ -5,6 +5,7 @@
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ROOT = process.cwd();
 
@@ -21,6 +22,31 @@ const SKIP_DIRS = new Set([
 
 const SKIP_FILES = new Set(["package-lock.json", ".coverage"]);
 
+/**
+ * A cookie/localStorage entry whose value is actual material rather than an
+ * elided example.
+ *
+ * This is the whole discriminator for the storage-state patterns below. The
+ * shape alone is not enough: `docs/privacy/session-custody.md` quotes a real
+ * `storageState()` layout verbatim to document the very gap this closes, and
+ * `docs/gate/recorder.md` discusses the same fields in prose. Those examples
+ * elide their values (`"value":"..."`); a genuine dump cannot, because the
+ * value *is* the secret.
+ *
+ * 16 characters clears every placeholder in the tree ("...", "REDACTED",
+ * "<omitted>") while sitting far below a real session cookie — Grafana's is 32
+ * hex characters, a JWT is hundreds.
+ */
+const SUBSTANTIAL_VALUE = /"value"\s*:\s*"[^"]{16,}"/i;
+
+/**
+ * Patterns may be a regex (`re`) or a predicate (`test`).
+ *
+ * The storage-state entries are predicates on purpose: they need *co-occurrence*
+ * of two independent shapes, and expressing that as one regex means a lazy
+ * `[\s\S]{0,N}?` bridge between them — which is both unreadable and a
+ * backtracking risk on a large file. Two linear scans and an `&&` are neither.
+ */
 const PATTERNS = [
   { name: "env-assignment", re: /^(?!#).*?(?:API[_-]?KEY|SECRET|TOKEN|PASSWORD|COOKIE)\s*=\s*.+/im },
   { name: "bearer-token", re: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/ },
@@ -30,7 +56,46 @@ const PATTERNS = [
   { name: "private-key", re: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
   { name: "cookie-header", re: new RegExp("Set-" + "Cookie:\\s*[^=]+=[^;]+", "i") },
   { name: "session-json", re: /"session(?:id|token|key)"\s*:\s*"[^"]{8,}"/i },
+  // Playwright's context.storageState() shape — the one CONTRIBUTING rule 1
+  // claims is blocked and, before #100, was not. Its keys are
+  // name/value/domain/httpOnly/sameSite: there is no response header of the
+  // kind `cookie-header` looks for, and no key spelled `sessionid`, so neither
+  // of those could ever fire on it. Verified: 0 of the 8 prior patterns matched.
+  // (This comment avoids spelling the header literal for the same reason the
+  //  pattern above builds it by concatenation — the file scans itself.)
+  {
+    name: "storage-state-cookies",
+    test: (body) =>
+      /"cookies"\s*:\s*\[/i.test(body) &&
+      /"(?:httpOnly|sameSite)"\s*:/i.test(body) &&
+      SUBSTANTIAL_VALUE.test(body),
+  },
+  {
+    name: "storage-state-origins",
+    test: (body) =>
+      /"origins"\s*:\s*\[/i.test(body) &&
+      /"localStorage"\s*:\s*\[/i.test(body) &&
+      SUBSTANTIAL_VALUE.test(body),
+  },
 ];
+
+/**
+ * The first pattern `body` matches, or null.
+ *
+ * Exported so tests can assert both directions cheaply — that a synthetic
+ * storage-state fixture is caught, and that every doc discussing cookies in
+ * prose is not. A false positive here breaks CI for unrelated PRs, so the
+ * negative direction matters as much as the positive one.
+ */
+export function scanText(body) {
+  for (const p of PATTERNS) {
+    const hit = p.test ? p.test(body) : p.re.test(body);
+    if (hit) return p.name;
+  }
+  return null;
+}
+
+export { PATTERNS };
 
 /** @param {string} dir */
 async function walk(dir) {
@@ -60,7 +125,14 @@ async function walk(dir) {
 const textExt = /\.(md|ts|tsx|js|mjs|cjs|json|yml|yaml|toml|txt|env|example|sh|ps1|Dockerfile)$/i;
 
 async function main() {
-  const files = await walk(ROOT);
+  // Explicit paths scan exactly what they name, extension filter and all —
+  // naming a file is a deliberate act, and it is how the test proves the
+  // storage-state patterns fire end to end without committing a fixture the
+  // repo-wide walk would then trip over forever.
+  const explicit = process.argv.slice(2);
+  const files = explicit.length > 0
+    ? explicit.map((f) => path.resolve(ROOT, f))
+    : await walk(ROOT);
   /** @type {{ file: string, pattern: string }[]} */
   const hits = [];
 
@@ -70,18 +142,14 @@ async function main() {
       hits.push({ file: rel, pattern: "dotenv-file" });
       continue;
     }
-    if (!textExt.test(file) && !file.endsWith("Dockerfile")) continue;
+    if (explicit.length === 0 && !textExt.test(file) && !file.endsWith("Dockerfile")) continue;
     const st = await stat(file);
     if (st.size > 1_500_000) continue;
     const body = await readFile(file, "utf8");
     // Allow .env.example placeholder comments only
     if (path.basename(file) === ".env.example") continue;
-    for (const { name, re } of PATTERNS) {
-      if (re.test(body)) {
-        hits.push({ file: rel, pattern: name });
-        break;
-      }
-    }
+    const hit = scanText(body);
+    if (hit) hits.push({ file: rel, pattern: hit });
   }
 
   if (hits.length) {
@@ -94,7 +162,17 @@ async function main() {
   console.log("secret-scan: clean");
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+/**
+ * Only run when invoked as a CLI. Importing this module — which the tests do,
+ * to exercise `scanText` in both directions — must not kick off a repo walk.
+ */
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
