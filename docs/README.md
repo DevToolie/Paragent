@@ -4,7 +4,7 @@ doc_type: brief
 status: review
 owner: D2
 created: 2026-07-24
-updated: 2026-07-27
+updated: 2026-08-03
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -55,6 +55,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0005](decisions/ADR-0005-repo-public.md) | Repo is **PUBLIC**, single tree, nothing stripped | accepted | 2026-07-25 | Supersedes ADR-0002; founder decision on issue #42 |
 | [ADR-0006](decisions/ADR-0006-track1-gate-task.md) | Track-1 gate task = build + save a TestData Stat dashboard (12 steps) | accepted | 2026-07-28 | Issue #59. Walked by hand on 9.5.21 and 13.0.3; answers ADR-0003's "browser-meaningful" question |
 | [ADR-0007](decisions/ADR-0007-post-action-visibility.md) | `visible_landmarks` filtered for real; new `post_action_target_visible` | accepted | 2026-07-26 | Issue #71, out of PR #70 |
+| [ADR-0008](decisions/ADR-0008-wait-step-duration.md) | Recorded `wait` duration carried through as `wait_ms`, replacing the `networkidle` fallback for recorder output | accepted | 2026-08-03 | Issue #83 |
 
 ---
 

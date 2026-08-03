@@ -204,7 +204,11 @@ export async function executeAction(
       }
 
       case "wait": {
-        const msRaw = firstParam(action, params);
+        // A recorded literal (ADR-0008) takes precedence over a runtime-bound
+        // param: it is what was actually observed, and must not be silently
+        // overridable by a same-named --param binding. Only when neither is
+        // present does the step fall through to the networkidle probe below.
+        const msRaw = action.wait_ms ?? firstParam(action, params);
         const ms =
           typeof msRaw === "number"
             ? msRaw

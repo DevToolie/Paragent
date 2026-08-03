@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B4
 created: 2026-07-24
-updated: 2026-07-29
+updated: 2026-08-03
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -59,6 +59,16 @@ Deliberate, and cheap *today* because no gate number exists yet: since
 [#62](https://github.com/DevToolie/Paragent/issues/62) `gate:matrix` runs live, but one run per
 version over an example program is not a measurement. After a published measurement this would be
 an expensive silent shift.
+
+### A recorded wait reproduces exactly (ADR-0008)
+
+`TrajectoryRecorder.wait(intent, ms)` always takes an explicit duration but used to drop it —
+`action: { type: "wait" }` carried nothing — so replay fell through to the `networkidle` probe
+below for every recorded wait, on a different clock than the one actually recorded. The action
+now carries `wait_ms`, and `executeAction` checks it before anything else: a recorded wait
+replays as the same sleep, every time, and `networkidle` is reached only for a bare `wait` action
+with no duration at all — a hand-authored program choosing that condition on purpose, not a
+recorder ever emitting one.
 
 ### Reaching the bound is not a step failure
 

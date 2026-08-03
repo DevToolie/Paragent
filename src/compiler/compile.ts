@@ -41,6 +41,9 @@ function buildCompiledAction(step: TrajectoryStep): {
   if (step.action.custom_op !== undefined) {
     action.custom_op = step.action.custom_op;
   }
+  if (step.action.wait_ms !== undefined) {
+    action.wait_ms = step.action.wait_ms;
+  }
   return { action, topologyOnly };
 }
 

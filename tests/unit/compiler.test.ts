@@ -314,6 +314,60 @@ describe("click assertion target", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// #83 / ADR-0008 — a recorded wait's duration must survive compilation
+// unchanged, the same way `key` and `url_template` already do, so replay can
+// reproduce the recorded sleep instead of falling back to networkidle.
+// ---------------------------------------------------------------------------
+
+describe("wait action duration (#83 / ADR-0008)", () => {
+  const fp = () => ({
+    url_template: "http://{host}:{port}/app",
+    title_template: "Fixture",
+    dom_digest: "digest",
+  });
+
+  const waitTrajectory = (action: Trajectory["steps"][number]["action"]): Trajectory => ({
+    schema_version: "1.0.0",
+    trajectory_id: "traj-wait",
+    site_key: "fixture@local",
+    task_key: "wait-task",
+    recorded_at: "2026-08-03T00:00:00.000Z",
+    base_url_template: "http://{host}:{port}/app",
+    provenance: { recorder: "test", agent_model: "human", testbed_version: "fixture-v1" },
+    parameters: { host: "string", port: "integer" },
+    steps: [
+      {
+        step_index: 0,
+        intent: "Let the toast animation finish",
+        action,
+        locator_candidates: [],
+        pre_state: fp(),
+        post_state: fp(),
+        timing_ms: { started_offset_ms: 0, duration_ms: 500 },
+      },
+    ],
+  });
+
+  it("carries a recorded wait_ms straight through to the compiled action", () => {
+    const bundle = compileTrajectory(
+      waitTrajectory({ type: "wait", wait_ms: 500 }),
+      { compiledAt: "2026-08-03T00:00:00.000Z" },
+    );
+    const action = bundle.rows[0]!.compiled_action;
+    expect(action.type).toBe("wait");
+    expect(action.wait_ms).toBe(500);
+  });
+
+  it("does not invent a duration when the recorded step did not carry one", () => {
+    const bundle = compileTrajectory(
+      waitTrajectory({ type: "wait" }),
+      { compiledAt: "2026-08-03T00:00:00.000Z" },
+    );
+    expect(bundle.rows[0]!.compiled_action.wait_ms).toBeUndefined();
+  });
+});
+
 describe("assertion timeout policy", () => {
   // `timeout_ms` is an assertion-STRENGTH knob, not a perf one: a shorter
   // timeout is a stricter check. The runner spends it on failure, so it is also

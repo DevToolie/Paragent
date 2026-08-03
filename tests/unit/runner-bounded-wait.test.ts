@@ -176,4 +176,32 @@ describe("bounded networkidle wait", () => {
     expect(result.ok).toBe(true);
     expect(elapsed).toBeLessThan(3_000);
   }, 30_000);
+
+  // #83 / ADR-0008 — a recorded wait's duration used to be dropped, so replay
+  // fell back to networkidle: a different condition than the one recorded.
+  it("a recorded wait_ms replays as that sleep, not networkidle", async () => {
+    const started = Date.now();
+    const result = await executeAction(page, { ...waitAction, wait_ms: 150 });
+    const elapsed = Date.now() - started;
+
+    // No `settled` field means the networkidle branch never ran.
+    expect(result.ok).toBe(true);
+    expect(result.settled).toBeUndefined();
+    expect(elapsed).toBeLessThan(3_000);
+  }, 30_000);
+
+  it("prefers a recorded wait_ms over a same-action param binding", async () => {
+    // Guards the precedence ADR-0008 chose: a recorded literal must not be
+    // silently overridable by a runtime param that happens to share a slot.
+    const started = Date.now();
+    const result = await executeAction(
+      page,
+      { ...waitAction, wait_ms: 150, param_refs: ["ms"] },
+      { ms: 10_000 },
+    );
+    const elapsed = Date.now() - started;
+
+    expect(result.ok).toBe(true);
+    expect(elapsed).toBeLessThan(3_000);
+  }, 30_000);
 });
