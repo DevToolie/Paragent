@@ -23,6 +23,7 @@ import {
   runsToClearSection9,
   substituteRunIndex,
 } from "../../experiments/gate-v1/live-run.js";
+import { buildSection9Floor } from "../../experiments/gate-v1/run-matrix.js";
 import {
   perVersionBreakdown,
   section9SampleFloor,
@@ -374,6 +375,57 @@ describe("section9SampleFloor", () => {
     expect(floor.meets_floor).toBe(false);
     expect(floor.shortfall).toContain("step-executions");
     expect(floor.shortfall).not.toContain("runs");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #95 — matrix-run.json's section9_floor must agree with report.json's. Both
+// have to read the same conclusion off the same NDJSON rows, not one of them
+// off `runs.length * program.steps.length`, which assumes every run executed
+// every step.
+// ---------------------------------------------------------------------------
+
+describe("buildSection9Floor", () => {
+  it("agrees with section9SampleFloor's honest count when runs fail partway", () => {
+    // 42 runs against a 10-step program: runs.length * steps.length = 420,
+    // clearing the naive floor. But 3 of those runs broke on a hard failure
+    // after 1 step each (the exact scenario run-matrix.ts's loop produces:
+    // `ReplayRunner.run()` breaks out of the step loop on a non-success
+    // outcome, so `stepResults` is shorter than `program.steps.length`).
+    // Actual step-executions: 39 * 10 + 3 * 1 = 393 — below the 400 floor.
+    const rows: MetricRow[] = [];
+    for (let i = 0; i < 42; i++) {
+      rows.push(runRow(`r${i}`, true));
+      const stepsThisRun = i < 3 ? 1 : 10;
+      for (let s = 0; s < stepsThisRun; s++) rows.push(stepRow(`r${i}`, s, true));
+    }
+
+    const floor = buildSection9Floor(rows, 8);
+
+    // The bug this guards: `runs.length * programSteps >= 400` would read
+    // `42 * 10 = 420 >= 400` as true here, disagreeing with report.json.
+    expect(42 * 10).toBeGreaterThanOrEqual(400);
+    expect(floor.meets_floor).toBe(false);
+    // Must be the exact same verdict `section9SampleFloor` (report.json's
+    // basis) would give on the identical rows — that agreement is the fix.
+    expect(floor.meets_floor).toBe(section9SampleFloor(rows).meets_floor);
+  });
+
+  it("still clears when every run actually executed every step", () => {
+    const rows: MetricRow[] = [];
+    for (let i = 0; i < 42; i++) {
+      rows.push(runRow(`r${i}`, true));
+      for (let s = 0; s < 10; s++) rows.push(stepRow(`r${i}`, s, true));
+    }
+    const floor = buildSection9Floor(rows, 8);
+    expect(floor.meets_floor).toBe(true);
+    expect(floor.min_runs).toBe(42);
+    expect(floor.min_step_executions).toBe(400);
+  });
+
+  it("carries runs_needed_per_version from runsToClearSection9, not a duplicate calc", () => {
+    const floor = buildSection9Floor([], 8);
+    expect(floor.runs_needed_per_version).toBe(runsToClearSection9(8));
   });
 });
 
