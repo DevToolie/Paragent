@@ -25,11 +25,16 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { MetricsEmitter } from "../../src/metrics/emitter.js";
+import { MetricsEmitter, readMetricNdjson } from "../../src/metrics/emitter.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
 import { bundleToProgram, isCompiledBundle } from "../../src/runner/program.js";
 import type { CompiledProgram, RunResult } from "../../src/runner/types.js";
-import type { StepOutcome } from "../../src/metrics/types.js";
+import type { MetricRow, StepOutcome } from "../../src/metrics/types.js";
+import {
+  SECTION9_MIN_RUNS,
+  SECTION9_MIN_STEP_EXECUTIONS,
+  section9SampleFloor,
+} from "../../src/metrics/aggregate.js";
 import { dockerAvailable } from "../../src/testbed/docker.js";
 import {
   isUnavailable,
@@ -309,6 +314,33 @@ async function walkVersions(
   return baseline ? { runs, baseline } : { runs };
 }
 
+/**
+ * `matrix-run.json`'s §9 sample-floor block, computed the same way
+ * `gate:report`'s `report.json` computes its `sample` field: from the actual
+ * persisted NDJSON rows via `section9SampleFloor()`, not from
+ * `runs.length * program.steps.length`. That product assumes every run
+ * executed every step, which `ReplayRunner.run()` does not guarantee — a run
+ * that breaks on a hard failure partway through emits fewer step rows than
+ * `program.steps.length`, and the two artifacts must not be able to disagree
+ * about the same measurement (#95).
+ */
+export function buildSection9Floor(
+  measuredRows: readonly MetricRow[],
+  walkedVersionCount: number,
+): {
+  min_runs: number;
+  min_step_executions: number;
+  meets_floor: boolean;
+  runs_needed_per_version: number;
+} {
+  return {
+    min_runs: SECTION9_MIN_RUNS,
+    min_step_executions: SECTION9_MIN_STEP_EXECUTIONS,
+    meets_floor: section9SampleFloor(measuredRows).meets_floor,
+    runs_needed_per_version: runsToClearSection9(walkedVersionCount),
+  };
+}
+
 function ledgerRow(versionId: string, r: RunResult): Record<string, unknown> {
   return {
     version: versionId,
@@ -452,6 +484,11 @@ async function main(): Promise<void> {
   process.off("SIGINT", onSignal);
   process.off("SIGTERM", onSignal);
 
+  // Read back what was actually persisted rather than trusting the in-memory
+  // run count: matrix-run.json's §9 floor must agree with report.json's,
+  // which is built from these same rows (#95).
+  const measuredRows = await readMetricNdjson(ndjsonPath);
+
   // The skip ledger. Without it a later report cannot tell "8 versions, 3 of
   // them unavailable" from "5 versions" — the denominator silently shrinks.
   await writeFile(
@@ -474,12 +511,7 @@ async function main(): Promise<void> {
         // from array lengths.
         runs_planned: plannedRuns,
         runs_completed: runs.length,
-        section9_floor: {
-          min_runs: 42,
-          min_step_executions: 400,
-          meets_floor: runs.length >= 42 && runs.length * program.steps.length >= 400,
-          runs_needed_per_version: runsToClearSection9(walked.length),
-        },
+        section9_floor: buildSection9Floor(measuredRows, walked.length),
         versions_in_matrix: all.length,
         versions_walked: [...new Set(runs.map((r) => r["version"]))],
         versions_skipped: skipped,
@@ -551,7 +583,13 @@ async function runDryVersion(
   return row;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isDirect =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirect) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
