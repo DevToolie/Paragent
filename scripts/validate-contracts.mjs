@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020.js");
@@ -15,11 +16,53 @@ const pairs = [
   ["contracts/cache-row.schema.json", "contracts/examples/cache-row.example.json"],
 ];
 
-/** Extra trajectory artifacts that must stay schema-valid (B2 gate recordings). */
-const extraTrajectories = [
-  "experiments/gate-v1/trajectories/grafana-fixture-login-dashboards.json",
-  "experiments/gate-v1/trajectories/grafana-create-stat-dashboard-from-testdata-9.5.21.json",
-];
+/** Where recordings live. Any `trajectories/` directory below this is walked. */
+const TRAJECTORY_ROOT = "experiments";
+
+const SKIP_DIRS = new Set([".git", "node_modules", "dist", "archive", "out"]);
+
+/**
+ * Every trajectory artifact that must stay schema-valid, discovered rather than
+ * listed (#99).
+ *
+ * This used to be a hand-maintained array. A newly recorded trajectory that
+ * nobody remembered to add was never schema-checked in CI — including against
+ * `additionalProperties: false`, which is the mechanism that makes an
+ * accidental `cookies` field *unrepresentable* rather than merely discouraged.
+ * The failure mode was silent and grew with every recording.
+ *
+ * Sorted so a failure names files in a stable order, and so two runs over the
+ * same tree produce the same output.
+ */
+export async function discoverTrajectories(root = ROOT) {
+  /** @type {string[]} */
+  const found = [];
+  /** @param {string} dir */
+  const walk = async (dir) => {
+    /** @type {import("node:fs").Dirent[]} */
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return; // directory absent is not an error; "found nothing" is caught below
+    }
+    for (const ent of entries) {
+      if (SKIP_DIRS.has(ent.name)) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        await walk(full);
+      } else if (
+        ent.isFile() &&
+        ent.name.endsWith(".json") &&
+        path.basename(dir) === "trajectories"
+      ) {
+        found.push(path.relative(root, full).split(path.sep).join("/"));
+      }
+    }
+  };
+  await walk(path.join(root, TRAJECTORY_ROOT));
+  return found.sort();
+}
 
 async function loadJson(rel) {
   return JSON.parse(await readFile(path.join(ROOT, rel), "utf8"));
@@ -47,6 +90,17 @@ async function main() {
   const validateTraj =
     ajv.getSchema("https://paragent.dev/contracts/trajectory.schema.json") ??
     ajv.compile(trajSchema);
+  const extraTrajectories = await discoverTrajectories();
+  // Discovering zero is not "nothing to do" — it means the walk broke and
+  // trajectories silently stopped being validated, which is the exact failure
+  // the hand-maintained list had. Fail loudly instead.
+  if (extraTrajectories.length === 0) {
+    console.error(
+      `no trajectories found under ${TRAJECTORY_ROOT}/**/trajectories/*.json — ` +
+        "discovery is broken, or the recordings moved. Refusing to report clean.",
+    );
+    process.exit(1);
+  }
   for (const rel of extraTrajectories) {
     const example = await loadJson(rel);
     if (!validateTraj(example)) {
@@ -74,7 +128,14 @@ async function main() {
   console.log("ok: contracts/examples/metrics.example.json");
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+/** Only run as a CLI — importing this for tests must not validate the repo. */
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
