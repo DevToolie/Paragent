@@ -366,6 +366,17 @@ describe("wait action duration (#83 / ADR-0008)", () => {
     );
     expect(bundle.rows[0]!.compiled_action.wait_ms).toBeUndefined();
   });
+
+  it("keeps a recorded zero distinguishable from an absent duration", () => {
+    // The schemas allow `minimum: 0`, so the compiler must not let a falsy-but-
+    // recorded 0 collapse into "no duration" — the runner's precedence chain
+    // reads presence, and it can only do that if the compiler preserves it.
+    const bundle = compileTrajectory(
+      waitTrajectory({ type: "wait", wait_ms: 0 }),
+      { compiledAt: "2026-08-03T00:00:00.000Z" },
+    );
+    expect(bundle.rows[0]!.compiled_action.wait_ms).toBe(0);
+  });
 });
 
 describe("assertion timeout policy", () => {

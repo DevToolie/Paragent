@@ -188,6 +188,10 @@ describe("bounded networkidle wait", () => {
     expect(result.ok).toBe(true);
     expect(result.settled).toBeUndefined();
     expect(elapsed).toBeLessThan(3_000);
+    // Avoiding the probe is not the whole claim — it slept the RECORDED
+    // duration. Without this, a `wait_ms` that was read and then ignored
+    // would still pass.
+    expect(elapsed).toBeGreaterThanOrEqual(150);
   }, 30_000);
 
   it("prefers a recorded wait_ms over a same-action param binding", async () => {
@@ -202,6 +206,39 @@ describe("bounded networkidle wait", () => {
     const elapsed = Date.now() - started;
 
     expect(result.ok).toBe(true);
+    expect(elapsed).toBeGreaterThanOrEqual(150);
     expect(elapsed).toBeLessThan(3_000);
+  }, 30_000);
+
+  // Both schemas declare `minimum: 0` and `recorder.wait(intent, 0)` is a legal
+  // call, so zero is a value the recorder can genuinely produce. Gating the
+  // runner on `ms > 0` let it fall through to the networkidle probe — measured
+  // at ~5s with `settled: false` on this fixture — which is the same semantic
+  // drift ADR-0008 closes, surviving at the boundary the schema allows.
+  it("replays a recorded wait_ms of 0 as an instant no-op, not networkidle", async () => {
+    const started = Date.now();
+    const result = await executeAction(page, { ...waitAction, wait_ms: 0 });
+    const elapsed = Date.now() - started;
+
+    expect(result.ok).toBe(true);
+    // The load-bearing pair: the probe never ran, and the step did not spend
+    // the bound waiting for a page that never goes quiet.
+    expect(result.settled).toBeUndefined();
+    expect(elapsed).toBeLessThan(1_000);
+  }, 30_000);
+
+  it("falls back to networkidle when wait_ms is not a usable duration", async () => {
+    // A negative value is not an observation the recorder can produce; it can
+    // only reach here from a hand-authored program, and it must not become a
+    // silent `waitForTimeout(-1)`. Treated as "no duration recorded".
+    const result = await executeAction(
+      page,
+      { ...waitAction, wait_ms: -1 },
+      {},
+      { networkIdleWaitMs: 1_000 },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.settled).toBe(false);
   }, 30_000);
 });

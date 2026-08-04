@@ -4,7 +4,7 @@ doc_type: adr
 status: accepted
 owner: B4
 created: 2026-08-03
-updated: 2026-08-03
+updated: 2026-08-04
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -133,6 +133,17 @@ A trajectory that says a duration is honoured exactly; nothing is guessed. The
 `networkidle` fallback is preserved for the case where nothing says a duration at all — a
 different, explicitly chosen condition, not an invented one.
 
+**Step 1 gates on presence, not magnitude.** Both schemas declare `minimum: 0` and
+`recorder.wait(intent, 0)` is a legal call, so `wait_ms: 0` is a value the recorder can
+genuinely produce. It means *"a wait was recorded here, of zero duration"* — an observation —
+and replay reproduces it as an instant no-op. Gating on `wait_ms > 0` instead would read a
+recorded zero as *"no duration given"* and fall through to `networkidle`: the same
+condition-swap this ADR exists to close, surviving at the one boundary the schema still calls
+valid. `minimum: 0` therefore stays as-is rather than becoming `exclusiveMinimum: 0` — zero is
+meaningful, not a value to forbid. A non-finite or negative `wait_ms` is not an observation the
+recorder can produce and falls through as if nothing was recorded, rather than reaching
+Playwright as a negative timeout.
+
 ## Consequences
 
 **Easy.** Additive, optional field; no existing trajectory, bundle, or cache row is invalidated.
@@ -144,9 +155,14 @@ every run, independent of whatever the page happens to be doing — closing the 
 exists to fix.
 
 **The `networkidle` fallback keeps a real, narrower purpose.** It now only ever fires for a
-`wait` action with no duration at all — from a hand-authored program, not from the recorder. Its
-existing bound, classification (`settled` is a hint, not a failure), and tests
+`wait` action with no usable duration at all — from a hand-authored program, not from the
+recorder. Its existing bound, classification (`settled` is a hint, not a failure), and tests
 (`tests/unit/runner-bounded-wait.test.ts`) are unchanged.
+
+**Every value the schemas admit has one replay meaning.** `wait_ms: 0` sleeps zero; a positive
+`wait_ms` sleeps that long; an absent `wait_ms` probes `networkidle`. No admitted value is
+silently reinterpreted as a different condition — which is the whole claim of this ADR, and is
+now pinned by tests at the zero boundary rather than only in the positive case.
 
 **Precedence is fixed, not incidental.** `wait_ms` is checked before the `param_refs` lookup so
 a recorded literal cannot be silently overridden by a `--param` binding that happens to share a
