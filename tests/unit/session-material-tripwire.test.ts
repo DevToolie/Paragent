@@ -37,6 +37,7 @@
  * that way on purpose rather than by nobody having changed it yet.
  */
 
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -352,10 +353,13 @@ describe("SC-04 tripwire: real artifacts carry no session material (#101)", () =
 });
 
 describe("SC-04 tripwire: a live capturePageState carries no session material (#101)", () => {
+  const chromiumAvailable = existsSync(chromium.executablePath());
+  const liveIt = chromiumAvailable ? it : it.skip;
   let browser: Browser;
   let page: Page;
 
   beforeAll(async () => {
+    if (!chromiumAvailable) return;
     browser = await chromium.launch({ headless: true });
     page = await browser.newPage();
   }, 60_000);
@@ -364,7 +368,7 @@ describe("SC-04 tripwire: a live capturePageState carries no session material (#
     await browser?.close();
   });
 
-  it("captures from a real page with cookies set, and carries none of them", async () => {
+  liveIt("captures from a real page with cookies set, and carries none of them", async () => {
     // A real browser, deliberately: the type says PageStateSnapshot cannot hold
     // session state, but capturePageState builds the object by hand from live
     // browser APIs. This is the only level that would notice a spread or an
