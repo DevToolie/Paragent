@@ -220,6 +220,11 @@
         "custom_op": {
           "type": "string",
           "description": "Extension point id when type=custom."
+        },
+        "wait_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "For wait actions: the recorded duration in milliseconds (ADR-0008). Absent means a bare settle hint, not an unspecified duration — see runner networkidle fallback."
         }
       }
     },

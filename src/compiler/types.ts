@@ -120,6 +120,8 @@ export interface TrajectoryAction {
   key?: string;
   url_template?: string;
   custom_op?: string;
+  /** For wait actions: the recorded duration in milliseconds (ADR-0008). */
+  wait_ms?: number;
 }
 
 export interface AssertionHint {
@@ -191,6 +193,8 @@ export interface CompiledAction {
   url_template?: string;
   key?: string;
   custom_op?: string;
+  /** For wait actions: the recorded duration in milliseconds (ADR-0008). */
+  wait_ms?: number;
   locator_fallback_chain: CompiledLocator[];
 }
 

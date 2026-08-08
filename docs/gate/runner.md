@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B4
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-08-04
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -59,6 +59,22 @@ Deliberate, and cheap *today* because no gate number exists yet: since
 [#62](https://github.com/DevToolie/Paragent/issues/62) `gate:matrix` runs live, but one run per
 version over an example program is not a measurement. After a published measurement this would be
 an expensive silent shift.
+
+### A recorded wait reproduces exactly (ADR-0008)
+
+`TrajectoryRecorder.wait(intent, ms)` always takes an explicit duration but used to drop it —
+`action: { type: "wait" }` carried nothing — so replay fell through to the `networkidle` probe
+below for every recorded wait, on a different clock than the one actually recorded. The action
+now carries `wait_ms`, and `executeAction` checks it before anything else: a recorded wait
+replays as the same sleep, every time, and `networkidle` is reached only for a bare `wait` action
+with no duration at all — a hand-authored program choosing that condition on purpose, not a
+recorder ever emitting one.
+
+The check is for **presence**, not a positive value. `wait_ms: 0` is schema-valid and
+`recorder.wait(intent, 0)` is a legal call, so a recorded zero replays as an instant no-op;
+reading it as "no duration given" would send it to the `networkidle` probe below, which is the
+condition-swap the fix removes. Only a `wait_ms` that is absent, negative or non-finite reaches
+the probe.
 
 ### Reaching the bound is not a step failure
 

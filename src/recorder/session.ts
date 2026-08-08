@@ -275,7 +275,7 @@ export class TrajectoryRecorder {
   async wait(intent: string, ms: number): Promise<void> {
     await this.recordStep({
       intent,
-      action: { type: "wait" },
+      action: { type: "wait", wait_ms: ms },
       awaitNetworkIdle: false,
       run: async () => {
         await new Promise<void>((resolve) => setTimeout(resolve, ms));
