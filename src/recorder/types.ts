@@ -72,6 +72,8 @@ export interface Action {
   key?: string;
   url_template?: string;
   custom_op?: string;
+  /** For wait actions: the recorded duration in milliseconds (ADR-0008). */
+  wait_ms?: number;
 }
 
 export interface TimingMs {
