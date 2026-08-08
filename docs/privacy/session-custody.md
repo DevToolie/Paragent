@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-07-30
-updated: 2026-07-30
+updated: 2026-08-03
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -99,7 +99,7 @@ today, but nothing stops it either. Filed as
 `extraTrajectories` above (same root cause: a guarantee that depends on one specific call path
 instead of the data shape itself).
 
-### SC-03 — never written to logs — **conventional only**, one verified hole in the one automated backstop
+### SC-03 — never written to logs — **conventional only**; the one verified hole in the automated backstop is now closed (#100)
 
 No centralized logging module exists in this codebase — CLI output is scattered `console.log` /
 `console.error`, none of which is sourced from cookie/storage state, because (per SC-01/SC-02)
@@ -131,6 +131,28 @@ requires a JSON key literally spelled `sessionid`/`sessiontoken`/`sessionkey`. N
 real cookie array, whose keys are `name`/`value`/`domain`/`httpOnly`/`sameSite`. No real session
 material was used to verify this — only synthetic placeholder values, disposed of after the check
 and never committed.
+
+**Closed by [#100](https://github.com/DevToolie/Paragent/issues/100).** `scripts/secret-scan.mjs`
+gained two patterns — `storage-state-cookies` and `storage-state-origins` — that match the shape
+*structurally*: a `"cookies"` / `"origins"` array co-occurring with a cookie-specific key
+(`httpOnly` / `sameSite`, or a nested `localStorage` array) **and** a value of 16+ characters.
+
+That last clause is the whole discriminator, and it is why the code block above does not break
+CI. This document quotes a real `storageState()` layout verbatim, and `gate/recorder.md` discusses
+the same fields in prose; both elide their values (`"value":"..."`). A genuine dump cannot elide
+them, because the value *is* the secret. The patterns therefore catch session **material**, not
+session **discussion**, and 16 characters clears every placeholder in the tree ("...",
+"REDACTED", "<omitted>") while sitting far below a real session cookie.
+
+`tests/unit/secret-scan.test.ts` pins both directions: a synthetic fixture
+(`tests/fixtures/storage-state.sample`, fake values only) is caught, every doc discussing cookies
+in prose is not, and a final case walks the whole tree asserting nothing already committed
+matches — because a false positive here would break CI for every unrelated PR, and the positive
+tests would still pass.
+
+The fixture's extension is deliberately outside the set the repo-wide walk reads, so committing it
+does not permanently fail the build; `node scripts/secret-scan.mjs <path>` scans an explicitly
+named file regardless of extension, which is how the test proves the patterns fire end to end.
 
 `.gitignore` does carry `cookies*.json` and `storage-state*.json` (lines 47-48) — a real,
 pre-existing line, worth crediting — but it is a convention (`git add -f` or a differently-named
