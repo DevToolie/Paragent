@@ -80,10 +80,12 @@ Three independent mechanisms, verified:
    `$defs.provenance`, `$defs.locatorCandidate`, and `$defs.action` — verified by walking the
    schema's `properties`/`additionalProperties` pairs directly. A `cookies` field is not merely
    unpopulated, it is **invalid** anywhere in the document. `scripts/validate-contracts.mjs` checks
-   this in CI for the committed example and for the two files named in its `extraTrajectories`
-   array (`experiments/gate-v1/trajectories/*.json`) — **not** for every trajectory the recorder
-   might ever produce; a new recording not added to that list is not schema-checked at all. That is
-   the residual gap.
+   this in CI for the committed example and — since
+   [#99](https://github.com/DevToolie/Paragent/issues/99) — for **every** `*.json` under any
+   `experiments/**/trajectories/` directory, discovered by walking the tree rather than read from
+   a hand-maintained array. A new recording is schema-checked by default instead of when someone
+   remembers to add a line. Discovering zero is treated as a hard failure, not as "nothing to do":
+   an empty result means the walk broke, which is the same silent hole in a new shape.
 
 Defense in depth, verified: `assertNoLiteralSecrets` (`src/recorder/redact.ts:102-117`) greps the
 serialized trajectory for `Set-Cookie`, `"cookies?":`, `"localStorage":`, `"sessionStorage":`,
@@ -92,12 +94,26 @@ serialized trajectory for `Set-Cookie`, `"cookies?":`, `"localStorage":`, `"sess
 `storageState()`-shaped JSON blob during this audit — it correctly matched on all three of
 `"value":`, `"cookies?":`, and `"localStorage":`.
 
-**Residual gap:** `assertNoLiteralSecrets` only runs inside `write()`. A caller that serializes
-`toTrajectory()`'s return value directly bypasses it entirely — nothing in the tree does this
-today, but nothing stops it either. Filed as
-[#99](https://github.com/DevToolie/Paragent/issues/99), bundled with the auto-discovery fix for
-`extraTrajectories` above (same root cause: a guarantee that depends on one specific call path
-instead of the data shape itself).
+**Residual gap, now covered by test (#99).** `assertNoLiteralSecrets` still only runs inside
+`write()`, and a caller that serializes `toTrajectory()`'s return value directly still bypasses
+it. What changed is that the bypass is no longer unobserved:
+`tests/unit/trajectory-guard.test.ts` records a login-shaped task, takes the object from
+`toTrajectory()` — never calling `write()` — and asserts it passes the same guard `write()` would
+have applied, in both pretty-printed and compact form.
+
+The distinction is deliberate. The test does not assert *that the guard runs*; it asserts the
+**property the guard protects** holds of the object itself, so it fails only if the recorder
+actually starts leaking. A guarantee that depends on which method serializes it is not a
+guarantee, and this is the check that would notice.
+
+It also pins each of the guard's six patterns individually. The bypass assertions are all "does
+not throw", so weakening the guard makes them *more* likely to pass — they cannot detect it.
+Verified during development: deleting the `"value"` pattern left every bypass test green, which is
+why the per-pattern cases exist.
+
+**Not closed:** `toTrajectory()` still has no guard of its own. Adding one would change behaviour
+(it could throw where it previously did not) and was out of scope for #99, which asked for the
+bypass to be *covered*, not closed.
 
 ### SC-03 — never written to logs — **conventional only**; the one verified hole in the automated backstop is now closed (#100)
 
