@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-08-03
-updated: 2026-08-03
+updated: 2026-08-09
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -93,15 +93,26 @@ On `REPAIRED_PASS` the new version carries the corrected action at `confidence: 
 new action starts verified-once rather than inheriting the track record of the action it
 replaced.
 
+`repair_provenance` describes **the write that produced a version**, not the row's lifetime, so it
+is stripped on every non-repair update and re-stamped by each repair. A plain `PASS` after a
+repair carries none. Carrying it forward would label a version with a repair that did not write
+it, and its `repaired_at` would disagree with that version's own `last_verified_at` — the JSONL
+history is the record of what churn did, and a row that misstates its own origin is not a record.
+The strip lives in `forRewrite()`, alongside the `pool_eligible` strip and for the same reason, so
+neither branch of `applyOutcome` has to remember it.
+
 **A repair is a write, and the boundary applies to it.** This is the new attack surface: before
 #64 every cached row came from the compiler, whose output the canary already covers. Now a
 *model* proposes a `corrected_action` that becomes a persisted row, so it can introduce a locator
 carrying tenant text the compiler never saw. The update path does not re-implement the check — it
 hands the candidate to `writeCacheRow()`.
 
-A repair whose locators are **all** tainted comes back correctly classified but with an empty
-fallback chain: an action that cannot resolve anything. That is refused rather than persisted,
-and the previous version stands. The step's failure is already in the metrics, which is where a
+A repair that comes back with an empty fallback chain — correctly classified, and useless — is
+refused rather than persisted, and the previous version stands. All-tainted locators are the
+common cause but not the only one: a step whose frozen assertion carries a tenant literal is
+written with no locators at all, so a repair proposing perfectly clean locators against it hits
+the same refusal. The message is worded from `pool_ineligible_reason` rather than assuming
+locators were involved. The step's failure is already in the metrics, which is where a
 failure belongs. `tests/canary/repair-rewrite.test.ts` covers both directions — a tainted repair
 refused with the store untouched, and a clean repair accepted, so the refusal is not blanket.
 

@@ -53,7 +53,8 @@
 import type { CacheRow, CacheRowCandidate } from "./types.js";
 
 /**
- * Strip the classification fields before handing a row back to the write path.
+ * Strip the fields that describe *the write that produced a version*, before
+ * handing a row back to the write path to produce the next one.
  *
  * `pool_eligible` / `pool_ineligible_reason` are **outputs** of a write, not
  * inputs to the next one. Forwarding the stored value would turn a
@@ -61,9 +62,22 @@ import type { CacheRow, CacheRowCandidate } from "./types.js";
  * `pool_eligible: true` and the row no longer earns it, so a repair that
  * produced a less-poolable action would blow up instead of being reclassified.
  * Reclassification is the correct behaviour — the locators changed.
+ *
+ * `repair_provenance` is stripped for the same reason (#114). The schema and
+ * ADR-0009 both say it is "present only on a row written by a repair rewrite",
+ * and carrying it forward on a later plain `PASS` breaks that: the version is
+ * labelled with a repair that did not write it, and its `repaired_at` no longer
+ * matches that version's `last_verified_at`. Only the repair branch below puts
+ * it back, so the invariant is structural rather than something each branch has
+ * to remember to clear.
  */
 function forRewrite(row: CacheRow): CacheRowCandidate {
-  const { pool_eligible: _pe, pool_ineligible_reason: _pr, ...rest } = row;
+  const {
+    pool_eligible: _pe,
+    pool_ineligible_reason: _pr,
+    repair_provenance: _rp,
+    ...rest
+  } = row;
   return rest;
 }
 
@@ -198,6 +212,9 @@ export function applyOutcome(
       last_verified_at: ctx.now,
       invalidated_at: null,
     };
+    // The only place provenance is set. `forRewrite` cleared whatever an
+    // earlier repair left, so a `repaired` outcome that arrives without repair
+    // details carries none rather than inheriting the previous repair's.
     if (ctx.repair) {
       repaired.repair_provenance = {
         repaired_at: ctx.now,

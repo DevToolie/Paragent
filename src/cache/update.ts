@@ -60,6 +60,36 @@ export interface CacheUpdateResult {
 }
 
 /**
+ * Why a written row came back with an empty fallback chain (#114).
+ *
+ * Read off `pool_ineligible_reason` rather than assumed. Tainted locators are
+ * the obvious cause, but they are not the only one: `buildPoolRow` drops the
+ * chain entirely when the assertion carries a tenant literal, without ever
+ * classifying a locator — so a repair proposing perfectly clean locators
+ * against a step whose (frozen, unchanged-by-repair) assertion is tainted hits
+ * this same refusal. The machine-readable `reason` on the error was already
+ * right in that case; only the human-readable text claimed something false.
+ */
+function emptyChainCause(row: CacheRow): string {
+  switch (row.pool_ineligible_reason) {
+    case "literal_in_assertion":
+      return (
+        "the step's assertion carries a tenant literal, so the row was written " +
+        "with no locators at all — the corrected locators were never reached"
+      );
+    case "tenant_locator_text":
+    case "tainted_attribute":
+    case "non_vocab_role":
+      return "every corrected locator was tenant-tainted";
+    default:
+      return (
+        "the corrected action was written with no usable locator " +
+        `(${row.pool_ineligible_reason ?? "reason not recorded"})`
+      );
+  }
+}
+
+/**
  * Record one step outcome against the cache.
  *
  * Returns rather than throws when the row is absent: a program can be replayed
@@ -96,7 +126,7 @@ export function recordStepOutcome(
   const { store, ...writeOptions } = options;
   const row = writeCacheRow(candidate, writeOptions);
 
-  // A repair whose every locator was tainted comes back with an empty fallback
+  // A repair whose locators were all stripped comes back with an empty fallback
   // chain: correctly classified, and useless. Persisting it would record a
   // "repair" that can never resolve anything and would overwrite a version that
   // at least described a real control. Refuse instead, and leave the previous
@@ -108,8 +138,8 @@ export function recordStepOutcome(
     row.compiled_action.locator_fallback_chain.length === 0
   ) {
     throw new CacheWriteRejectedError(
-      "repair rewrite refused: every corrected locator was tenant-tainted, " +
-        "leaving an action that cannot resolve. Previous version retained.",
+      `repair rewrite refused: ${emptyChainCause(row)}, leaving an action that ` +
+        "cannot resolve. Previous version retained.",
       row.pool_ineligible_reason ?? "pool_leak_refused",
     );
   }
