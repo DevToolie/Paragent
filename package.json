@@ -32,9 +32,9 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "eslint": "^10.8.0",
-    "tsx": "^4.20.3",
+    "tsx": "^4.23.10",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.38.0",
+    "typescript-eslint": "^8.66.0",
     "vitest": "^4.1.10"
   },
   "dependencies": {
