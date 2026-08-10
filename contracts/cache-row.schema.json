@@ -79,6 +79,11 @@
         "custom_op": {
           "type": "string"
         },
+        "wait_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "For wait actions: the recorded duration in milliseconds (ADR-0008)."
+        },
         "locator_fallback_chain": {
           "type": "array",
           "description": "Ordered locators from trajectory candidates after taint filtering.",
