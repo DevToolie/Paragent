@@ -39,7 +39,8 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [architecture.md](./architecture.md) | How the six `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-07-25 | Owns the **chain** between packages; `gate/*.md` own one hop each. Records two unwired hops (issue #52) |
 | [README-narrative.md](./README-narrative.md) | Story: thesis → census kill → pivot → two tracks → evidence now | draft | 2026-07-25 | Includes C5 FAIL |
 | [INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md) | Unsourced claims, placeholders, LOW load-bearing, contradictions | draft | 2026-07-25 | Surfaces conflicts; does not pick winners |
-| [../README.md](../README.md) | Repo root status | living | 2026-07-25 (status table refreshed) | Track 2 **FAIL** / Track 3 Wave-1 draft now match C5 + ADR-0004; INTEGRITY-AUDIT D-04 resolved |
+| [README-internal.md](./README-internal.md) | Internal entry point: status table, tracks, public-repo rules, layout, stack | accepted | 2026-08-10 (moved from repo root, content unchanged) | Was `../README.md` until the root became visitor-facing. Track 2 **FAIL** / Track 3 Wave-1 draft match C5 + ADR-0004; INTEGRITY-AUDIT D-04 resolved |
+| [../README.md](../README.md) | Repo root **landing page** for first-time visitors: hook, 60-second try-it, where-this-fits | living | 2026-08-10 | Marketing surface only. Carries no metrics — status of record lives in [README-internal.md](./README-internal.md) |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Hard rules + YAML frontmatter standard | living | 2026-07-24 | Doc-shape source of truth |
 
 ---

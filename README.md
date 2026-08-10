@@ -1,93 +1,135 @@
 # Paragent
 
-**Pre-seed.** Thesis unproven. Gate number pending. No invented metrics.
+**Record a browser agent once. Replay it deterministically, without the model. Repair it when the page changes.**
 
-Paragent is a stateful execution layer for browser agents. It records an agent's
-successful trajectory through a web UI, compiles it into a deterministic
-replayable script with a post-condition assertion on every step, replays it at
-near-zero token cost, and repairs the script with a model when an assertion
-fails.
+[![CI](https://github.com/DevToolie/Paragent/actions/workflows/ci.yml/badge.svg)](https://github.com/DevToolie/Paragent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)](./tsconfig.json)
 
-Value is hypothesized (not yet measured) for tasks performed **repeatedly**, in
-a **browser**, where **no clean API** exists — and, after Week-0 census failure
-on SaaS observability config, especially where the person doing the work is the
-**counterparty** to the software's customer (no API roadmap sympathy).
+Browser agents re-derive the same work on every run. Ask one to pull a report out of
+a dashboard, and it re-reads the DOM, re-plans, and re-infers every click — burning
+tokens and wall-clock to rediscover a path it already found yesterday, with a fresh
+chance of getting it wrong.
 
-## Status
+Paragent takes the model out of the second run. It records an agent's **successful** trajectory
+through a web UI, compiles it into a deterministic replayable script with a
+**post-condition assertion on every step**, and replays it with no model in the loop.
+When an assertion fails — a button moved, a label changed — the model is called back
+in to repair just that step, and the repaired script is what runs next time.
 
-| Track | Question | Status |
+<!-- ┌──────────────────────────────────────────────────────────────────────────┐
+     │ DEMO GIF PLACEHOLDER                                                     │
+     │ Record the gif, save it to docs/assets/demo.gif, then delete these       │
+     │ comment markers to publish it. Kept commented so the README never        │
+     │ renders a broken image. Tracking issue: "Record and embed demo GIF".     │
+     └──────────────────────────────────────────────────────────────────────────┘
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="Recording a trajectory, replaying it without the model, and repairing it after the UI changes" width="720">
+</p>
+-->
+
+
+
+## How it works
+
+| Stage | What happens | Model involved? |
 | --- | --- | --- |
-| Track 1 | Do compiled trajectories survive site churn? | Harness in progress — **no gate number yet** |
-| Track 2 | Is there a vertical where the counterparty hypothesis holds? | **FAIL — no vertical locked** ([C5 DECISION](docs/research/vertical-search/DECISION.md), [ADR-0004](docs/decisions/ADR-0004-vertical-track2-fail.md)) |
-| Track 3 | Narrative / pitch | Wave-1 draft in [docs/pitch/](docs/pitch/); all performance claims **[PENDING TRACK-1]** |
+| **Record** | An agent completes the task once. Every action and its post-condition is captured as a trajectory. | Yes |
+| **Compile** | The trajectory becomes a bundle of cache rows — one per step, each with its assertion. Typed values become parameter slots. | No |
+| **Replay** | Steps execute in order. Each asserts its post-condition before the next runs. | No |
+| **Repair** | On assertion failure, the model is called to fix that step; the updated script is written back. | Only on failure |
 
-Two consecutive vertical FAILs — Week-0 observability config (2 survivors of 70,
-archived under [docs/research/census-week0/](docs/research/census-week0/)) and Track-2
-counterparty (2 of 75, 0 DURABLE) — mean the company now rests on the Track-1
-mechanism number. See
-[README-narrative.md §6](docs/README-narrative.md#6-where-evidence-stands-now).
+The assertion-per-step design is the load-bearing part: a replay that drifts fails
+loudly at the step that broke, instead of silently completing the wrong task.
 
-## Public repo — write accordingly
+## Try it in 60 seconds
 
-This repository is **public and intended to be**
-([ADR-0005](docs/decisions/ADR-0005-repo-public.md), superseding ADR-0002). The research,
-the PRD, the pitch pack, and both FAIL memos are all readable by anyone. Assume a
-competitor, a candidate, and an investor will read whatever you add.
-
-That is a constraint on tone, never on honesty — findings are not softened
-([CONTRIBUTING.md](./CONTRIBUTING.md) rule 4).
-
-With no confidentiality boundary left, secret hygiene is the only line of defence. Never
-commit credentials, cookies, session state, `.env` files, tokens, customer or
-design-partner names, or third-party portal content. `npm run secret-scan` is
-merge-blocking in CI, GitHub secret scanning with push protection is enabled, and
-`npm run test:canary` blocks tenant strings reaching pool-eligible cache rows. None of
-these may be weakened.
-
-## Quick start
+No credentials or live site needed — a browser fixture ships with the repo.
 
 ```bash
 git clone https://github.com/DevToolie/Paragent.git
 cd Paragent
 npm install
-npm run ci
+
+# 1. Record a login → dashboard-list trajectory against the bundled fixture
+npm run recorder -- --fixture --out trajectory.json
+
+# 2. Compile it into a replayable bundle, one cache row per step
+npm run compile -- --in trajectory.json --out bundle.json
 ```
 
-`npm run ci` is the one command that must be green before any PR: secret-scan,
-contract validation, lint, typecheck, unit tests, then the end-to-end integration
-test, in that order. The privacy canary (`npm run test:canary`) is merge-blocking
-as a separate CI job. Full command list and the pre-PR checklist:
-[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+Point the recorder at a real site instead:
 
-Contracts live in `contracts/`. Wave-1 agents build against those schemas — not
-against each other.
-
-## Layout
-
-```
-contracts/           # JSON Schema — build against these
-src/testbed|recorder|compiler|runner|cache|metrics/
-experiments/gate-v1/ # throwaway gate harness
-scripts/             # secret-scan, contract validation, branch protection, testbed compose
-tests/unit|canary|integration/
-artifacts/           # committed compiled bundles
-docs/                # map: docs/README.md
-archive/             # superseded scaffolds (Python hello) + preserved history
+```bash
+npm run recorder -- --base-url http://127.0.0.1:3000 --headed
 ```
 
-How the six packages connect: [docs/architecture.md](docs/architecture.md).
-Where the project is and what to pick up next: [docs/ROADMAP.md](docs/ROADMAP.md).
-How to run, test, and ship a change: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+Recorded values become parameter slots, so one recording covers a family of runs:
 
-## Stack
+```bash
+npm run recorder -- --fixture --dashboard-title "Q3 Latency" --series-count 5
+```
 
-TypeScript + Node 20+ + Playwright — see [ADR-0001](docs/decisions/ADR-0001-typescript-node-playwright.md).
+Credentials are read from `PARAGENT_USERNAME` / `PARAGENT_USER_SECRET` and are never
+persisted to disk. Full command list: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+## Where this fits
+
+Most browser-agent frameworks optimise the *first* run — better planning, better DOM
+grounding, better recovery. Paragent assumes you already have one that works and
+optimises every run after it. It composes with them rather than replacing them: record
+whatever agent you already trust, then replay its output.
+
+It's aimed at work that is **repeated**, in a **browser**, where **no clean API
+exists** — the cases where you'd write a script if the UI would just hold still.
+
+## Project status — read this before you rely on it
+
+Paragent is pre-seed, two weeks old, and its central thesis is **not yet proven**. We
+publish the failures alongside the code:
+
+| Track | Question | Status |
+| --- | --- | --- |
+| Track 1 | Do compiled trajectories survive site churn? | Harness in progress — **no gate number yet** |
+| Track 2 | Is there a vertical where the counterparty hypothesis holds? | **FAIL** — no vertical locked |
+| Track 3 | Narrative / pitch | Wave-1 draft; all performance claims **[PENDING TRACK-1]** |
+
+Two consecutive vertical FAILs mean the project now rests on the Track-1 mechanism
+number, which does not exist yet. **There are no performance benchmarks in this README
+because there are none to report.** Any number you see here later will be traceable to
+a gate run.
+
+The full internal picture — research, decision records, both FAIL memos, the pitch
+pack, and the contributor rules — is preserved verbatim and kept current in
+**[docs/README-internal.md](docs/README-internal.md)**. Start there if you are an
+agent, a contributor, a candidate, or an investor. Nothing is softened there and
+nothing is hidden.
+
+## Docs
+
+| | |
+| --- | --- |
+| [docs/README-internal.md](docs/README-internal.md) | Full project status, tracks, and FAIL memos |
+| [docs/architecture.md](docs/architecture.md) | System design |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Commands, pre-PR checklist |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | What's next |
+| [docs/decisions/](docs/decisions/) | ADRs |
+| [docs/research/](docs/research/) | Census and vertical research, including failures |
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md). Branch as `track1/<agent>-<topic>` (or
-`track2/` / `track3/`). Small PRs. Document with the code.
+`npm run ci` must be green before any PR — secret-scan, contract validation, lint,
+typecheck, unit tests, then integration tests. The privacy canary
+(`npm run test:canary`) is a separate merge-blocking job.
+
+This repo is public by design ([ADR-0005](docs/decisions/ADR-0005-repo-public.md)).
+Never commit credentials, cookies, session state, `.env` files, tokens, customer or
+design-partner names, or third-party portal content. Secret scanning with push
+protection is enabled and those checks may not be weakened.
+
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) first — rule 4 is that findings are never
+softened, and it applies to everyone.
 
 ## License
 
-[MIT](./LICENSE) © DevToolie
+[MIT](./LICENSE)
