@@ -18,8 +18,10 @@
  * knowing, and is not what a test of `write()` would tell you.
  */
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser } from "playwright";
@@ -201,5 +203,128 @@ describe("trajectory discovery replaces the hand-maintained list (#99)", () => {
     // The CLI turns empty into a hard failure; the function itself stays honest
     // and just reports what it found.
     await expect(discover(path.join(ROOT, "contracts"))).resolves.toEqual([]);
+  });
+
+  it("skips the JSON under experiments/ that is not a recording", async () => {
+    // A compiled program has `steps` but no `trajectory_id`. Validating it
+    // against trajectory.schema.json would fail for the wrong reason.
+    const found = await discover(ROOT);
+    expect(found).not.toContain("experiments/gate-v1/fixtures/compiled-program.json");
+  });
+});
+
+/**
+ * #116 — discovery is by shape, not by directory name.
+ *
+ * The location rule swapped a hand-maintained *list* for a hand-maintained
+ * *convention*: a recording written anywhere else was silently skipped, and
+ * `src/recorder/cli.ts` takes `--out` to an arbitrary path. These build small
+ * synthetic trees rather than committing fixtures, so the repo's own two
+ * recordings stay the only trajectories in the tree.
+ */
+describe("trajectory discovery is shape-based (#116)", () => {
+  const roots: string[] = [];
+
+  function tree(files: Record<string, string>): string {
+    const root = mkdtempSync(path.join(tmpdir(), "paragent-discover-"));
+    roots.push(root);
+    for (const [rel, body] of Object.entries(files)) {
+      const full = path.join(root, rel);
+      mkdirSync(path.dirname(full), { recursive: true });
+      writeFileSync(full, body, "utf8");
+    }
+    return root;
+  }
+
+  const trajectory = (id: string) =>
+    JSON.stringify({
+      schema_version: "1.0.0",
+      trajectory_id: id,
+      site_key: "fixture@local",
+      task_key: "login",
+      steps: [],
+    });
+
+  afterAll(() => {
+    for (const root of roots) rmSync(root, { recursive: true, force: true });
+  });
+
+  it("finds a recording in a sibling directory nobody named 'trajectories'", async () => {
+    // The exact repro from #116: a plausible directory name, not gitignored, so
+    // it is committable and would sit in the tree permanently unvalidated.
+    const root = tree({
+      "experiments/gate-v2/recordings/leaky.json": trajectory("traj-leaky"),
+    });
+    await expect(discover(root)).resolves.toEqual([
+      "experiments/gate-v2/recordings/leaky.json",
+    ]);
+  });
+
+  it("finds one dropped straight into experiments/, with no directory at all", async () => {
+    const root = tree({ "experiments/adhoc.json": trajectory("traj-adhoc") });
+    await expect(discover(root)).resolves.toEqual(["experiments/adhoc.json"]);
+  });
+
+  it("takes a document that declares the trajectory schema at its word", async () => {
+    // Missing the required fields entirely. That is precisely the file
+    // validation should be shouting about, so discovery must not skip it for
+    // failing the shape test.
+    const root = tree({
+      "experiments/decl/claims-to-be-one.json": JSON.stringify({
+        $schema: "https://paragent.dev/contracts/trajectory.schema.json",
+      }),
+    });
+    await expect(discover(root)).resolves.toEqual([
+      "experiments/decl/claims-to-be-one.json",
+    ]);
+  });
+
+  it("ignores JSON under experiments/ that is not trajectory-shaped", async () => {
+    const root = tree({
+      // A compiled program: steps, but no trajectory_id.
+      "experiments/gate-v1/fixtures/program.json": JSON.stringify({
+        program_id: "prog-1",
+        steps: [],
+      }),
+      // A compiled bundle: source_trajectory_id and rows.
+      "experiments/gate-v1/fixtures/bundle.json": JSON.stringify({
+        bundle_kind: "compiled",
+        source_trajectory_id: "traj-1",
+        rows: [],
+      }),
+      "experiments/gate-v1/fixtures/config.json": JSON.stringify({ headless: true }),
+      "experiments/notes.txt": "not json at all",
+      // Keeps the walk from returning empty for an unrelated reason.
+      "experiments/gate-v1/trajectories/real.json": trajectory("traj-real"),
+    });
+    await expect(discover(root)).resolves.toEqual([
+      "experiments/gate-v1/trajectories/real.json",
+    ]);
+  });
+
+  it("still includes anything in a trajectories/ directory, whatever its shape", async () => {
+    // The second, stricter rule. A file in the canonical location that does not
+    // parse must fail loudly in the validator, not vanish from discovery.
+    const root = tree({
+      "experiments/gate-v1/trajectories/truncated.json": '{"trajectory_id": "traj-x"',
+      "experiments/gate-v1/trajectories/wrong-shape.json": JSON.stringify({ hello: 1 }),
+    });
+    await expect(discover(root)).resolves.toEqual([
+      "experiments/gate-v1/trajectories/truncated.json",
+      "experiments/gate-v1/trajectories/wrong-shape.json",
+    ]);
+  });
+
+  it("does not look inside skipped directories — the interaction is deliberate", async () => {
+    // `out` is in SKIP_DIRS and is gitignored (.gitignore:58), so a recording
+    // there cannot enter the tree. Pinned because the skip list and the
+    // discovery rule interact in a way neither states on its own.
+    const root = tree({
+      "experiments/gate-v1/out/trajectories/generated.json": trajectory("traj-out"),
+      "experiments/gate-v1/trajectories/real.json": trajectory("traj-real"),
+    });
+    await expect(discover(root)).resolves.toEqual([
+      "experiments/gate-v1/trajectories/real.json",
+    ]);
   });
 });

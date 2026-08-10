@@ -16,20 +16,57 @@ const pairs = [
   ["contracts/cache-row.schema.json", "contracts/examples/cache-row.example.json"],
 ];
 
-/** Where recordings live. Any `trajectories/` directory below this is walked. */
+/** Where recordings live. Every `*.json` below this is inspected. */
 const TRAJECTORY_ROOT = "experiments";
 
+/**
+ * Generated or vendored trees. `out` holds run artifacts and is gitignored
+ * (`.gitignore:58`), so nothing in it is committable — which is what this
+ * check is for. Note the interaction with discovery, since it is not obvious
+ * from either rule alone: a correctly-shaped recording under
+ * `experiments/gate-v1/out/` is **not** discovered, by design, because it
+ * cannot enter the tree. `tests/unit/trajectory-guard.test.ts` pins that.
+ */
 const SKIP_DIRS = new Set([".git", "node_modules", "dist", "archive", "out"]);
 
 /**
- * Every trajectory artifact that must stay schema-valid, discovered rather than
- * listed (#99).
+ * Whether a parsed JSON document is a trajectory, judged by its own shape.
  *
- * This used to be a hand-maintained array. A newly recorded trajectory that
- * nobody remembered to add was never schema-checked in CI — including against
- * `additionalProperties: false`, which is the mechanism that makes an
+ * `trajectory_id` + a `steps` array is the identifying pair, and it separates a
+ * recording from every other JSON artifact in the tree: a compiled program has
+ * `steps` but no `trajectory_id` (`experiments/gate-v1/fixtures/compiled-program.json`),
+ * and a compiled bundle has neither — it carries `source_trajectory_id` and
+ * `rows`. A `$schema`/`$id` pointing at the trajectory schema also counts, so a
+ * document that declares itself is taken at its word even if it is missing the
+ * required fields — that is exactly the file validation should be shouting
+ * about, not skipping.
+ */
+function looksLikeTrajectory(doc) {
+  if (typeof doc !== "object" || doc === null || Array.isArray(doc)) return false;
+  const declared = typeof doc.$schema === "string" ? doc.$schema : "";
+  if (declared.includes("trajectory.schema.json")) return true;
+  return typeof doc.trajectory_id === "string" && Array.isArray(doc.steps);
+}
+
+/**
+ * Every trajectory artifact that must stay schema-valid, discovered by **shape**
+ * rather than by location (#99, #116).
+ *
+ * This was a hand-maintained array, then a hand-maintained location convention:
+ * `*.json` whose parent directory is named `trajectories`. Both leave the same
+ * hole — the guarantee depends on someone remembering something, rather than on
+ * the data. `src/recorder/cli.ts` takes `--out` to an arbitrary path and only
+ * defaults to `experiments/gate-v1/trajectories/`, so a recording written to
+ * `experiments/gate-v2/recordings/` was committable and permanently unchecked,
+ * including against `additionalProperties: false` — the mechanism that makes an
  * accidental `cookies` field *unrepresentable* rather than merely discouraged.
- * The failure mode was silent and grew with every recording.
+ *
+ * So: every `*.json` under `experiments/` is read, and anything trajectory-shaped
+ * is validated. A file in a `trajectories/` directory is included **regardless
+ * of shape**, which is not a fallback to the old rule but a second, stricter
+ * one: a file sitting in the canonical location that does not parse, or does not
+ * look like a recording, is a finding — it should fail loudly rather than be
+ * quietly dropped for not matching the shape test.
  *
  * Sorted so a failure names files in a stable order, and so two runs over the
  * same tree produce the same output.
@@ -51,13 +88,24 @@ export async function discoverTrajectories(root = ROOT) {
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
         await walk(full);
-      } else if (
-        ent.isFile() &&
-        ent.name.endsWith(".json") &&
-        path.basename(dir) === "trajectories"
-      ) {
-        found.push(path.relative(root, full).split(path.sep).join("/"));
+        continue;
       }
+      if (!ent.isFile() || !ent.name.endsWith(".json")) continue;
+      const rel = path.relative(root, full).split(path.sep).join("/");
+      if (path.basename(dir) === "trajectories") {
+        found.push(rel);
+        continue;
+      }
+      // Unparseable is not trajectory-shaped, and outside the canonical
+      // directory there is nothing to say it was meant to be one. main() reads
+      // and reports on what discovery returns; this pass only classifies.
+      let doc;
+      try {
+        doc = JSON.parse(await readFile(full, "utf8"));
+      } catch {
+        continue;
+      }
+      if (looksLikeTrajectory(doc)) found.push(rel);
     }
   };
   await walk(path.join(root, TRAJECTORY_ROOT));
@@ -96,7 +144,7 @@ async function main() {
   // the hand-maintained list had. Fail loudly instead.
   if (extraTrajectories.length === 0) {
     console.error(
-      `no trajectories found under ${TRAJECTORY_ROOT}/**/trajectories/*.json — ` +
+      `no trajectory-shaped .json found under ${TRAJECTORY_ROOT}/ — ` +
         "discovery is broken, or the recordings moved. Refusing to report clean.",
     );
     process.exit(1);
