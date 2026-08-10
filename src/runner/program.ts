@@ -25,6 +25,7 @@
  */
 
 import type { CompiledTrajectoryBundle } from "../compiler/types.js";
+import { requiredParams } from "./params.js";
 import type {
   Assertion,
   CompiledAction,
@@ -61,7 +62,7 @@ export function bundleToProgram(
       assertion: row.assertion as Assertion,
     }));
 
-  return {
+  const program: CompiledProgram = {
     schema_version: "1.0.0",
     program_id: `${PROGRAM_ID_PREFIX}${bundle.source_trajectory_id}`,
     site_key: bundle.site_key,
@@ -69,6 +70,11 @@ export function bundleToProgram(
     testbed_version: testbedVersion,
     steps,
   };
+  // Derived here rather than at replay time: what a program needs bound is a
+  // property of the program, and a caller has to be able to ask before it pays
+  // for a container boot (#122). Names only — a value never enters a program.
+  program.required_params = requiredParams(program);
+  return program;
 }
 
 /**

@@ -19,6 +19,7 @@ import { MetricsEmitter } from "../metrics/emitter.js";
 import { executeAction, NETWORK_IDLE_WAIT_MS } from "./actions.js";
 import { evaluateAssertion } from "./assertions.js";
 import { capturePageState, emptyPageState } from "./page-state.js";
+import { assertParamsBound } from "./params.js";
 import {
   assertAssertionUnchanged,
   type RepairModelClient,
@@ -109,11 +110,26 @@ export class ReplayRunner {
     return this.metrics;
   }
 
+  /**
+   * Replay a program.
+   *
+   * Throws `UnboundParamsError` when the program declares a param the caller
+   * did not bind — before step 0, before the browser is touched, and before any
+   * metric is emitted (#122). A binding error is a caller error, and letting it
+   * surface as a per-step `PAGE_ERROR` or `ASSERTION_FAILED` would make it
+   * indistinguishable from the site churn the gate exists to count. A refused
+   * run is not a failed run: it produced no rows, so it contributes to no §9
+   * denominator.
+   */
   async run(
     program: CompiledProgram,
     params: ParamBindings = {},
     runId: string = randomUUID(),
   ): Promise<RunResult> {
+    // First statement in the method, on purpose: nothing above it can have
+    // emitted, mutated, or observed anything by the time a refusal is decided.
+    assertParamsBound(program, params);
+
     const started = Date.now();
     const stepResults: StepAttemptResult[] = [];
     let repairCount = 0;

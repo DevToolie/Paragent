@@ -1,10 +1,30 @@
 import type { Assertion, ParamBindings } from "./types.js";
 
-const HOLE = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+/**
+ * A `{param}` hole. Exported so `src/runner/params.ts` derives required names
+ * with the same grammar interpolation consumes — two regexes that drifted apart
+ * would make a param required that never gets filled, or vice versa.
+ */
+export const PARAM_HOLE = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 
-/** Replace `{param}` holes with runtime bindings. Unbound holes are left intact. */
+/**
+ * Replace `{param}` holes with runtime bindings. **Unbound holes are left
+ * intact**, deliberately (#122).
+ *
+ * `ReplayRunner.run()` now refuses a program whose required params are not all
+ * bound, so a hole from the *compiled program* cannot reach here unfilled. What
+ * still can is a hole in an action a **repair proposed**: the model may return
+ * a `corrected_action` carrying a template the run-start check never saw, and
+ * that is not knowable before step 0.
+ *
+ * So this stays total rather than throwing. Leaving the text intact makes the
+ * step fail its assertion and be recorded as such, which is the right outcome
+ * for a repair that proposed something unusable — where throwing would abort
+ * the run and lose the steps already measured. Pinned by
+ * `tests/unit/runner-params.test.ts`.
+ */
 export function interpolate(template: string, params: ParamBindings): string {
-  return template.replace(HOLE, (match, key: string) => {
+  return template.replace(PARAM_HOLE, (match, key: string) => {
     if (!Object.prototype.hasOwnProperty.call(params, key)) return match;
     return String(params[key]);
   });
