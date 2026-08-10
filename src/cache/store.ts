@@ -32,6 +32,10 @@
  * every earlier version stays on disk. That is the combination §5.3 needs: a
  * current answer plus the history of how it got there.
  *
+ * `list()` returns `(site_key, task_key, step_index)` order, not insertion
+ * order — a store guarantee rather than a caller's job (#121). See
+ * `compareRows`.
+ *
  * No new dependencies — NDJSON over `node:fs` is sufficient. A database would
  * be a much larger decision (ADR territory) and is not warranted to store a few
  * thousand rows.
@@ -96,6 +100,28 @@ function matchesFilter(row: CacheRow, filter?: CacheListFilter): boolean {
 }
 
 /**
+ * Total order on `(site_key, task_key, step_index)` — the read order `list()`
+ * guarantees (#121).
+ *
+ * Without it the result comes back in `Map` insertion order, which is write
+ * order in-process and *file* order after a reload: `JsonlCacheStore` loads the
+ * whole pool file before the tenant file, so a task with mixed eligibility —
+ * the normal case — reads back with its pool rows hoisted to the front. A
+ * caller assembling a program from `list()` would then replay the flow out of
+ * order against a live site, and every row would be individually valid, so the
+ * run would look like ordinary churn failure.
+ *
+ * `bundleToProgram` already sorts rather than trusting array order
+ * (`src/runner/program.ts`); this is the store-side equivalent, and it lives
+ * here so ordering is a property of the store rather than of each caller.
+ */
+function compareRows(a: CacheRow, b: CacheRow): number {
+  if (a.site_key !== b.site_key) return a.site_key < b.site_key ? -1 : 1;
+  if (a.task_key !== b.task_key) return a.task_key < b.task_key ? -1 : 1;
+  return a.step_index - b.step_index;
+}
+
+/**
  * Read side shared by both stores.
  *
  * The two implementations differ only in *where a write lands*; `get` and
@@ -124,9 +150,15 @@ abstract class IndexedCacheStore implements CacheStore {
     return row ? structuredClone(row) : undefined;
   }
 
+  /**
+   * Rows in `(site_key, task_key, step_index)` order — see `compareRows`.
+   * Insertion order is not the caller's business and is not stable across a
+   * reload, so it is never what comes back.
+   */
   list(filter?: CacheListFilter): CacheRow[] {
     return [...this.latest.values()]
       .filter((r) => matchesFilter(r, filter))
+      .sort(compareRows)
       .map((r) => structuredClone(r));
   }
 }

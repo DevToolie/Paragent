@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-08-03
-updated: 2026-08-03
+updated: 2026-08-09
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -26,6 +26,21 @@ once a row is written — persistence, confidence, self-invalidation, and the re
 | `confidence.ts` | The §5.3 model: decay, invalidation, repair rewrite ([ADR-0009](../decisions/ADR-0009-cache-confidence.md)) |
 | `update.ts` | `recordStepOutcome` — turns a step outcome into the next row version |
 | `pipeline.ts` | Canary pipeline (merge-blocking) |
+
+## Read order is a store guarantee
+
+`list()` returns rows sorted by `(site_key, task_key, step_index)`. Ordering belongs to the store,
+not to each caller: `JsonlCacheStore` loads the pool file to exhaustion before the tenant file, so
+insertion order is write order in-process and *file* order after a reload, and a task with mixed
+eligibility — the normal case, 1 of 12 steps on the only compiled bundle in the repo — reads back
+with its pool rows hoisted to the front. A resolver assembling a program from `list()` would then
+replay the flow out of order against a live site with every row individually valid, which reads as
+ordinary churn failure.
+
+Load order is unchanged and still pool-then-tenant, so a key present in both files reads back as
+the tenant-scoped version. Only the read order is sorted. Both stores run the same contract test
+(`tests/unit/cache-store.test.ts`), and the reload case is asserted against a `JsonlCacheStore`
+reopened from disk — a same-process assertion passes without the fix and proves nothing.
 
 ## The one rule that outranks the rest
 
