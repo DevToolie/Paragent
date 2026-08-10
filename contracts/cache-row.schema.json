@@ -43,7 +43,10 @@
     "compiled_action": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "locator_fallback_chain"],
+      "required": [
+        "type",
+        "locator_fallback_chain"
+      ],
       "properties": {
         "type": {
           "type": "string",
@@ -63,11 +66,19 @@
         },
         "param_refs": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "url_template": { "type": "string" },
-        "key": { "type": "string" },
-        "custom_op": { "type": "string" },
+        "url_template": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "custom_op": {
+          "type": "string"
+        },
         "wait_ms": {
           "type": "integer",
           "minimum": 0,
@@ -79,7 +90,9 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["strategy"],
+            "required": [
+              "strategy"
+            ],
             "properties": {
               "strategy": {
                 "type": "string",
@@ -94,13 +107,27 @@
                   "topology_only"
                 ]
               },
-              "role": { "type": "string" },
-              "name": { "type": "string" },
-              "label": { "type": "string" },
-              "testid": { "type": "string" },
-              "structural_path": { "type": "string" },
-              "text": { "type": "string" },
-              "css": { "type": "string" },
+              "role": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "testid": {
+                "type": "string"
+              },
+              "structural_path": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "css": {
+                "type": "string"
+              },
               "tenant_scoped": {
                 "type": "boolean",
                 "default": false
@@ -137,7 +164,10 @@
       "description": "True ONLY if row content is entirely on the positive allowlist (B5). Default false."
     },
     "pool_ineligible_reason": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Required when pool_eligible=false. Null when eligible.",
       "enum": [
         null,
@@ -155,31 +185,88 @@
       "additionalProperties": false,
       "description": "Pool-safe structural summary of the step's place in the flow.",
       "properties": {
-        "prev_action_type": { "type": "string" },
-        "next_action_type": { "type": "string" },
-        "landmark": { "type": "string" }
+        "prev_action_type": {
+          "type": "string"
+        },
+        "next_action_type": {
+          "type": "string"
+        },
+        "landmark": {
+          "type": "string"
+        }
+      }
+    },
+    "invalidated_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "ISO timestamp at which confidence first fell below the invalidation threshold, or null when the row is not invalidated (ADR-0009). Stored rather than derived from confidence so that later tuning of the threshold cannot retroactively relabel history. Invalidated rows are kept, never deleted."
+    },
+    "repair_provenance": {
+      "type": "object",
+      "description": "Present only on a row written by a repair rewrite (ADR-0009): the recorded action failed and a different one passed. Links the new version to the repair that produced it.",
+      "additionalProperties": false,
+      "required": [
+        "repaired_at",
+        "run_id",
+        "repair_attempt"
+      ],
+      "properties": {
+        "repaired_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "repair_attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "replaced_action_type": {
+          "type": "string",
+          "description": "Action type of the version this one replaced."
+        }
       }
     }
   },
   "allOf": [
     {
       "if": {
-        "properties": { "pool_eligible": { "const": false } },
-        "required": ["pool_eligible"]
+        "properties": {
+          "pool_eligible": {
+            "const": false
+          }
+        },
+        "required": [
+          "pool_eligible"
+        ]
       },
       "then": {
-        "required": ["pool_ineligible_reason"],
+        "required": [
+          "pool_ineligible_reason"
+        ],
         "properties": {
           "pool_ineligible_reason": {
-            "not": { "type": "null" }
+            "not": {
+              "type": "null"
+            }
           }
         }
       }
     },
     {
       "if": {
-        "properties": { "pool_eligible": { "const": true } },
-        "required": ["pool_eligible"]
+        "properties": {
+          "pool_eligible": {
+            "const": true
+          }
+        },
+        "required": [
+          "pool_eligible"
+        ]
       },
       "then": {
         "properties": {

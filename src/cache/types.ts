@@ -104,6 +104,22 @@ export interface CacheRow {
   pool_eligible: boolean;
   pool_ineligible_reason?: PoolIneligibleReason | null;
   flow_topology?: FlowTopology;
+  /**
+   * When confidence first fell below the invalidation threshold, or null when
+   * the row is not invalidated (ADR-0009). Stored rather than derived so later
+   * tuning of the threshold cannot retroactively relabel history.
+   */
+  invalidated_at?: string | null;
+  /** Set only on a row produced by a repair rewrite (ADR-0009). */
+  repair_provenance?: RepairProvenance;
+}
+
+export interface RepairProvenance {
+  repaired_at: string;
+  run_id: string;
+  repair_attempt: number;
+  /** Action type of the version this one replaced. */
+  replaced_action_type?: string;
 }
 
 /** Input to write path — pool_eligible is ignored; B5 recomputes. */
