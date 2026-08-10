@@ -40,12 +40,81 @@ const SKIP_FILES = new Set(["package-lock.json", ".coverage"]);
 const SUBSTANTIAL_VALUE = /"value"\s*:\s*"[^"]{16,}"/i;
 
 /**
+ * How far to keep scanning for an array's closing bracket before giving up.
+ *
+ * Only reached by an *unterminated* array — a truncated dump, or prose quoting
+ * an opening bracket it never closes. A real `storageState()` file is valid
+ * JSON and closes long before this.
+ */
+const MAX_ARRAY_SCAN = 100_000;
+
+/**
+ * The text of the JSON array that opens at `openIndex`, bracket-matched.
+ *
+ * This is what scopes the storage-state predicates below (#115). Testing each
+ * condition against the whole file let three *unrelated* fragments combine into
+ * a hit: a `"cookies"` feature-flag array in one place, a field named
+ * `httpOnly` in another, and any 16-char `"value"` in a third. Scoping to the
+ * array means the companion key and the substantial value have to sit inside
+ * the same `"cookies"`/`"origins"` array that raised the suspicion — which is
+ * exactly where a real dump puts them, and where unrelated content cannot be.
+ *
+ * A single linear pass with string/escape awareness, so a `"["` inside a value
+ * does not throw off the depth count. No regex bridge, and therefore none of
+ * the catastrophic-backtracking risk one would carry.
+ *
+ * When the array never closes within `MAX_ARRAY_SCAN`, the capped slice is
+ * returned rather than nothing: a truncated dump is still worth scanning, and
+ * this check must fail toward detection.
+ */
+function jsonArrayAt(body, openIndex) {
+  const end = Math.min(body.length, openIndex + MAX_ARRAY_SCAN);
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = openIndex; i < end; i++) {
+    const ch = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
+      depth -= 1;
+      if (depth === 0) return body.slice(openIndex, i + 1);
+    }
+  }
+  return body.slice(openIndex, end);
+}
+
+/**
+ * True when every `companion` matches inside some array introduced by `anchor`.
+ *
+ * `anchor` must be a sticky-safe global regex ending at the array's `[`; every
+ * occurrence is tried, because a file may hold more than one such array and
+ * only one of them need be a dump.
+ */
+function coOccursInArray(body, anchor, companions) {
+  const re = new RegExp(anchor.source, `${anchor.flags.replace("g", "")}g`);
+  for (let m = re.exec(body); m !== null; m = re.exec(body)) {
+    const slice = jsonArrayAt(body, m.index + m[0].length - 1);
+    if (companions.every((c) => c.test(slice))) return true;
+  }
+  return false;
+}
+
+/**
  * Patterns may be a regex (`re`) or a predicate (`test`).
  *
  * The storage-state entries are predicates on purpose: they need *co-occurrence*
  * of two independent shapes, and expressing that as one regex means a lazy
  * `[\s\S]{0,N}?` bridge between them — which is both unreadable and a
- * backtracking risk on a large file. Two linear scans and an `&&` are neither.
+ * backtracking risk on a large file. A bracket-matched slice plus two linear
+ * scans is neither, and it scopes the co-occurrence instead of merely bounding
+ * the distance.
  */
 const PATTERNS = [
   { name: "env-assignment", re: /^(?!#).*?(?:API[_-]?KEY|SECRET|TOKEN|PASSWORD|COOKIE)\s*=\s*.+/im },
@@ -63,19 +132,27 @@ const PATTERNS = [
   // of those could ever fire on it. Verified: 0 of the 8 prior patterns matched.
   // (This comment avoids spelling the header literal for the same reason the
   //  pattern above builds it by concatenation — the file scans itself.)
+  //
+  // Both conditions are checked *inside the array itself* rather than anywhere
+  // in the file (#115) — see `coOccursInArray`. A dump keeps its keys and its
+  // values in the same array; a document that merely mentions cookies does not.
   {
     name: "storage-state-cookies",
     test: (body) =>
-      /"cookies"\s*:\s*\[/i.test(body) &&
-      /"(?:httpOnly|sameSite)"\s*:/i.test(body) &&
-      SUBSTANTIAL_VALUE.test(body),
+      coOccursInArray(body, /"cookies"\s*:\s*\[/i, [
+        /"(?:httpOnly|sameSite)"\s*:/i,
+        SUBSTANTIAL_VALUE,
+      ]),
   },
   {
     name: "storage-state-origins",
+    // `localStorage` nests inside the origins array, and its entries carry the
+    // values, so the whole shape lives within this one slice.
     test: (body) =>
-      /"origins"\s*:\s*\[/i.test(body) &&
-      /"localStorage"\s*:\s*\[/i.test(body) &&
-      SUBSTANTIAL_VALUE.test(body),
+      coOccursInArray(body, /"origins"\s*:\s*\[/i, [
+        /"localStorage"\s*:\s*\[/i,
+        SUBSTANTIAL_VALUE,
+      ]),
   },
 ];
 
