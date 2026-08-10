@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-07-30
-updated: 2026-08-03
+updated: 2026-08-06
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -180,7 +180,7 @@ patterns to match the storageState shape structurally, verified against every do
 one) that legitimately discusses cookies/storage in prose, so the fix does not trade a false
 negative for a false positive.
 
-### SC-04 — excluded from the compiler's input by construction — **enforced by construction**
+### SC-04 — excluded from the compiler's input by construction — **enforced by construction + test**
 
 `src/compiler/types.ts` independently declares its own `Trajectory` / `TrajectoryStep` /
 `Fingerprint` interfaces (lines 109, 130, 146) for exactly the reason `src/runner/program.ts`
@@ -202,11 +202,33 @@ enumeration, and a network-idle probe only. No cookie read exists there either. 
 repair-model client replaces `StubRepairModelClient`, the thing it gets shown already has this
 property for free.
 
-Filed as [#101](https://github.com/DevToolie/Paragent/issues/101): a tripwire test pinning the
-forbidden-key absence, so a future field addition to any of these types fails loudly instead of
-silently reopening this. Not new enforcement — this status stays "enforced by construction"
-regardless of whether #101 lands; the issue exists so the guarantee stays true on purpose rather
-than by nobody having changed it yet.
+**Pinned by [#101](https://github.com/DevToolie/Paragent/issues/101).**
+`tests/unit/session-material-tripwire.test.ts` asserts that no key normalizing to `cookie`,
+`cookies`, `storagestate`, `localstorage` or `sessionstorage` is reachable from any of these
+types. Not new enforcement — the status gains "+ test" because the guarantee now stays true on
+purpose rather than by nobody having changed it yet.
+
+The tripwire asserts at three levels, because the obvious one is not sufficient on its own:
+
+| Level | Catches | Why the others cannot |
+| --- | --- | --- |
+| **Type surface** (TypeScript compiler API, walked recursively from each root type) | a field **declared** on any reachable interface | an optional field nobody populates is erased at runtime and invisible to an instance walk |
+| **Contract schema** (`properties` names, plus `additionalProperties: false` on every object definition) | a forbidden property, or a relaxed `additionalProperties` | a TS-only change does not touch the schema, and vice versa |
+| **Instances** (real recordings, compiled bundles, a live `capturePageState`) | a value that reached an artifact through an untyped path | neither declaration-level check sees a runtime spread |
+
+Guard-proven rather than asserted. Adding an unpopulated `cookies?: string[]` to `Fingerprint`
+fails three type-surface cases — including via two-hop reachability from `Trajectory` — while all
+twenty schema and instance assertions stay green, which is the whole reason the first level
+exists. Relaxing `$defs.fingerprint.additionalProperties` to `true`, declaring a
+`storage_state` property, and making `capturePageState()` return the context's cookies each fail
+exactly their own level and nothing else.
+
+Keys are compared after normalization (lowercased, separators stripped), so `storage_state`,
+`storageState` and `StorageState` are one entry rather than three near-misses — a future field
+would arrive in whichever convention its author reached for.
+
+The live-browser case sets a real cookie on the context before capturing, so "no cookies present"
+is not the reason it passes.
 
 ### SC-05 — explicit consent language — **not addressed**
 

@@ -123,6 +123,7 @@ describe("recorder package", () => {
       );
       await recorder.click(page.getByRole("button", { name: "Log in" }), "Submit login");
       await recorder.click(page.getByTestId("nav-dashboards"), "Open dashboards list");
+      await recorder.wait("Let the list settle", 50);
 
       const traj = recorder.toTrajectory();
       const text = JSON.stringify(traj);
@@ -150,6 +151,11 @@ describe("recorder package", () => {
       const fillStep = traj.steps.find((s) => s.action.type === "fill");
       expect(fillStep?.locator_candidates.length).toBeGreaterThanOrEqual(2);
       expect(fillStep?.locator_candidates[0]?.strategy).toBe("role_name");
+
+      // #83 / ADR-0008: the recorder must not drop a wait step's duration.
+      const waitStep = traj.steps.find((s) => s.action.type === "wait");
+      expect(waitStep?.action.wait_ms).toBe(50);
+
       expect(validate(traj)).toBe(true);
     } finally {
       await browser.close();

@@ -204,6 +204,26 @@ export async function executeAction(
       }
 
       case "wait": {
+        // A recorded literal (ADR-0008) takes precedence over a runtime-bound
+        // param: it is what was actually observed, and must not be silently
+        // overridable by a same-named --param binding.
+        //
+        // PRESENCE decides here, not magnitude. Both schemas allow `wait_ms: 0`
+        // and `recorder.wait(intent, 0)` is a legal call, so a recorded zero is
+        // an observation — "no wait here" — and replay must reproduce it as an
+        // instant no-op. Gating on `> 0` instead would reinterpret it as "no
+        // duration given" and fall through to networkidle: a different
+        // condition on a different clock, which is the exact drift ADR-0008
+        // exists to close. A non-finite or negative value is not an
+        // observation, so it falls through as if nothing was recorded.
+        const recorded = action.wait_ms;
+        if (recorded !== undefined && Number.isFinite(recorded) && recorded >= 0) {
+          await page.waitForTimeout(recorded);
+          return { ok: true };
+        }
+        // Runtime-bound duration (pre-existing mechanism, unchanged): unlike a
+        // recorded literal this is a slot the caller fills, so an unusable or
+        // non-positive binding means the step never specified a duration.
         const msRaw = firstParam(action, params);
         const ms =
           typeof msRaw === "number"
