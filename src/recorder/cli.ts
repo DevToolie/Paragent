@@ -1,8 +1,9 @@
 /**
  * CLI: record a gate task against the bundled fixture or a live testbed.
  *
- *   --fixture   login → dashboards list (unchanged; the only path that runs
- *               without Docker, and tests/unit/recorder.test.ts depends on it)
+ *   --fixture   login → dashboards list against the bundled HTML fixture, which
+ *               the recorder serves over loopback itself (#141) — the only path
+ *               that runs without Docker
  *   --base-url  the ADR-0006 gate task: build a Stat panel over the seeded
  *               TestData datasource and save it as a named dashboard
  *
@@ -12,6 +13,11 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright";
+import {
+  FIXTURE_URL_TEMPLATE,
+  recordFixtureTask,
+  startFixtureServer,
+} from "./fixture.js";
 import { establishSession, LoginFailedError } from "./preamble.js";
 import { RECORDER_VERSION, TrajectoryRecorder } from "./session.js";
 
@@ -261,7 +267,6 @@ async function main() {
         : `grafana-${TASK_KEY}-${RECORDED_AGAINST}.json`,
     );
 
-  const fixturePath = path.join(__dirname, "fixtures/grafana-gate-login.html");
   const site_key =
     (args["site-key"] as string | undefined) ??
     (useFixture ? "grafana-oss@fixture" : "grafana-oss@pending-adr0003");
@@ -284,44 +289,44 @@ async function main() {
 
   try {
     if (useFixture) {
-      const recorder = new TrajectoryRecorder(page, {
-        trajectory_id: "traj-gate-fixture-login-dashboards",
-        site_key,
-        task_key,
-        base_url_template: "file://{fixture_root}/grafana-gate-login.html",
-        provenance: {
-          recorder: RECORDER_VERSION,
-          agent_model: "human",
-          testbed_version: "fixture-v1",
-          notes:
-            "Recorded against bundled HTML fixture approximating Grafana login→dashboards. ADR-0003 pending; site_key provisional. No real credentials.",
-        },
-        parameters: {
-          fixture_root: "string",
-          username: "string",
-          password: "secret_ref",
-        },
-        bindings: { fixture_root: path.dirname(fixturePath).replace(/\\/g, "/") },
-      });
-      await recorder.navigate(
-        "file://{fixture_root}/grafana-gate-login.html",
-        "Open the login page",
-        ["fixture_root"],
-      );
-      await recorder.fill(page.getByLabel("Username"), "username", username, "Fill username field");
-      await recorder.fill(page.getByLabel("Password"), "password", userPass, "Fill username secret field");
-      await recorder.click(page.getByRole("button", { name: "Log in" }), "Submit login form");
-      await recorder.click(page.getByTestId("nav-dashboards"), "Navigate to Dashboards list");
-      // Self-hiding, non-navigating control — exercises ADR-0007
-      // post_action_target_visible=false so the committed fixture trajectory
-      // demonstrates the case that has no URL change to fall back on.
-      await recorder.click(
-        page.getByTestId("dismiss-notice"),
-        "Dismiss the preview notice",
-      );
-      await mkdir(path.dirname(outPath), { recursive: true });
-      await recorder.write(outPath);
-      console.log(`wrote ${path.relative(ROOT, outPath)}`);
+      // Served over loopback rather than opened as file:// — see
+      // src/recorder/fixture.ts for why a path-valued hole cannot survive
+      // compilation (#141). The recorder owns the server's whole lifetime.
+      const fixtureServer = await startFixtureServer();
+      try {
+        const recorder = new TrajectoryRecorder(page, {
+          trajectory_id: "traj-gate-fixture-login-dashboards",
+          site_key,
+          task_key,
+          base_url_template: FIXTURE_URL_TEMPLATE,
+          provenance: {
+            recorder: RECORDER_VERSION,
+            agent_model: "human",
+            testbed_version: "fixture-v1",
+            notes:
+              "Recorded against the bundled HTML fixture approximating Grafana login→dashboards, served over loopback by the recorder itself (#141). ADR-0003 pending; site_key provisional. No real credentials.",
+          },
+          parameters: {
+            host: "string",
+            port: "integer",
+            username: "string",
+            password: "secret_ref",
+          },
+          bindings: { host: fixtureServer.host, port: fixtureServer.port },
+        });
+        await recordFixtureTask(recorder, page, {
+          username,
+          password: userPass,
+        });
+        await mkdir(path.dirname(outPath), { recursive: true });
+        await recorder.write(outPath);
+        console.log(
+          `wrote ${path.relative(ROOT, outPath)} — replay it by binding ` +
+            "host/port to a server for src/recorder/fixtures/",
+        );
+      } finally {
+        await fixtureServer.close();
+      }
     } else {
       const baseUrl = String(args["base-url"]).replace(/\/$/, "");
       let host = "127.0.0.1";

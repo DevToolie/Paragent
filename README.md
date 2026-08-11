@@ -55,11 +55,15 @@ cd Paragent
 npm install
 
 # 1. Record a login → dashboard-list trajectory against the bundled fixture
+#    (the recorder serves it over loopback for the length of the recording)
 npm run recorder -- --fixture --out trajectory.json
 
 # 2. Compile it into a replayable bundle, one cache row per step
 npm run compile -- --in trajectory.json --out bundle.json
 ```
+
+Replaying that bundle needs `host` and `port` bound to a server for
+`src/recorder/fixtures/` — the same holes a recording against a real site carries.
 
 Point the recorder at a real site instead:
 

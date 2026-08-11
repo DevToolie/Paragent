@@ -3,16 +3,17 @@
   "trajectory_id": "traj-gate-fixture-login-dashboards",
   "site_key": "grafana-oss@fixture",
   "task_key": "login-open-dashboards-list",
-  "recorded_at": "2026-07-25T09:40:20.716Z",
-  "base_url_template": "file://{fixture_root}/grafana-gate-login.html",
+  "recorded_at": "2026-08-11T07:40:56.149Z",
+  "base_url_template": "http://{host}:{port}/grafana-gate-login.html",
   "provenance": {
     "recorder": "0.1.0-b2",
     "agent_model": "human",
     "testbed_version": "fixture-v1",
-    "notes": "Recorded against bundled HTML fixture approximating Grafana login→dashboards. ADR-0003 pending; site_key provisional. No real credentials."
+    "notes": "Recorded against the bundled HTML fixture approximating Grafana login→dashboards, served over loopback by the recorder itself (#141). ADR-0003 pending; site_key provisional. No real credentials."
   },
   "parameters": {
-    "fixture_root": "string",
+    "host": "string",
+    "port": "integer",
     "username": "string",
     "password": "secret_ref"
   },
@@ -22,9 +23,10 @@
       "intent": "Open the login page",
       "action": {
         "type": "navigate",
-        "url_template": "file://{fixture_root}/grafana-gate-login.html",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html",
         "param_refs": [
-          "fixture_root"
+          "host",
+          "port"
         ]
       },
       "locator_candidates": [],
@@ -36,7 +38,7 @@
         "network_idle": false
       },
       "post_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html",
         "title_template": "Grafana",
         "dom_digest": "d819f396878eafea",
         "visible_landmarks": [
@@ -46,8 +48,8 @@
         "network_idle": true
       },
       "timing_ms": {
-        "started_offset_ms": 1,
-        "duration_ms": 555
+        "started_offset_ms": 0,
+        "duration_ms": 557
       },
       "assertion_hint": {
         "suggested_type": "url-matches",
@@ -93,7 +95,7 @@
         }
       ],
       "pre_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html",
         "title_template": "Grafana",
         "dom_digest": "d819f396878eafea",
         "visible_landmarks": [
@@ -103,7 +105,7 @@
         "network_idle": false
       },
       "post_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html",
         "title_template": "Grafana",
         "dom_digest": "d819f396878eafea",
         "visible_landmarks": [
@@ -113,8 +115,8 @@
         "network_idle": true
       },
       "timing_ms": {
-        "started_offset_ms": 556,
-        "duration_ms": 78
+        "started_offset_ms": 557,
+        "duration_ms": 1098
       },
       "assertion_hint": {
         "suggested_type": "element-value-bound",
@@ -161,7 +163,7 @@
         }
       ],
       "pre_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html",
         "title_template": "Grafana",
         "dom_digest": "d819f396878eafea",
         "visible_landmarks": [
@@ -171,7 +173,7 @@
         "network_idle": false
       },
       "post_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html",
         "title_template": "Grafana",
         "dom_digest": "d819f396878eafea",
         "visible_landmarks": [
@@ -181,8 +183,8 @@
         "network_idle": true
       },
       "timing_ms": {
-        "started_offset_ms": 634,
-        "duration_ms": 27
+        "started_offset_ms": 1655,
+        "duration_ms": 1098
       },
       "assertion_hint": {
         "suggested_type": "element-value-bound",
@@ -220,7 +222,7 @@
         }
       ],
       "pre_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html",
         "title_template": "Grafana",
         "dom_digest": "d819f396878eafea",
         "visible_landmarks": [
@@ -230,7 +232,7 @@
         "network_idle": false
       },
       "post_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html#home",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html#home",
         "title_template": "Grafana - Home",
         "dom_digest": "796f6eb7d81bee4f",
         "visible_landmarks": [
@@ -241,8 +243,8 @@
         "network_idle": true
       },
       "timing_ms": {
-        "started_offset_ms": 661,
-        "duration_ms": 64
+        "started_offset_ms": 2753,
+        "duration_ms": 38
       },
       "assertion_hint": {
         "suggested_type": "element-visible",
@@ -280,7 +282,7 @@
         }
       ],
       "pre_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html#home",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html#home",
         "title_template": "Grafana - Home",
         "dom_digest": "796f6eb7d81bee4f",
         "visible_landmarks": [
@@ -291,7 +293,7 @@
         "network_idle": false
       },
       "post_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html#dashboards",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html#dashboards",
         "title_template": "Grafana - Dashboards",
         "dom_digest": "796f6eb7d81bee4f",
         "visible_landmarks": [
@@ -302,8 +304,8 @@
         "network_idle": true
       },
       "timing_ms": {
-        "started_offset_ms": 726,
-        "duration_ms": 66
+        "started_offset_ms": 2792,
+        "duration_ms": 18
       },
       "assertion_hint": {
         "suggested_type": "element-visible",
@@ -341,7 +343,7 @@
         }
       ],
       "pre_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html#dashboards",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html#dashboards",
         "title_template": "Grafana - Dashboards",
         "dom_digest": "796f6eb7d81bee4f",
         "visible_landmarks": [
@@ -352,7 +354,7 @@
         "network_idle": false
       },
       "post_state": {
-        "url_template": "file:///{fixture_root}/grafana-gate-login.html#dashboards",
+        "url_template": "http://{host}:{port}/grafana-gate-login.html#dashboards",
         "title_template": "Grafana - Dashboards",
         "dom_digest": "796f6eb7d81bee4f",
         "visible_landmarks": [
@@ -363,8 +365,8 @@
         "network_idle": true
       },
       "timing_ms": {
-        "started_offset_ms": 792,
-        "duration_ms": 41
+        "started_offset_ms": 2810,
+        "duration_ms": 1059
       },
       "assertion_hint": {
         "suggested_type": "element-visible",
