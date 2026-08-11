@@ -1,5 +1,5 @@
 ---
-title: Architecture — how the six packages connect
+title: Architecture — how the packages connect
 doc_type: spec
 status: draft
 owner: B0
@@ -12,7 +12,8 @@ sources_verified: true
 
 # Architecture
 
-Six pipeline packages under `src/` plus one shared leaf, four JSON Schemas in `contracts/`, one
+Six pipeline packages under `src/` plus two leaves that are not pipeline stages (`src/shared/`,
+`src/session/`), four JSON Schemas in `contracts/`, one
 throwaway harness in `experiments/gate-v1/`. Each pipeline package has a spec doc under
 [`gate/`](./gate/); this document owns the **chain** — what hands what to whom, under which
 contract, and where the chain is not actually connected yet.
@@ -113,6 +114,7 @@ record → compile → cache-write → replay) is the issue that closes both.
 | `src/runner/` | Replay a compiled program in Playwright; repair actions only on failure; emit measured metrics | `src/runner/index.ts` (library only — driven by `experiments/gate-v1/run-matrix.ts`) | `cache-row.schema.json`, `assertion.schema.json` shapes (via `CompiledProgram`) | none directly — emits through `src/metrics/` | [gate/runner.md](./gate/runner.md) |
 | `src/metrics/` | Cost arithmetic, NDJSON emitter, PRD §9 aggregates that report `no_data` on an empty denominator | `src/metrics/index.ts` (library only) | `metrics.schema.json` (`readMetricNdjson`) | `metrics.schema.json` | §9 sections in [prd/PRD-trajectory-cache-v0.2.md](./prd/PRD-trajectory-cache-v0.2.md) |
 | `src/shared/` | **Not a pipeline stage.** In-page JS source strings two capture sites must run identically — today the `visible_landmarks` enumeration | `src/shared/index.ts` (library only) | none | none — feeds the `trajectory.schema.json` `visible_landmarks` field written by the recorder | see below |
+| `src/session/` | **Not a pipeline stage, and has no callers.** Encrypted-at-rest persistence for browser session state, so the first code that needs it has no unencrypted path (SC-01, #98) | `src/session/index.ts` (library only) | none | none — a binary envelope, not a repo contract | [privacy/session-state-encryption.md](./privacy/session-state-encryption.md) |
 | `experiments/gate-v1/` | Throwaway harness: walk the version list, emit rows, render the report. **Not a product API** | `npm run gate:matrix`, `npm run gate:report` | `metrics.schema.json`, `scripts/testbed/matrix.json` (via `src/testbed/matrix.ts`) | `metrics.schema.json` | [experiments/gate-v1/README.md](../experiments/gate-v1/README.md) |
 
 `src/cache/` has no spec doc under `gate/`; its contract is

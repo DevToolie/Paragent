@@ -36,7 +36,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | --- | --- | --- | --- | --- |
 | [ROADMAP.md](./ROADMAP.md) | Current state, what is stubbed, milestones M0–M7 in order | accepted | 2026-07-25 | **Read before picking up an issue** |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Commands, layout, data flow, invariants, pre-PR checklist | accepted | 2026-07-25 | Contributor runbook |
-| [architecture.md](./architecture.md) | How the six `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-07-25 | Owns the **chain** between packages; `gate/*.md` own one hop each. Records two unwired hops (issue #52) |
+| [architecture.md](./architecture.md) | How the `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-07-25 | Owns the **chain** between packages; `gate/*.md` own one hop each. Records two unwired hops (issue #52) |
 | [README-narrative.md](./README-narrative.md) | Story: thesis → census kill → pivot → two tracks → evidence now | draft | 2026-07-25 | Includes C5 FAIL |
 | [INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md) | Unsourced claims, placeholders, LOW load-bearing, contradictions | draft | 2026-07-25 | Surfaces conflicts; does not pick winners |
 | [README-internal.md](./README-internal.md) | Internal entry point: status table, tracks, public-repo rules, layout, stack | accepted | 2026-08-10 (moved from repo root, content unchanged) | Was `../README.md` until the root became visitor-facing. Track 2 **FAIL** / Track 3 Wave-1 draft match C5 + ADR-0004; INTEGRITY-AUDIT D-04 resolved |
@@ -124,7 +124,8 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | Doc | What it is | Status | Last true | Notes |
 | --- | --- | --- | --- | --- |
 | [boundary-spec.md](privacy/boundary-spec.md) | Write-time allowlist | review | 2026-07-24 | PRD §6; canary merge-blocking |
-| [session-custody.md](privacy/session-custody.md) | Session-custody checklist + gap analysis | draft | 2026-07-30 | PRD §7; distinct from §6's pooling allowlist — see doc. Not merge-blocking yet, gaps filed as #98-#103 |
+| [session-custody.md](privacy/session-custody.md) | Session-custody checklist + gap analysis | draft | 2026-08-11 | PRD §7; distinct from §6's pooling allowlist — see doc. SC-01 closed by #98; SC-02/04 enforced; SC-03/05/06 open (#100, #102, #103) |
+| [session-state-encryption.md](privacy/session-state-encryption.md) | SC-01 mechanism: threat model per environment, the envelope, and what key custody v1 **defers** | accepted | 2026-08-11 | Issue #98. A capability with **no callers** — nothing persists session material yet, and this does not change that |
 
 ---
 
