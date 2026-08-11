@@ -7,6 +7,7 @@
  */
 
 import type { Cost, StepMode, StepOutcome } from "../metrics/types.js";
+import type { ContextElement, ContextLevel } from "../shared/page-context.js";
 
 export type LocatorStrategy =
   | "role_name"
@@ -155,6 +156,20 @@ export interface PageStateSnapshot {
   visible_landmarks: string[];
   network_idle: boolean;
   captured_at: string;
+  /**
+   * Which context budget produced this snapshot (ADR-0012, #125).
+   *
+   * Recorded on the snapshot, not just in config, because a self-heal rate is
+   * not reproducible without knowing what the model could see. Two runs with
+   * the same `model_id` and different levels are not comparable.
+   */
+  context_level?: ContextLevel;
+  /**
+   * Interactive elements the repair may target: role + accessible name only.
+   * Empty at the `landmarks` level. Never carries an input's value — see
+   * `src/shared/page-context.ts`.
+   */
+  elements?: ContextElement[];
 }
 
 export interface RepairContext {

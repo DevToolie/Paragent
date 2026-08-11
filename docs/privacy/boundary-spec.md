@@ -4,7 +4,7 @@ doc_type: spec
 status: review
 owner: B5
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-08-11
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -126,6 +126,28 @@ a `JSON.parse` failure per line, skips only that line, and reports it through `l
 `console.warn` with no sink configured — silence is not an option). This is safe *because* the
 cache is not the ledger: a row that never fully landed on disk is exactly as good as a cache
 miss, and the write path can produce it again.
+
+## The repair prompt is a second egress (ADR-0012)
+
+This spec governs what may enter the **pool**. [ADR-0012](../decisions/ADR-0012-repair-context-budget.md)
+governs a different exit: what may be sent to a **repair model**, which #27 will make a real
+network call to a third party.
+
+They are not the same boundary and neither supersedes the other. A pool row is stored and reused
+across tenants; a repair payload is sent once and not retained here. The pool rules are stricter
+on reuse; the egress rules are stricter on content, because the destination is outside the
+process.
+
+What the repair payload may carry, and nothing else: the failed step's locators (minus free
+text), the assertion's type and strength, the page URL, title, landmarks, and the role +
+accessible name of visible interactive elements. **No input values at any level** — see
+`src/shared/page-context.ts`. `serializeRepairContext()` is the only authorized shape and
+`tests/canary/repair-egress.test.ts` is merge-blocking.
+
+Open, and shared with [#126](https://github.com/DevToolie/Paragent/issues/126): an accessible
+name is page-authored. On self-hosted open-source software at a pinned tag it is vendor
+vocabulary anyone can reproduce; on a closed portal it may carry tenant strings this spec has not
+classified.
 
 ## Attacks this does NOT defend against
 

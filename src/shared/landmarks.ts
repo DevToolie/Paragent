@@ -91,17 +91,30 @@ export const IMPLICIT_LANDMARK_ROLE_BY_TAG: ReadonlyArray<readonly [string, stri
  * Keep prose OUT of the template literal below: a stray backtick or `${`
  * terminates it. That is a build break, not a runtime one.
  */
-export const LANDMARK_ENUMERATION_JS = `
-const paragentLandmarkRoles = new Set(${JSON.stringify(LANDMARK_ROLES)});
-const paragentImplicitRoles = new Map(${JSON.stringify(IMPLICIT_LANDMARK_ROLE_BY_TAG)});
-const paragentIsVisible = (el) => {
+/**
+ * The visibility predicate, as text, defining `paragentIsVisible`.
+ *
+ * Extracted so a **third** capture site can share it rather than copy it
+ * (#125's repair context, `page-context.ts`). ADR-0007 and #74 are both about
+ * the same failure: two walks that agree today and drift tomorrow, with the
+ * divergence only visible downstream in what a repair model gets shown.
+ * `tests/unit/landmarks.test.ts` asserts `checkVisibility` appears in exactly
+ * one file under `src/`, which is what forced this extraction rather than a
+ * second copy — the guard worked.
+ */
+export const VISIBILITY_PREDICATE_JS = `const paragentIsVisible = (el) => {
   if (typeof el.checkVisibility === "function") {
     return el.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true });
   }
   const cs = window.getComputedStyle(el);
   if (cs && (cs.visibility === "hidden" || cs.display === "none")) return false;
   return el.getClientRects().length > 0;
-};
+};`;
+
+export const LANDMARK_ENUMERATION_JS = `
+const paragentLandmarkRoles = new Set(${JSON.stringify(LANDMARK_ROLES)});
+const paragentImplicitRoles = new Map(${JSON.stringify(IMPLICIT_LANDMARK_ROLE_BY_TAG)});
+${VISIBILITY_PREDICATE_JS}
 const paragentRoleOf = (el) =>
   el.getAttribute("role") || paragentImplicitRoles.get(el.tagName) || null;
 const paragentWalk = (root, visit) => {

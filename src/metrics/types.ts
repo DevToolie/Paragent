@@ -95,6 +95,11 @@ export interface RunMetric {
   /** True when the run stopped on its budget rather than finishing (#84). */
   budget_exhausted?: boolean;
   amortized_cost_tokens?: number;
+  /**
+   * Context budget the repair model was given (ADR-0012, #125). Absent when no
+   * repair was attempted. A self-heal rate without this is not reproducible.
+   */
+  repair_context_level?: "landmarks" | "interactive" | "tree";
   recorded_at: string;
 }
 

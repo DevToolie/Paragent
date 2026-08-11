@@ -6,6 +6,12 @@
 import type { Page } from "playwright";
 import type { PageStateSnapshot } from "./types.js";
 import { VISIBLE_LANDMARKS_EXPRESSION_JS } from "../shared/landmarks.js";
+import {
+  DEFAULT_CONTEXT_LEVEL,
+  contextExpression,
+  type ContextElement,
+  type ContextLevel,
+} from "../shared/page-context.js";
 
 export function emptyPageState(
   overrides: Partial<PageStateSnapshot> = {},
@@ -19,7 +25,10 @@ export function emptyPageState(
   };
 }
 
-export async function capturePageState(page: Page): Promise<PageStateSnapshot> {
+export async function capturePageState(
+  page: Page,
+  level: ContextLevel = DEFAULT_CONTEXT_LEVEL,
+): Promise<PageStateSnapshot> {
   const url = page.url();
   const title = await page.title();
   // ADR-0007: visibility-filtered. querySelector alone matched hidden nodes and
@@ -52,11 +61,22 @@ export async function capturePageState(page: Page): Promise<PageStateSnapshot> {
     // Probe failed — leave it false rather than inventing success.
   }
 
+  // ADR-0012 (#125): the repair model was given landmark role names and asked
+  // to produce a locator, which is a role plus an accessible name — information
+  // the context structurally did not contain. `elements` is that information,
+  // and nothing more: role, accessible name, and a state flag. An element's
+  // value is never read, at any level.
+  const elements = (await page.evaluate(
+    contextExpression(level),
+  )) as ContextElement[];
+
   return {
     url,
     title,
     visible_landmarks,
     network_idle,
     captured_at: new Date().toISOString(),
+    context_level: level,
+    elements,
   };
 }

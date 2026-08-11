@@ -8,3 +8,4 @@
  */
 export const PACKAGE = "shared" as const;
 export * from "./landmarks.js";
+export * from "./page-context.js";
