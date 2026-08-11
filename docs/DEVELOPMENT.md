@@ -45,7 +45,23 @@ required only for the testbed; everything else runs without it.
 | `npm run validate:contracts` | Ajv-validates `contracts/examples/*` against the schemas, plus every trajectory-shaped `.json` under `experiments/` — see below | yes |
 | `npm run lint` / `npm run typecheck` | eslint / `tsc --noEmit`. Lint ignores exactly what `.gitignore` ignores, read from that file rather than restated ([#144](https://github.com/DevToolie/Paragent/issues/144)) — so generated output like `experiments/gate-v1/out/` cannot fail lint on your machine while CI, which has no such files, stays green | yes |
 | `npm run lint:docs` | `scripts/lint-docs.mjs` — frontmatter keys and values, `docs/README.md` index coverage, trailing Open-questions section, relative links that resolve | yes |
-| `npm run test` | Unit tests (`tests/unit`) | yes |
+| `npm run test` | Unit tests (`tests/unit`) — see the note on browser suites below | yes |
+
+### Browser-driven suites, and why the runner is capped
+
+Eleven suites launch real Chromium. Two rules keep that from turning `npm test` into a machine
+that is slower than the tests it runs ([#145](https://github.com/DevToolie/Paragent/issues/145)):
+
+- **Launch through `launchTestBrowser()`** (`tests/helpers/browser.ts`), never Playwright
+  directly. It sets an explicit launch ceiling and reports an unlaunchable browser as
+  `BrowserLaunchError` — an environment problem, named as one — instead of failing inside
+  whichever assertion happened to run first. `tests/unit/browser-launch.test.ts` fails the build
+  on a direct call.
+- **`vitest.config.ts` caps workers** (default 4, `PARAGENT_TEST_WORKERS` overrides), so browsers
+  cannot outnumber cores. This is the actual fix for the 944-second test that prompted the issue:
+  per-test timeouts are enforced by a timer, and a timer needs CPU, so a badly oversubscribed
+  machine starves the very thing meant to bound it. Measured cost of the cap on a 10-core laptop:
+  none — 28.0 s against 28.6 s uncapped, because one suite dominates either way.
 
 ### Running the pieces
 
@@ -102,9 +118,10 @@ src/
   metrics/    Cost types, NDJSON emitter, PRD §9 aggregates
 experiments/gate-v1/  Throwaway gate harness — do not promote into a product API
 tests/
-  unit/         Fast, no Docker, no network
+  unit/         Fast, no Docker, no network (eleven suites do drive a real browser)
   integration/  Whole pipeline against a loopback fixture — no Docker, no model
   canary/       Privacy boundary — merge-blocking
+  helpers/      Shared test scaffolding — `launchTestBrowser()` is the only way a suite starts Chromium
 scripts/      secret-scan, validate-contracts, branch protection, testbed compose
 artifacts/    Compiled bundles (committed)
 docs/         Map: docs/README.md

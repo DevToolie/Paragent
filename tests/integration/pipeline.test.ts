@@ -10,7 +10,8 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser, type Page } from "playwright";
+import { type Browser, type Page } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { TrajectoryRecorder } from "../../src/recorder/index.js";
@@ -124,7 +125,7 @@ describe("pipeline: record -> compile -> cache -> replay", () => {
   beforeAll(async () => {
     server = await startFixtureServer();
     params = buildParams(server.port);
-    browser = await chromium.launch({ headless: true });
+    browser = await launchTestBrowser();
   }, 60_000);
 
   afterAll(async () => {

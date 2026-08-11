@@ -16,7 +16,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser, type Page } from "playwright";
+import { type Browser, type Page } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { captureFingerprint } from "../../src/recorder/fingerprint.js";
 import { capturePageState } from "../../src/runner/page-state.js";
@@ -46,7 +47,7 @@ describe("shared landmark enumeration (#74)", () => {
   });
 
   beforeAll(async () => {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchTestBrowser();
     page = await browser.newPage();
   }, 60_000);
 

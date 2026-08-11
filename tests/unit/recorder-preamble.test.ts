@@ -18,7 +18,8 @@ import { readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser } from "playwright";
+import { type Browser } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { establishSession, LoginFailedError } from "../../src/recorder/preamble.js";
 
@@ -127,7 +128,7 @@ describe("login preamble (#60)", () => {
   let browser: Browser;
 
   beforeAll(async () => {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchTestBrowser();
   }, 60_000);
 
   afterAll(async () => {
