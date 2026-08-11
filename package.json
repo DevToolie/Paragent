@@ -27,6 +27,7 @@
     "ci": "npm run secret-scan && npm run validate:contracts && npm run lint && npm run lint:docs && npm run typecheck && npm run test && npm run test:integration"
   },
   "devDependencies": {
+    "@eslint/compat": "2.1.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.2",
     "ajv": "^8.17.1",
