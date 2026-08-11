@@ -92,7 +92,7 @@ docs/                # map: docs/README.md
 archive/             # superseded scaffolds (Python hello) + preserved history
 ```
 
-How the six packages connect: [docs/architecture.md](./architecture.md).
+How the packages connect: [docs/architecture.md](./architecture.md).
 Where the project is and what to pick up next: [docs/ROADMAP.md](./ROADMAP.md).
 How to run, test, and ship a change: [docs/DEVELOPMENT.md](./DEVELOPMENT.md).
 

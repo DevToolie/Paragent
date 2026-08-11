@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-07-30
-updated: 2026-08-06
+updated: 2026-08-11
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -45,7 +45,30 @@ mechanism), **enforced by test** (representable, but a test fails the build if i
 **conventional only** (relies on nobody doing the wrong thing; no automated check), **not
 addressed** (no mechanism, no test, nothing).
 
-### SC-01 — encrypted at rest, per-tenant keys — **not addressed**
+### SC-01 — encrypted at rest, per-tenant keys — **enforced by construction, canary-proven; still no caller**
+
+**Updated 2026-08-11 (#98).** The gap analysis below was written when there was no mechanism at
+all. There now is one — `src/session/`, specified in
+[session-state-encryption.md](./session-state-encryption.md) — and the status splits in two:
+
+- **The mechanism: enforced by construction.** `writeEncryptedStorageState` requires a
+  `TenantKey`, which has a private constructor and private material and therefore cannot be
+  forged by an object literal. An unencrypted write is a **compile error**, pinned by
+  `@ts-expect-error` cases in `tests/unit/session-store.test.ts` that fail the build if those
+  calls ever compile. Per-tenant HKDF derivation, AES-256-GCM, 0600, opaque `key_id` instead of
+  the tenant id on disk.
+- **The canary: merge-blocking.** `tests/canary/session-plaintext.test.ts` writes synthetic state
+  through the real path and greps the **bytes on disk**, with a mutation-style counter-case that
+  writes the same state in plaintext and asserts every marker *is* found — so the "not present"
+  assertions cannot go vacuous unnoticed.
+- **The exposure: still zero, and still untested against reality.** Nothing calls it. Key
+  custody (KMS, rotation, offboarding) is deferred and written down. The round trip has only ever
+  run over synthetic fixtures, because this repo has never produced a real `storageState()`.
+
+The original analysis is preserved below, because it is what the requirement was assessed
+against and the "safe by omission" reading it warns about is still the one to avoid.
+
+#### Original assessment (2026-07-30) — **not addressed**
 
 Verified by repo-wide search: no call to Playwright's `context.storageState()`, `context.cookies()`,
 `context.addCookies()`, or `chromium.launchPersistentContext()` (a persisted user-data directory)
@@ -300,8 +323,9 @@ first place: there is no customer being automated and no third party being visit
 being a fixture. SC-05 becomes required before the first such run, not before a paid pilot — the
 consent requirement is about automating *anyone's* real account, not specifically a paying
 customer's. SC-06 becomes required the moment the target is a portal this project does not own,
-matching pivot brief §5's counterparty framing exactly. SC-01/02/03's current "not
-addressed"/"conventional only" statuses stop being acceptable the moment session material is real
+matching pivot brief §5's counterparty framing exactly. SC-01 now has a mechanism and a
+merge-blocking canary (#98) but still no caller and no real material behind it; SC-02/03's
+"conventional only" statuses stop being acceptable the moment session material is real
 rather than absent — none of Track 1's current green checks (`npm run test:canary`,
 `npm run secret-scan`) were exercised against real session material, and this doc's empirical
 finding under SC-03 shows at least one of them would not catch it if it were.
@@ -310,7 +334,7 @@ finding under SC-03 shows at least one of them would not catch it if it were.
 
 | Gap | Proposed test shape | Issue |
 | --- | --- | --- |
-| SC-01 | Canary: persist a fixture storage-state through the real path, read raw bytes on disk, assert not plaintext-parseable; mutation case proves a broken key leaves plaintext | [#98](https://github.com/DevToolie/Paragent/issues/98) |
+| SC-01 | ~~Canary: persist a fixture storage-state through the real path, read raw bytes on disk, assert not plaintext-parseable; mutation case proves a broken key leaves plaintext~~ **Built** — `tests/canary/session-plaintext.test.ts`, with the plaintext counter-case; mechanism in [session-state-encryption.md](./session-state-encryption.md) | [#98](https://github.com/DevToolie/Paragent/issues/98) |
 | SC-02 residual | Unit test: `toTrajectory()`'s return value, serialized directly (not via `write()`), still matches none of `assertNoLiteralSecrets`'s patterns. Replace the hand-maintained `extraTrajectories` list with a glob | [#99](https://github.com/DevToolie/Paragent/issues/99) |
 | SC-03 | New `secret-scan.mjs` pattern(s) for the storageState shape; fixture proves a catch; every existing doc discussing cookies/storage in prose proves a non-catch | [#100](https://github.com/DevToolie/Paragent/issues/100) |
 | SC-04 | Tripwire: forbidden-key list never appears in serialized compiler `Trajectory`/`Fingerprint` or runner `PageStateSnapshot` output | [#101](https://github.com/DevToolie/Paragent/issues/101) |
@@ -326,8 +350,12 @@ no citation, since it reads as verified when it silently is not.
 
 ## Open questions / what I could not verify
 
-- Whether any future encrypted-storage implementation (SC-01) should use OS keychain integration,
-  a KMS, or a simpler per-install key file for v1 — not sized here, left to #98.
+- ~~Whether any future encrypted-storage implementation (SC-01) should use OS keychain integration,
+  a KMS, or a simpler per-install key file for v1 — not sized here, left to #98.~~ **Answered
+  (#98):** an env-supplied master key with per-tenant HKDF derivation, and key **custody**
+  explicitly deferred with the reasons and the prod prerequisites written down in
+  [session-state-encryption.md](./session-state-encryption.md). The derivation is per-tenant from
+  the start because that is the part retrofitting cannot fix without re-encrypting everything.
 - Whether Grafana's own container logs could ever surface a session cookie server-side (independent
   of anything this repo writes) — out of this repo's control either way, not tested.
 - Whether `docs/privacy/boundary-spec.md`'s canary pipeline should grow a session-custody-style
