@@ -43,6 +43,22 @@ const scan = scanText as (body: string) => string | null;
 const fakeCookieValue = "FAKE" + "0".repeat(28);
 const fakeStorageValue = "FAKE-" + "local" + "storage-value-not-real";
 
+/**
+ * A dump-shaped cookie array around a value, built rather than written out.
+ *
+ * Same reason as the constants above: a template literal spelling
+ * `"value":"${...}"` puts sixteen-plus characters between the quotes *in this
+ * file's own source*, which is enough for the pattern to fire on the test that
+ * is checking it. Assembling the string keeps the source clean.
+ */
+function cookieJar(value: string): string {
+  return (
+    '{"cookies":[{"name":"s",' +
+    `"${"val" + "ue"}":"${value}",` +
+    '"httpOnly":true,"sameSite":"Lax"}]}'
+  );
+}
+
 describe("storage-state detection (#100)", () => {
   it("catches a synthetic Playwright storageState dump", () => {
     expect(scan(readFileSync(FIXTURE, "utf8"))).toBe("storage-state-cookies");
@@ -126,6 +142,64 @@ describe("no false positive on prose", () => {
       const body = `{"cookies":[{"name":"s","value":"${placeholder}","httpOnly":true}]}`;
       expect(scan(body), `flagged placeholder ${placeholder}`).toBeNull();
     }
+  });
+});
+
+/**
+ * #115 — co-occurrence is scoped to one array, not to the whole file.
+ *
+ * Before this, each of the three conditions was an independent `.test(body)`,
+ * so unrelated fragments anywhere in a document combined into a hit. These are
+ * synthetic collisions rather than repo documents on purpose: the negative
+ * cases above are all real files, which is exactly why none of them caught it.
+ */
+describe("no false positive on unrelated content in the same file", () => {
+  const longIdent = "a3f9c1d47b2e8065f1"; // 18 chars: a hash, a UUID, a cache key
+
+  it("does not combine three unrelated fragments into a storage-state hit", () => {
+    const body = [
+      '{"cookies":["analytics","functional","performance"]}',
+      '{"transport":{"httpOnly":false,"note":"unrelated flag"}}',
+      `{"cacheKey":{"name":"digest","value":"${longIdent}"}}`,
+    ].join("\n\n");
+    expect(scan(body)).toBeNull();
+  });
+
+  it("does not fire when the substantial value sits outside the cookies array", () => {
+    // The array is object-shaped and carries the companion key, so only the
+    // scoping keeps this clean.
+    const body =
+      '{"cookies":[{"name":"consent","httpOnly":true,"value":"yes"}],' +
+      `"build":{"value":"${longIdent}"}}`;
+    expect(scan(body)).toBeNull();
+  });
+
+  it("does not fire when localStorage and the value belong to different objects", () => {
+    const body =
+      '{"origins":[{"origin":"http://example.test","localStorage":[]}]}\n' +
+      `{"telemetry":{"value":"${longIdent}"}}`;
+    expect(scan(body)).toBeNull();
+  });
+
+  it("still fires when all three are genuinely in the same entry", () => {
+    // Counter-check: if the scoping were simply too tight, every test above
+    // would pass for the wrong reason and the patterns would be dead.
+    expect(scan(cookieJar(fakeCookieValue))).toBe("storage-state-cookies");
+  });
+
+  it("survives a value containing brackets and escaped quotes", () => {
+    // The span scan is string-aware and escape-aware; a `]` inside the value
+    // must not close the array early and hide the rest of the entry.
+    expect(scan(cookieJar(`${fakeCookieValue}]}\\"x`))).toBe("storage-state-cookies");
+  });
+
+  it("finds a dump that is not the first cookies-shaped array in the file", () => {
+    const body = [
+      '{"cookies":["analytics"]}',
+      '{"cookies":[{"name":"consent","value":"yes","sameSite":"Lax"}]}',
+      cookieJar(fakeCookieValue),
+    ].join("\n");
+    expect(scan(body)).toBe("storage-state-cookies");
   });
 });
 

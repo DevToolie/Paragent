@@ -36,8 +36,94 @@ const SKIP_FILES = new Set(["package-lock.json", ".coverage"]);
  * 16 characters clears every placeholder in the tree ("...", "REDACTED",
  * "<omitted>") while sitting far below a real session cookie — Grafana's is 32
  * hex characters, a JWT is hundreds.
+ *
+ * No closing quote is required. `[^"]` cannot cross one, so sixteen matched
+ * characters are already sixteen characters of one value; demanding the
+ * terminator only adds a way to miss a dump truncated mid-write.
  */
-const SUBSTANTIAL_VALUE = /"value"\s*:\s*"[^"]{16,}"/i;
+const SUBSTANTIAL_VALUE = /"value"\s*:\s*"[^"]{16,}/i;
+
+/**
+ * Longest span the co-occurrence check will read from one anchor, and the most
+ * anchors it will follow in one file (#115).
+ *
+ * Both exist so the scan stays linear on a hostile input rather than because a
+ * real dump needs the room: Grafana's whole `storageState()` is a few hundred
+ * bytes. A file that manages to exceed either bound has already been read into
+ * memory by the 1.5MB gate above, so these only bound the *scanning*.
+ */
+const MAX_SPAN = 100_000;
+const MAX_ANCHORS = 32;
+
+/**
+ * The JSON value opening at `openIndex`, up to its matching bracket.
+ *
+ * A single forward pass with a depth counter, string-aware so a `]` inside a
+ * cookie value cannot close the array early, and escape-aware so a `\"` inside
+ * that value cannot end the string early. No regex, so no backtracking — which
+ * is the concern that made the original co-occurrence check two whole-file
+ * scans in the first place.
+ *
+ * An unterminated value (a truncated file, or a `[` that was prose rather than
+ * JSON) returns what it read up to the bound. That is the fail-closed
+ * direction: the check still runs, over more text rather than less.
+ */
+function jsonSpan(body, openIndex) {
+  const end = Math.min(body.length, openIndex + MAX_SPAN);
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = openIndex; i < end; i++) {
+    const ch = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
+      depth--;
+      if (depth === 0) return body.slice(openIndex, i + 1);
+    }
+  }
+  return body.slice(openIndex, end);
+}
+
+/**
+ * Co-occurrence, scoped to one array rather than to the whole file (#115).
+ *
+ * The first version of this tested each condition with an independent
+ * `.test(body)`, so three unrelated things anywhere in a document combined into
+ * a hit: a `"cookies"` feature-flag array, a field named `httpOnly` somewhere
+ * else, and any 16-character `"value"` somewhere else again — a hash, a UUID, a
+ * cache key. None of that is a session dump, and a false positive here breaks
+ * CI on a PR that has nothing to do with secrets.
+ *
+ * Scoping by *structure* rather than by a character window is what makes the
+ * distinction exact: the companion key and the substantial value must sit inside
+ * the same array the anchor opened. A window would still have to guess a
+ * distance, and a JWT is long enough to push the two apart by more than any
+ * number that also excludes unrelated neighbours.
+ *
+ * The anchor deliberately requires an array **of objects** (`[` then `{`). A
+ * dump has one; `"cookies": ["analytics", "functional"]` does not, so the check
+ * never even opens a span on it.
+ */
+function coOccursInArray(body, anchor, companion) {
+  let seen = 0;
+  for (const m of body.matchAll(anchor)) {
+    if (++seen > MAX_ANCHORS) break;
+    // The anchor ends at the `[` it matched, so the span starts there — the
+    // `{` it also matched is inside the array and is found again by the scan.
+    const open = body.indexOf("[", m.index);
+    if (open === -1) continue;
+    const span = jsonSpan(body, open);
+    if (companion.test(span) && SUBSTANTIAL_VALUE.test(span)) return true;
+  }
+  return false;
+}
 
 /**
  * Patterns may be a regex (`re`) or a predicate (`test`).
@@ -45,7 +131,8 @@ const SUBSTANTIAL_VALUE = /"value"\s*:\s*"[^"]{16,}"/i;
  * The storage-state entries are predicates on purpose: they need *co-occurrence*
  * of two independent shapes, and expressing that as one regex means a lazy
  * `[\s\S]{0,N}?` bridge between them — which is both unreadable and a
- * backtracking risk on a large file. Two linear scans and an `&&` are neither.
+ * backtracking risk on a large file. A bounded structural span and an `&&` are
+ * neither.
  */
 const PATTERNS = [
   { name: "env-assignment", re: /^(?!#).*?(?:API[_-]?KEY|SECRET|TOKEN|PASSWORD|COOKIE)\s*=\s*.+/im },
@@ -66,16 +153,12 @@ const PATTERNS = [
   {
     name: "storage-state-cookies",
     test: (body) =>
-      /"cookies"\s*:\s*\[/i.test(body) &&
-      /"(?:httpOnly|sameSite)"\s*:/i.test(body) &&
-      SUBSTANTIAL_VALUE.test(body),
+      coOccursInArray(body, /"cookies"\s*:\s*\[\s*\{/gi, /"(?:httpOnly|sameSite)"\s*:/i),
   },
   {
     name: "storage-state-origins",
     test: (body) =>
-      /"origins"\s*:\s*\[/i.test(body) &&
-      /"localStorage"\s*:\s*\[/i.test(body) &&
-      SUBSTANTIAL_VALUE.test(body),
+      coOccursInArray(body, /"origins"\s*:\s*\[\s*\{/gi, /"localStorage"\s*:\s*\[/i),
   },
 ];
 
