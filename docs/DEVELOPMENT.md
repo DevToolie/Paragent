@@ -43,7 +43,7 @@ required only for the testbed; everything else runs without it.
 | `npm run test:integration` | Whole loop on a loopback fixture: record → compile → cache-write → replay → report | yes |
 | `npm run secret-scan` | `scripts/secret-scan.mjs` over the tree | yes |
 | `npm run validate:contracts` | Ajv-validates `contracts/examples/*` against the schemas, plus every trajectory-shaped `.json` under `experiments/` — see below | yes |
-| `npm run lint` / `npm run typecheck` | eslint / `tsc --noEmit` | yes |
+| `npm run lint` / `npm run typecheck` | eslint / `tsc --noEmit`. Lint ignores exactly what `.gitignore` ignores, read from that file rather than restated ([#144](https://github.com/DevToolie/Paragent/issues/144)) — so generated output like `experiments/gate-v1/out/` cannot fail lint on your machine while CI, which has no such files, stays green | yes |
 | `npm run lint:docs` | `scripts/lint-docs.mjs` — frontmatter keys and values, `docs/README.md` index coverage, trailing Open-questions section, relative links that resolve | yes |
 | `npm run test` | Unit tests (`tests/unit`) — see the note on browser suites below | yes |
 
