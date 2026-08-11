@@ -43,6 +43,23 @@ const SUCCESS_OUTCOMES: ReadonlySet<StepOutcome> = new Set([
   "REPAIRED_PASS",
 ]);
 
+/**
+ * Default per-run wall-clock ceiling (#84, ADR-0011).
+ *
+ * A guard rail, not a scheduler: it must never fire on a healthy run. Derived
+ * from the per-step ceilings the runner already enforces — each step is bounded
+ * by an assertion timeout (`DEFAULT_ASSERTION_TIMEOUT_MS`, 5s) plus, for a
+ * parameterless `wait`, `NETWORK_IDLE_WAIT_MS` (5s) — so the 12-step ADR-0006
+ * gate task has a worst case near 120s even when every step is slow. 5 minutes
+ * leaves ~2.5× headroom on that, and roughly an order of magnitude on the ~30s
+ * a healthy live gate run actually takes.
+ *
+ * It is deliberately **not** derived from repair latency, which is unmeasured
+ * until #27 wires a real model. When that number exists this constant should be
+ * revisited against it rather than quietly stretched.
+ */
+export const DEFAULT_RUN_BUDGET_MS = 300_000;
+
 export interface ReplayRunnerOptions {
   dryRun?: boolean;
   /** Per-step outcomes when dryRun=true (length should match program.steps). */
@@ -81,6 +98,25 @@ export interface ReplayRunnerOptions {
    */
   networkIdleWaitMs?: number;
   /**
+   * Per-run wall-clock ceiling in ms. Defaults to `DEFAULT_RUN_BUDGET_MS`.
+   *
+   * Checked at step boundaries and before each repair attempt — never mid-action,
+   * so no assertion is ever cut short and nothing about *what* is measured
+   * changes (ADR-0011). `<= 0` or a non-finite value disables the guard, which
+   * restores the pre-#84 unbounded behaviour and is only ever a deliberate
+   * opt-out.
+   */
+  runBudgetMs?: number;
+  /**
+   * Clock the budget is measured against. Defaults to `Date.now`.
+   *
+   * A seam, not a feature: the alternative for testing an elapsed-time guard is
+   * a test that actually sleeps for the budget, which is either slow or so
+   * short it is flaky. Only the budget reads this — emitted costs stay on the
+   * real clock, so a fake here can never fabricate a measurement.
+   */
+  now?: () => number;
+  /**
    * Observer called once per step, after its metric row is emitted (#64).
    *
    * Optional, and a runner without one behaves exactly as it did before #64 —
@@ -114,6 +150,8 @@ export class ReplayRunner {
   private readonly programBuildId?: string;
   private readonly page?: Page;
   private readonly networkIdleWaitMs: number;
+  readonly runBudgetMs: number;
+  private readonly now: () => number;
   private readonly onStepOutcome?: (o: StepOutcomeObservation) => void;
 
   constructor(options: ReplayRunnerOptions = {}) {
@@ -141,6 +179,8 @@ export class ReplayRunner {
       this.programBuildId = options.programBuildId;
     }
     this.networkIdleWaitMs = options.networkIdleWaitMs ?? NETWORK_IDLE_WAIT_MS;
+    this.runBudgetMs = options.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS;
+    this.now = options.now ?? Date.now;
     if (options.onStepOutcome !== undefined) this.onStepOutcome = options.onStepOutcome;
     if (options.page !== undefined) this.page = options.page;
   }
@@ -159,6 +199,11 @@ export class ReplayRunner {
    * indistinguishable from the site churn the gate exists to count. A refused
    * run is not a failed run: it produced no rows, so it contributes to no §9
    * denominator.
+   *
+   * Stops at the first step boundary past `runBudgetMs` and says so on the run
+   * row (`budget_exhausted`, `steps_attempted`) rather than running unbounded
+   * (#84, ADR-0011). Steps it never reached emit no rows: they were not
+   * attempted, and scoring them would invent a result.
    */
   async run(
     program: CompiledProgram,
@@ -170,6 +215,7 @@ export class ReplayRunner {
     assertParamsBound(program, params);
 
     const started = Date.now();
+    const budgetStarted = this.now();
     const stepResults: StepAttemptResult[] = [];
     let repairCount = 0;
     let stepsReplayValid = 0;
@@ -177,8 +223,20 @@ export class ReplayRunner {
     let timeToRepairTotal = 0;
     let costReplay = zeroCost();
     let costRepair = zeroCost();
+    let budgetExhausted = false;
+    const budgetSpent = (): boolean =>
+      Number.isFinite(this.runBudgetMs) &&
+      this.runBudgetMs > 0 &&
+      this.now() - budgetStarted >= this.runBudgetMs;
 
     for (const step of program.steps) {
+      // Between steps, never inside one. Cutting a step mid-action would change
+      // what is being measured — an assertion that was denied its own timeout
+      // reports a failure that belongs to the budget, not to the site.
+      if (budgetSpent()) {
+        budgetExhausted = true;
+        break;
+      }
       const frozenAssertion = deepFreeze(
         structuredClone(step.assertion),
       );
@@ -215,9 +273,36 @@ export class ReplayRunner {
         let lastOutcome = first.outcome;
         let lastMessage = first.error_message;
         let repaired = false;
+        let budgetStoppedRepair = false;
         const failureDetectedAt = Date.now();
 
         while (repairCount < this.maxRepairsPerRun) {
+          // Repair is where the unbounded latency lives once #27 wires a real
+          // model: a proposal is a network round-trip this process does not
+          // control. Checked before spending it, so an out-of-time run stops
+          // instead of buying one more attempt it has no budget for.
+          if (budgetSpent()) {
+            budgetExhausted = true;
+            budgetStoppedRepair = true;
+            const stopped: StepAttemptResult = {
+              step_index: step.step_index,
+              outcome: "BUDGET_EXHAUSTED",
+              replay_valid: false,
+              mode: "repair",
+              cost: zeroCost(),
+              assertion_strength: step.assertion.strength,
+              // This step WAS attempted and did fail — that part is measured.
+              // What the budget cut short is the recovery, not the observation.
+              first_pass_outcome: first.outcome,
+              error_message:
+                `run wall-clock budget (${this.runBudgetMs}ms) spent before ` +
+                `repair attempt ${repairCount + 1}` +
+                (lastMessage !== undefined ? `; last failure: ${lastMessage}` : ""),
+            };
+            if (repairCount > 0) stopped.repair_attempt = repairCount;
+            final = stopped;
+            break;
+          }
           repairCount += 1;
           const attempt = repairCount;
           const pageState = this.page
@@ -340,8 +425,8 @@ export class ReplayRunner {
           };
         }
 
-        if (!repaired && final.outcome !== "REPAIR_EXHAUSTED") {
-          // Ran out of budget mid-loop or never entered (budget already 0).
+        if (!repaired && !budgetStoppedRepair && final.outcome !== "REPAIR_EXHAUSTED") {
+          // Ran out of repair budget mid-loop or never entered (budget already 0).
           if (repairCount >= this.maxRepairsPerRun || this.maxRepairsPerRun === 0) {
             const exhausted: StepAttemptResult = {
               step_index: step.step_index,
@@ -416,11 +501,17 @@ export class ReplayRunner {
       repair_count: repairCount,
       success_with_le_2_repairs: successWithLe2,
       steps_total: stepsTotal,
+      // What the run actually reached. Without it a truncated run is
+      // indistinguishable from a short program in the NDJSON, and the
+      // step-validity denominator would shrink with nothing saying so (#84).
+      steps_attempted: stepResults.length,
       steps_replay_valid: stepsReplayValid,
       self_healed: selfHealed,
       time_to_repair_total_ms: timeToRepairTotal,
       step_results: stepResults,
       wall_clock_total_ms: wallClock,
+      wall_clock_budget_ms: this.runBudgetMs,
+      budget_exhausted: budgetExhausted,
       cost_fresh: this.costFresh,
       cost_replay: costReplay,
       cost_repair: costRepair,
@@ -607,9 +698,12 @@ export class ReplayRunner {
       repair_count: result.repair_count,
       success_with_le_2_repairs: result.success_with_le_2_repairs,
       steps_total: result.steps_total,
+      steps_attempted: result.steps_attempted,
       steps_replay_valid: result.steps_replay_valid,
       self_healed: result.self_healed,
       time_to_repair_total_ms: result.time_to_repair_total_ms,
+      wall_clock_budget_ms: result.wall_clock_budget_ms,
+      budget_exhausted: result.budget_exhausted,
       cost_fresh: result.cost_fresh,
       cost_replay: result.cost_replay,
       cost_repair: result.cost_repair,

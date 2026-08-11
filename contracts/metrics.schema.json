@@ -33,6 +33,7 @@
     },
     "stepOutcome": {
       "type": "string",
+      "description": "BUDGET_EXHAUSTED (added in #84, ADR-0011): the step failed and the run's wall-clock budget ended its recovery. Distinct from TIMEOUT (the page did not respond in time — a property of the site) and REPAIR_EXHAUSTED (repair ran out of attempts); here attempts remained and time did not.",
       "enum": [
         "PASS",
         "ASSERTION_FAILED",
@@ -40,7 +41,8 @@
         "TIMEOUT",
         "PAGE_ERROR",
         "REPAIRED_PASS",
-        "REPAIR_EXHAUSTED"
+        "REPAIR_EXHAUSTED",
+        "BUDGET_EXHAUSTED"
       ]
     },
     "stepMetric": {
@@ -162,10 +164,15 @@
           "type": "integer",
           "minimum": 0
         },
+        "steps_attempted": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Steps that produced a step row. Below steps_total when the run stopped early — on a hard failure or on its wall-clock budget. Absent on rows written before #84. Unreached steps emit NO row: they were not attempted, and scoring them either way would invent a result (ADR-0011)."
+        },
         "steps_replay_valid": {
           "type": "integer",
           "minimum": 0,
-          "description": "Count of steps with replay_valid=true. replay-validity = steps_replay_valid / steps_total."
+          "description": "Count of steps with replay_valid=true. replay-validity = steps_replay_valid / steps_attempted (equal to steps_total on a run that finished)."
         },
         "self_healed": {
           "type": "boolean",
@@ -199,6 +206,14 @@
         "wall_clock_total_ms": {
           "type": "integer",
           "minimum": 0
+        },
+        "wall_clock_budget_ms": {
+          "type": "integer",
+          "description": "The per-run wall-clock ceiling in force for this run (#84). <= 0 records that the guard was deliberately disabled, which is a fact about the run and not a missing value."
+        },
+        "budget_exhausted": {
+          "type": "boolean",
+          "description": "True when the run stopped because wall_clock_budget_ms was spent rather than because it finished. Read it alongside steps_attempted vs steps_total: a truncated run's aggregates describe only the steps it reached."
         },
         "amortized_cost_tokens": {
           "type": "integer",

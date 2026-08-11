@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B4
 created: 2026-07-24
-updated: 2026-08-09
+updated: 2026-08-11
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -30,6 +30,32 @@ repairs **actions only** on failure (≤2 repairs/run by default), and emits
 | `repair.ts` | `RepairModelClient`, `StubRepairModelClient` (null action, zero tokens), `assertAssertionUnchanged` |
 | `replay.ts` | `ReplayRunner` — dry-run, repair loop, metrics emission |
 | `metrics/` | Sibling package: emitter + §9 aggregates |
+
+## Bounded runs (`runBudgetMs`)
+
+Per-step waits were bounded before ([below](#bounded-waits)); the **run** was not. Nothing capped
+elapsed time, only repair attempts, so a task with several stale locators could sit for an
+unbounded stretch — and §9's kill line is measured in wall-clock as well as tokens.
+
+Since [#84](https://github.com/DevToolie/Paragent/issues/84) every run carries a ceiling:
+`DEFAULT_RUN_BUDGET_MS` = 300 000 ms, overridable via `ReplayRunnerOptions.runBudgetMs`, disabled
+with `<= 0`. It is checked **at step boundaries and before each repair proposal, never
+mid-action** — no assertion is ever denied its own timeout, so nothing about what is measured
+changes. A run can therefore overshoot by at most one step.
+
+What it reports matters more than that it fires ([ADR-0011](../decisions/ADR-0011-replay-wall-clock-budget.md)):
+
+| Situation | Row |
+| --- | --- |
+| Step attempted, failed, budget ended its repair | step row, new outcome `BUDGET_EXHAUSTED`, `first_pass_outcome` preserved, `replay_valid: false` |
+| Step never reached | **no row** — it was not attempted, and scoring it would invent a result |
+| The run itself | `budget_exhausted`, `wall_clock_budget_ms`, and `steps_attempted` beside `steps_total` |
+| The report | a `truncation` block beside the §9 sample floor: `runs_truncated_by_budget`, `steps_unattempted` |
+
+`BUDGET_EXHAUSTED` is a new `stepOutcome` member rather than a reuse: `TIMEOUT` means the *site*
+did not respond, and `REPAIR_EXHAUSTED` claims attempts ran out when in fact time did. `selfHealRate`
+now divides by attempted steps, so a run truncated with nothing failing is not scored as a failed
+self-heal.
 
 ## Bounded waits
 
