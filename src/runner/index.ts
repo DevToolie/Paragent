@@ -9,5 +9,6 @@ export * from "./actions.js";
 export * from "./page-state.js";
 export * from "./repair.js";
 export * from "./repair-egress.js";
+export * from "./repair-anthropic.js";
 export * from "./replay.js";
 export * from "./program.js";

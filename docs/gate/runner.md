@@ -179,6 +179,27 @@ an unbindable program is reported in a second rather than after the first contai
 what to pass. `--dry-run` honours `--param` too, which is what makes it a faithful pre-flight for
 the live path.
 
+## The repair model client (#27)
+
+`StubRepairModelClient` proposes `null` and reports zero tokens, which makes self-heal rate
+structurally 0 and `cost_repair` structurally zero — blocking two PRD §9 metrics outright.
+`AnthropicRepairModelClient` is the real one. It is **opt-in**: the stub remains the default, so
+`npm run ci`, dry runs, and every existing test path make no network call and spend nothing.
+
+| Decision | Why |
+| --- | --- |
+| Sees only `serializeRepairContext()` output | ADR-0012. The raw `RepairContext` holds `params` — the runtime bindings, secrets included |
+| Throws at construction without `ANTHROPIC_API_KEY` | A run that silently used the stub would report a self-heal rate of 0 that *looks measured* |
+| **Prompt caching off** | `cache_read_input_tokens` and `cache_creation_input_tokens` bill differently from plain input. A repair cost that quietly excluded cache writes would understate against §9's 70% kill line. All four fields are summed anyway, so enabling caching later cannot silently change what the number means |
+| Structured output, never prose parsing | A parser for free text is a second place for the contract to drift |
+| No `temperature` / `top_p` / `top_k` | Rejected with a 400 on `claude-opus-5` |
+| `stop_reason === "refusal"` checked before reading content | A decline is HTTP 200 with possibly empty content; indexing `content[0]` would throw |
+| A proposal carrying an assertion is dropped **whole** | Partially honouring it would look like a repair while corrupting the measurement. `assertAssertionUnchanged` is the runtime guard; the output schema offers no assertion field at all, so the ask is never made |
+| Errors return `corrected_action: null` **with the tokens consumed** | A failure path reporting zero makes repair look free against the kill line. Never retried silently — a hidden retry hides cost |
+
+`model_id` and the chosen `effort` are recorded on every proposal: a cost figure without the
+model and effort that produced it is not reproducible.
+
 ## Invariants
 
 1. **Assertions are immutable in repair.** `deepFreeze` + `assertAssertionUnchanged` — proposals
@@ -304,7 +325,12 @@ npm run gate:report
 ## Open questions / what I could not verify
 
 - Exact §9 kill thresholds (numeric gate) — **not invented**; pending founder PRD drop + Track-1 measurement (`docs/prd/` still placeholder).
-- Model wiring for `RepairModelClient` — stub only (`TODO(model-wiring)`); real proposals PENDING.
+- ~~Model wiring for `RepairModelClient` — stub only.~~ **Built (#27)** —
+  `AnthropicRepairModelClient` (`src/runner/repair-anthropic.ts`), opt-in via
+  `gate:matrix --repair-model`. The stub stays the default so no run spends money or makes a
+  network call unless asked. **Still unmeasured:** no live repair has been observed. The client
+  is covered by 21 mocked-SDK tests; a self-heal rate remains structurally 0 until someone runs
+  it with a real key, which is the exit criterion #27 names and this repo will not fabricate.
 - Whether `compiled_trajectory` bundle `$id` becomes a first-class contract (B3 packaging convention today).
 - Fresh-reasoning cost capture for `cost_fresh` — measured separately; defaults to zeros when
   unwired. Since [#123](https://github.com/DevToolie/Paragent/issues/123) this field means the
