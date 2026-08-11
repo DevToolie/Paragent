@@ -138,6 +138,29 @@ describe.each(implementations)("CacheStore contract: %s", (_name, make) => {
     expect(store.list({ site_key: "absent" })).toEqual([]);
   });
 
+  it("lists a task's rows in step order, whatever order they were written in", () => {
+    const store = make();
+    for (const step of [3, 0, 4, 1, 2]) store.write(row({ step_index: step }));
+    expect(store.list().map((r) => r.step_index)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("orders across tasks and sites deterministically", () => {
+    // The tiebreak across keys is part of the guarantee: a caller grouping the
+    // result must not depend on which key happened to be written first.
+    const store = make();
+    store.write(row({ site_key: "site-b", task_key: "task-a", step_index: 0 }));
+    store.write(row({ site_key: "site-a", task_key: "task-b", step_index: 1 }));
+    store.write(row({ site_key: "site-a", task_key: "task-b", step_index: 0 }));
+    store.write(row({ site_key: "site-a", task_key: "task-a", step_index: 0 }));
+
+    expect(store.list().map((r) => [r.site_key, r.task_key, r.step_index])).toEqual([
+      ["site-a", "task-a", 0],
+      ["site-a", "task-b", 0],
+      ["site-a", "task-b", 1],
+      ["site-b", "task-a", 0],
+    ]);
+  });
+
   it("does not hand out a reference a caller can mutate", () => {
     // The cache is updated through writeCacheRow(), not by reaching into the
     // store and editing what get() returned.
@@ -211,6 +234,44 @@ describe("JsonlCacheStore", () => {
     first.write(row({ success_count: 2 }));
 
     expect(new JsonlCacheStore({ dir }).get(cacheKeyOf(row()))?.success_count).toBe(2);
+  });
+
+  it("lists in step order after a reload, not pool-file-then-tenant-file order", () => {
+    // Mixed eligibility within one task is the normal case — the only real
+    // compiled bundle in the repo has 1 pool-eligible step out of 12. Rows are
+    // loaded pool file first, so before #121 a reopened store returned
+    // [0, 2, 4, 1, 3] here and a caller assembling a program from list() would
+    // have replayed the flow out of order.
+    const dir = tempDir();
+    const first = new JsonlCacheStore({ dir });
+    for (const step of [0, 1, 2, 3, 4]) {
+      const poolEligible = step % 2 === 0;
+      first.write(
+        row({
+          step_index: step,
+          pool_eligible: poolEligible,
+          pool_ineligible_reason: poolEligible ? null : "tenant_locator_text",
+        }),
+      );
+    }
+    expect(first.list().map((r) => r.step_index)).toEqual([0, 1, 2, 3, 4]);
+
+    // The assertion that matters: a *different process* reading the same files.
+    const reopened = new JsonlCacheStore({ dir });
+    expect(reopened.list().map((r) => r.step_index)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("keeps the tenant version of a key present in both files", () => {
+    // Read order changed in #121; load order did not. Pool is loaded first so
+    // the tenant row wins, which is the conservative direction.
+    const dir = tempDir();
+    const first = new JsonlCacheStore({ dir });
+    first.write(row({ pool_eligible: true, success_count: 1 }));
+    first.write(row({ pool_eligible: false, pool_ineligible_reason: "tenant_locator_text" }));
+
+    const reopened = new JsonlCacheStore({ dir });
+    expect(reopened.get(cacheKeyOf(row()))?.pool_eligible).toBe(false);
+    expect(reopened.list()).toHaveLength(1);
   });
 
   it("tolerates a trailing newline and blank lines", () => {
