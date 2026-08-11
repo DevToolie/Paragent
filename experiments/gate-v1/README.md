@@ -4,7 +4,7 @@ doc_type: runbook
 status: draft
 owner: B4
 created: 2026-07-24
-updated: 2026-07-29
+updated: 2026-08-11
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -75,6 +75,21 @@ program must not be able to redirect itself away from the version being measured
 hole the program declares is the caller's to supply — inventing a default would silently
 substitute a value the recording never used.
 
+You do not have to work out which holes those are. Since
+[#132](https://github.com/DevToolie/Paragent/issues/132) the driver derives them from the
+program itself (`requiredParams`, `src/runner/params.ts`) and refuses **before the first
+container boots**, naming every one it is missing:
+
+```text
+gate:matrix: prog-traj-gate-live-create-stat-dashboard-from-testdata-9.5.21 needs parameter(s) nothing binds: panel_title, series_alias, series_count.
+  Pass --param panel_title=<value> --param series_alias=<value> --param series_count=<value>
+  Refusing to start: an unbound parameter fails as PAGE_ERROR or ASSERTION_FAILED, which is
+  indistinguishable from site churn in the §9 aggregates.
+```
+
+Names only — a required-param *name* is printed, a value never is. Exit 2, nothing booted,
+no NDJSON row.
+
 Unknown ids are rejected with the valid list, never defaulted:
 
 ```text
@@ -115,12 +130,30 @@ against one container collides on the second run and fails for a reason that is 
 `{run}` in the value and it becomes unique per run:
 
 ```bash
-npm run gate:matrix -- --runs 3 --param 'dashboard_title=Paragent Gate {run}'
+npm run gate:matrix -- --runs 3 \
+  --program artifacts/compiled/traj-gate-live-create-stat-dashboard-from-testdata-9.5.21.bundle.json \
+  --param 'dashboard_title=Paragent Gate {run}' \
+  --param 'panel_title=Gate Panel' \
+  --param series_alias=gate \
+  --param series_count=5
 ```
 
-This is deliberately explicit rather than automatic — auto-suffixing every param would silently
-change values a recording captured, while the assertion templates still compared against the
-recorded hole.
+The live bundle declares **four** caller-supplied holes, one per `fill` step — `series_alias`
+(step 4), `series_count` (step 5), `panel_title` (step 6), `dashboard_title` (step 9). `host`
+and `port` come from step 0's `url_template` and are bound by the driver, which is why they are
+absent above. Every value except `dashboard_title` is a placeholder: pick whatever the gate run
+should assert on.
+
+`{run}` belongs on `dashboard_title` specifically — that is the value the save collides on. It
+is deliberately explicit rather than automatic: auto-suffixing every param would silently change
+values a recording captured, while the assertion templates still compared against the recorded
+hole.
+
+This README used to document the same command with `dashboard_title` alone. Run against the live
+bundle before [#132](https://github.com/DevToolie/Paragent/issues/132), the three unbound fills
+failed as `PAGE_ERROR` mid-run and landed in the §9 churn denominators — a *worse gate number*
+rather than an error. The pre-flight above now refuses in about a second instead
+([#142](https://github.com/DevToolie/Paragent/issues/142)).
 
 **Interrupting is safe.** Ctrl-C finishes the run in flight, tears down the container, and stops:
 the completed runs stay in the NDJSON as real measurements and the version is recorded as
