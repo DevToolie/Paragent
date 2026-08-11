@@ -96,6 +96,20 @@ function matchesFilter(row: CacheRow, filter?: CacheListFilter): boolean {
 }
 
 /**
+ * Total order for `list()`: `(site_key, task_key, step_index)`.
+ *
+ * `step_index` ascending is the part that matters — see `list()`. The two key
+ * fields ahead of it only exist to make the whole result deterministic when a
+ * filter spans more than one task, so that two runs over the same store produce
+ * the same array rather than two different interleavings of the same rows.
+ */
+function byStepOrder(a: CacheRow, b: CacheRow): number {
+  if (a.site_key !== b.site_key) return a.site_key < b.site_key ? -1 : 1;
+  if (a.task_key !== b.task_key) return a.task_key < b.task_key ? -1 : 1;
+  return a.step_index - b.step_index;
+}
+
+/**
  * Read side shared by both stores.
  *
  * The two implementations differ only in *where a write lands*; `get` and
@@ -124,9 +138,29 @@ abstract class IndexedCacheStore implements CacheStore {
     return row ? structuredClone(row) : undefined;
   }
 
+  /**
+   * Rows in step order, **not** in the order they happen to sit in the index
+   * (#121).
+   *
+   * Insertion order is not step order and cannot be made to be. `this.latest`
+   * is a `Map`, so it iterates in insertion order, and `JsonlCacheStore` loads
+   * the pool file to exhaustion before the tenant file — deliberately, see its
+   * constructor. Within one process that is invisible, because rows go in as
+   * they are written. After a reopen every pool row is inserted before every
+   * tenant row, and a task with mixed eligibility (the normal case: 1 of the 12
+   * rows in the only committed live bundle is pool-eligible) reads back with its
+   * pool rows hoisted to the front.
+   *
+   * Assembling a program from that would replay a real flow out of order —
+   * click before navigate, submit before fill — with every row individually
+   * valid, which reads as ordinary churn rather than as a bug. `bundleToProgram`
+   * already sorts for exactly this reason (`src/runner/program.ts`); the store
+   * is the other way in, so ordering belongs here rather than in each caller.
+   */
   list(filter?: CacheListFilter): CacheRow[] {
     return [...this.latest.values()]
       .filter((r) => matchesFilter(r, filter))
+      .sort(byStepOrder)
       .map((r) => structuredClone(r));
   }
 }

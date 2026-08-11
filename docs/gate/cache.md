@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-08-03
-updated: 2026-08-03
+updated: 2026-08-10
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -85,6 +85,28 @@ did, which is the entire experiment. `invalidated_at` is stored rather than deri
 
 A failure is an observation, but it is not evidence the entry still describes the page, so only a
 success re-verifies.
+
+## Read order is a store guarantee
+
+`list()` returns rows sorted by `(site_key, task_key, step_index)`. **Step order is a property of
+the store, not something each caller re-establishes** ([#121](https://github.com/DevToolie/Paragent/issues/121)).
+
+It has to be, because insertion order is not step order and cannot be made to be. The index is a
+`Map`, and `JsonlCacheStore` loads `pool.jsonl` to exhaustion before `tenant.jsonl` — deliberately,
+so a key present in both reads back as the tenant-scoped version, the conservative direction. That
+load order is unchanged. Within one process the difference is invisible, because rows enter the
+index as they are written; after a reopen, every pool row is inserted before every tenant row, and
+a task with mixed eligibility comes back interleaved wrong. Mixed eligibility is the normal case —
+1 of the 12 rows in the only committed live bundle is pool-eligible.
+
+The consequence is not a cosmetic one. A resolver assembling a program from `list()` would replay
+a real flow out of order — click before navigate, submit before fill — with every row individually
+valid, which reads as ordinary churn rather than as a bug. `bundleToProgram` already sorts by
+`step_index` for the same reason (`src/runner/program.ts`); the store is the other way in.
+
+Sorting lives in `IndexedCacheStore` so `MemoryCacheStore` and `JsonlCacheStore` cannot diverge,
+and the contract test in `tests/unit/cache-store.test.ts` reopens the JSONL store from disk — a
+same-process assertion passes without the fix and proves nothing.
 
 ## The repair rewrite
 

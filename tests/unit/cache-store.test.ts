@@ -89,12 +89,25 @@ describe("cacheKeyString", () => {
 
 // --- contract both stores must satisfy -------------------------------------
 
-const implementations: Array<[string, () => CacheStore]> = [
-  ["MemoryCacheStore", () => new MemoryCacheStore()],
-  ["JsonlCacheStore", () => new JsonlCacheStore({ dir: tempDir() })],
+/**
+ * `reopen` is what makes the ordering contract meaningful (#121).
+ *
+ * The bug it pins only appears across a process boundary, so the contract needs
+ * a way to say "same store, loaded again" without knowing which implementation
+ * it is holding. For `JsonlCacheStore` that is a fresh instance over the same
+ * directory; for `MemoryCacheStore` there is no boundary to cross, and identity
+ * is the honest answer rather than a simulated one.
+ */
+const implementations: Array<[string, () => CacheStore, (s: CacheStore) => CacheStore]> = [
+  ["MemoryCacheStore", () => new MemoryCacheStore(), (s) => s],
+  [
+    "JsonlCacheStore",
+    () => new JsonlCacheStore({ dir: tempDir() }),
+    (s) => new JsonlCacheStore({ dir: path.dirname((s as JsonlCacheStore).poolPath) }),
+  ],
 ];
 
-describe.each(implementations)("CacheStore contract: %s", (_name, make) => {
+describe.each(implementations)("CacheStore contract: %s", (_name, make, reopen) => {
   it("round-trips a written row", () => {
     const store = make();
     const r = row();
@@ -136,6 +149,45 @@ describe.each(implementations)("CacheStore contract: %s", (_name, make) => {
     expect(store.list({ task_key: "create-stat-dashboard" })).toHaveLength(2);
     expect(store.list({ site_key: "grafana-oss@127.0.0.1:3000" })).toHaveLength(3);
     expect(store.list({ site_key: "absent" })).toEqual([]);
+  });
+
+  // --- #121: read order is a store guarantee, not a caller's job -----------
+
+  it("lists a task in step order regardless of write order", () => {
+    const store = make();
+    for (const i of [3, 0, 4, 1, 2]) store.write(row({ step_index: i }));
+    expect(store.list().map((r) => r.step_index)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("keeps step order after a reload, whatever the rows' pool eligibility", () => {
+    // The real shape: one task, mixed eligibility. JsonlCacheStore loads the
+    // pool file to exhaustion before the tenant file, so without a sort this
+    // reads back [0, 2, 4, 1, 3] — every pool row hoisted to the front.
+    const store = make();
+    for (const i of [0, 1, 2, 3, 4]) {
+      store.write(
+        i % 2 === 0
+          ? row({ step_index: i, pool_eligible: true, pool_ineligible_reason: null })
+          : row({
+              step_index: i,
+              pool_eligible: false,
+              pool_ineligible_reason: "tenant_locator_text",
+            }),
+      );
+    }
+    expect(store.list().map((r) => r.step_index)).toEqual([0, 1, 2, 3, 4]);
+    expect(reopen(store).list().map((r) => r.step_index)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("orders across tasks deterministically, and keeps each task contiguous", () => {
+    const store = make();
+    store.write(row({ task_key: "b-task", step_index: 1 }));
+    store.write(row({ task_key: "a-task", step_index: 1, pool_eligible: false, pool_ineligible_reason: "tenant_locator_text" }));
+    store.write(row({ task_key: "b-task", step_index: 0, pool_eligible: false, pool_ineligible_reason: "tenant_locator_text" }));
+    store.write(row({ task_key: "a-task", step_index: 0 }));
+
+    const seen = reopen(store).list().map((r) => `${r.task_key}#${r.step_index}`);
+    expect(seen).toEqual(["a-task#0", "a-task#1", "b-task#0", "b-task#1"]);
   });
 
   it("does not hand out a reference a caller can mutate", () => {
