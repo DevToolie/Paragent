@@ -4,7 +4,7 @@ doc_type: runbook
 status: draft
 owner: B2
 created: 2026-07-25
-updated: 2026-07-28
+updated: 2026-08-11
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -169,8 +169,31 @@ signals, not visibility claims.
 
 `npm run recorder -- --base-url …` records the
 [ADR-0006](../decisions/ADR-0006-track1-gate-task.md) task — build a Stat panel over the seeded
-TestData datasource and save it as a named dashboard. The `--fixture` path is unchanged and is
-still the only one that runs without Docker.
+TestData datasource and save it as a named dashboard. The `--fixture` path records the same six
+steps it always has and is still the only one that runs without Docker.
+
+### The fixture is served, not opened (#141)
+
+`--fixture` starts a static server on an ephemeral loopback port, records
+`http://{host}:{port}/grafana-gate-login.html`, and stops the server on the way out
+(`src/recorder/fixture.ts`). It used to record `file://{fixture_root}/…`, which made
+`fixture_root` a whole filesystem path — and a template hole compiles to `[^/?#]+`, which cannot
+span `/`. So the bundle carried URL assertions no real path could satisfy:
+
+```text
+3 REPAIR_EXHAUSTED  url "file:///Users/…/fixtures/grafana-gate-login.html#home"
+                      !~ /^file://[^/?#]+/grafana-gate-login\.html#home$/
+```
+
+It recorded and compiled cleanly and then failed at replay — on the one path that needs no
+Docker, which is what a visitor tries first and what the root README points at.
+
+The fix is the URL shape, **not** the hole pattern: loosening `[^/?#]+` to cross `/` would
+weaken every `url-matches` assertion the product emits, to buy back one fixture. Serving it
+gives the fixture the same shape a real `--base-url` recording has, so `host` and `port` are
+ordinary single-segment holes. `tests/integration/pipeline.test.ts` now drives this module
+instead of its own copy of the flow — its copy was already correct, which is exactly why the
+product bug went unnoticed.
 
 **Recorded 2026-07-28 against Grafana `9.5.21`** — the matrix base version, because the gate
 walks forward from there. Committed as
@@ -251,7 +274,7 @@ that is a thing for [#25](https://github.com/DevToolie/Paragent/issues/25) to ke
 | --- | --- |
 | Typed field values | `parameters: { name: type }` + `action.param_refs` |
 | Cookies / `storageState` | omitted entirely |
-| Concrete host/port in URLs | `{host}` / `{port}` (or `{fixture_root}`) holes |
+| Concrete host/port in URLs | `{host}` / `{port}` holes |
 | Typed values **echoed back** into a URL or page title | `{param}` holes, lifted at emit time |
 | Server-assigned ids in URLs (dashboard uid, slug) | `{dashboard_uid}` / `{dashboard_slug}` |
 
@@ -261,7 +284,7 @@ carried `Paragent Gate Dashboard - Dashboards - Grafana` and
 `/d/d82e967e-…/paragent-gate-dashboard` — a typed value in the artifact, and a field that
 differs between two recordings of the same task.
 
-`templatizeUrl` only knew about host/port/fixture_root, which was enough while the only live
+`templatizeUrl` only knew about host/port, which was enough while the only live
 step was a navigation. `templatizeText` now lifts every bound value, and the pass runs at
 **emit** time rather than capture time: a uid is only knowable *after* the step that observed
 it, so lifting has to be able to reach backwards. It replaces literals with holes and does
