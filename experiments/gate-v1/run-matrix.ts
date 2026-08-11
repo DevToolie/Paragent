@@ -28,7 +28,12 @@ import { fileURLToPath } from "node:url";
 import { MetricsEmitter, readMetricNdjson } from "../../src/metrics/emitter.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
 import { bundleToProgram, isCompiledBundle } from "../../src/runner/program.js";
-import type { CompiledProgram, RunResult } from "../../src/runner/types.js";
+import { requiredParams } from "../../src/runner/params.js";
+import type {
+  CompiledProgram,
+  ParamBindings,
+  RunResult,
+} from "../../src/runner/types.js";
 import type { MetricRow, StepOutcome } from "../../src/metrics/types.js";
 import {
   SECTION9_MIN_RUNS,
@@ -56,6 +61,34 @@ const OUT_DIR = path.join(__dirname, "out");
 const DEFAULT_PROGRAM = path.join(__dirname, "fixtures/compiled-program.json");
 
 const DRY_RUN_NOTE = "dry-run — tokens remain 0; not a gate measurement";
+
+/**
+ * Names the driver binds itself, per version. Values come from the container
+ * that is about to be booted, so only the names are known this early — which is
+ * all the pre-flight needs.
+ */
+export const DRIVER_BOUND_PARAMS = ["base_url", "host", "port"] as const;
+
+/**
+ * Bindings the dry-run path supplies.
+ *
+ * Hoisted out of `runDryVersion` so the pre-flight check below and the run
+ * itself cannot disagree about what will be bound — a pre-flight that passes
+ * and a run that then refuses would be worse than no pre-flight.
+ *
+ * It covers `DRIVER_BOUND_PARAMS` with obvious placeholders, alongside the
+ * `file://local-demo` one that was already here. A dry run interpolates
+ * nothing — every outcome is hard-coded — so these are inert labels, not
+ * measurements, and every row a dry run writes carries `DRY_RUN_NOTE`. Binding
+ * them here is what makes `--dry-run` a faithful pre-flight for the live path:
+ * it then asks the caller for exactly the params a live run would, no more.
+ */
+export const DRY_RUN_PARAMS: ParamBindings = {
+  base_url: "file://local-demo",
+  host: "local-demo",
+  port: 0,
+  resource_label: "widget",
+};
 
 interface Args {
   dryRun: boolean;
@@ -141,7 +174,9 @@ function usage(): void {
   --port <n>         Host port for the test-bed (default ${DEFAULT_HOST_PORT}).
   --param k=v        Bind one of the program's own param_refs. Repeatable.
                      base_url/host/port are bound by the driver; anything else
-                     the program declares is the caller's to supply.
+                     the program declares is the caller's to supply. Checked
+                     before anything boots: a program with an unbound parameter
+                     is refused by name rather than failing mid-run as churn.
   --runs <n>         Repeats per version (default ${DEFAULT_RUNS_PER_VERSION}). One run per
                      version cannot separate churn from flakiness. PRD §9 wants
                      >=42 runs and >=400 step-executions across the matrix; the
@@ -262,7 +297,16 @@ async function walkVersions(
 
     if (opts.args.dryRun) {
       for (let i = 1; i <= opts.args.runs; i++) {
-        runs.push(await runDryVersion(ver, opts.program, opts.emitter, i, opts.args.runs));
+        runs.push(
+          await runDryVersion(
+            ver,
+            opts.program,
+            opts.emitter,
+            i,
+            opts.args.runs,
+            opts.args.params,
+          ),
+        );
       }
       await opts.persist();
       continue;
@@ -423,6 +467,30 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Pre-flight the bindings before anything expensive: no container boot, no
+  // browser, no truncated NDJSON. `run()` would refuse anyway, but it would do
+  // so after the first container is up and per version — and a caller staring
+  // at a torn-down matrix has to work out that the driver, not the site, was
+  // the problem (#122). Names only; no value is printed.
+  const willBind = new Set<string>([
+    ...DRIVER_BOUND_PARAMS,
+    ...Object.keys(args.params),
+    ...(args.dryRun ? Object.keys(DRY_RUN_PARAMS) : []),
+  ]);
+  const unbound = requiredParams(program).filter((name) => !willBind.has(name));
+  if (unbound.length > 0) {
+    console.error(
+      `gate:matrix: ${program.program_id} needs parameter(s) nothing binds: ` +
+        `${unbound.join(", ")}.\n` +
+        `  Pass ${unbound.map((n) => `--param ${n}=<value>`).join(" ")}\n` +
+        "  Refusing to start: an unbound parameter fails as PAGE_ERROR or " +
+        "ASSERTION_FAILED, which is indistinguishable from site churn in the " +
+        "§9 aggregates.",
+    );
+    process.exit(2);
+    return;
+  }
+
   const mode = args.dryRun ? "dry-run" : "live";
   const plannedRuns = walked.length * args.runs;
   const plannedSteps = plannedRuns * program.steps.length;
@@ -551,6 +619,7 @@ async function runDryVersion(
   emitter: MetricsEmitter,
   runIndex: number,
   totalRuns: number,
+  extraParams: Record<string, string> = {},
 ): Promise<Record<string, unknown>> {
   // Only testbed_version varies. site_key/task_key stay whatever the compiled
   // program actually is — relabelling a local-demo program as a Grafana one
@@ -564,10 +633,11 @@ async function runDryVersion(
     maxRepairsPerRun: 2,
   });
 
-  const result = await runner.run(runProgram, {
-    base_url: "file://local-demo",
-    resource_label: "widget",
-  });
+  // `--param` is honoured here too, with the driver's own bindings winning —
+  // the same precedence the live path uses. A dry run interpolates nothing, so
+  // the values are inert; what matters is that `--dry-run` asks for exactly the
+  // params a live run would, which is what makes it a usable pre-flight (#122).
+  const result = await runner.run(runProgram, { ...extraParams, ...DRY_RUN_PARAMS });
 
   const row = {
     version: ver.id,

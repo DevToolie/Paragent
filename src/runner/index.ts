@@ -2,6 +2,7 @@
 export const PACKAGE = "runner" as const;
 export * from "./types.js";
 export * from "./templates.js";
+export * from "./params.js";
 export * from "./locators.js";
 export * from "./assertions.js";
 export * from "./actions.js";

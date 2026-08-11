@@ -127,6 +127,21 @@ export interface CompiledProgram {
   task_key: string;
   testbed_version: string;
   steps: CompiledStep[];
+  /**
+   * Param names the program needs bound before it can run (#122).
+   *
+   * A property of the program, so a caller can ask what to bind instead of
+   * reading its steps — which matters once a program arrives from a cache
+   * resolver with no human who knows the answer (#118). Written by
+   * `bundleToProgram`; **names only, never values**.
+   *
+   * Optional because a hand-written `CompiledProgram` fixture may omit it, and
+   * because `CompiledProgram` has no JSON Schema — this is a TS interface, not
+   * a contract change. `requiredParams()` unions it with what the steps
+   * actually need, so a stale declaration can add a requirement but never
+   * remove one.
+   */
+  required_params?: string[];
 }
 
 /**
