@@ -19,7 +19,8 @@
 
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { chromium, type Browser, type Page } from "playwright";
+import { type Browser, type Page } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   executeAction,
@@ -65,7 +66,7 @@ describe("bounded networkidle wait", () => {
   let page: Page;
 
   beforeAll(async () => {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchTestBrowser();
     ({ server, baseUrl } = await startNeverIdleServer());
     page = await browser.newPage();
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });

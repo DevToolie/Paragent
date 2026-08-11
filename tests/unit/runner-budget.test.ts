@@ -11,7 +11,8 @@
  * this seam, so a fake clock here cannot fabricate an emitted measurement.
  */
 import { afterAll, beforeAll, describe, it, expect } from "vitest";
-import { chromium, type Browser, type Page } from "playwright";
+import { type Browser, type Page } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import {
   DEFAULT_RUN_BUDGET_MS,
   ReplayRunner,
@@ -221,7 +222,7 @@ describe("replay budget stops repair on a genuinely slow step", () => {
   let page: Page;
 
   beforeAll(async () => {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchTestBrowser();
     page = await browser.newPage();
     await page.setContent("<!doctype html><html><body><p>empty</p></body></html>");
   }, 60_000);

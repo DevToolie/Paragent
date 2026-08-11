@@ -24,7 +24,8 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser } from "playwright";
+import { type Browser } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -65,7 +66,7 @@ describe("SC-02: toTrajectory() carries no session material (#99)", () => {
     });
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
     port = (server.address() as AddressInfo).port;
-    browser = await chromium.launch({ headless: true });
+    browser = await launchTestBrowser();
   }, 60_000);
 
   afterAll(async () => {

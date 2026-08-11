@@ -43,6 +43,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { chromium, type Browser, type Page } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { compileTrajectory, type Trajectory } from "../../src/compiler/index.js";
@@ -360,7 +361,7 @@ describe("SC-04 tripwire: a live capturePageState carries no session material (#
 
   beforeAll(async () => {
     if (!chromiumAvailable) return;
-    browser = await chromium.launch({ headless: true });
+    browser = await launchTestBrowser();
     page = await browser.newPage();
   }, 60_000);
 

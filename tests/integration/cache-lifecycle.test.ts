@@ -16,7 +16,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
-import { chromium, type Browser } from "playwright";
+import { type Browser } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { JsonlCacheStore, POOL_FILE } from "../../src/cache/store.js";
@@ -97,7 +98,7 @@ describe("cache lifecycle: replay -> confidence -> invalidation (#64)", () => {
     });
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
     baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
-    browser = await chromium.launch({ headless: true });
+    browser = await launchTestBrowser();
     dir = mkdtempSync(path.join(tmpdir(), "paragent-lifecycle-"));
   }, 60_000);
 

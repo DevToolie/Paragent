@@ -12,7 +12,8 @@
  * `RepairModelClient`. The only browser involved is a local Chromium
  * instance navigating to `about:blank` and `data:` URLs.
  */
-import { chromium, type Browser, type Page } from "playwright";
+import { type Browser, type Page } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ReplayRunner } from "../../src/runner/replay.js";
 import type { RepairModelClient } from "../../src/runner/repair.js";
@@ -28,7 +29,7 @@ let browser: Browser;
 let page: Page;
 
 beforeAll(async () => {
-  browser = await chromium.launch({ headless: true });
+  browser = await launchTestBrowser();
 });
 
 afterAll(async () => {

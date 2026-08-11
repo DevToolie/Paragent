@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { launchTestBrowser } from "../helpers/browser.js";
 import { describe, expect, it } from "vitest";
 import {
   assertNoLiteralSecrets,
@@ -87,7 +87,7 @@ describe("recorder package", () => {
     const fixturePath = path.join(ROOT, "src/recorder/fixtures/grafana-gate-login.html");
     const fixtureRoot = path.dirname(fixturePath).replace(/\\/g, "/");
 
-    const browser = await chromium.launch({ headless: true });
+    const browser = await launchTestBrowser();
     const page = await browser.newPage();
     try {
       const recorder = new TrajectoryRecorder(page, {
