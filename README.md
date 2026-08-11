@@ -17,16 +17,19 @@ through a web UI, compiles it into a deterministic replayable script with a
 When an assertion fails — a button moved, a label changed — the model is called back
 in to repair just that step, and the repaired script is what runs next time.
 
-<!-- ┌──────────────────────────────────────────────────────────────────────────┐
-     │ DEMO GIF PLACEHOLDER                                                     │
-     │ Record the gif, save it to docs/assets/demo.gif, then delete these       │
-     │ comment markers to publish it. Kept commented so the README never        │
-     │ renders a broken image. Tracking issue: #137                             │
-     └──────────────────────────────────────────────────────────────────────────┘
 <p align="center">
   <img src="docs/assets/demo.gif" alt="Recording a trajectory, replaying it without the model, and repairing it after the UI changes" width="720">
 </p>
--->
+
+<p align="center">
+  <sub>
+    Real run against the bundled fixture, driven by an illustrative script rather than the
+    documented <code>npm run</code> commands. The <b>record</b> and <b>replay</b> beats are what
+    the repo ships. The <b>repair</b> beat is not: Paragent ships
+    <code>StubRepairModelClient</code>, which proposes nothing, so repair needs a model client
+    that is <a href="https://github.com/DevToolie/Paragent/issues/27">not yet wired (#27)</a>.
+  </sub>
+</p>
 
 
 
