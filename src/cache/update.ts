@@ -60,6 +60,30 @@ export interface CacheUpdateResult {
 }
 
 /**
+ * Human-readable cause behind an emptied fallback chain (#114).
+ *
+ * The refusal below used to state "every corrected locator was tenant-tainted"
+ * unconditionally, and that is not always what happened. The chain also comes
+ * back empty when the row's assertion is what carries a tenant literal — the
+ * assertion is frozen and a repair cannot touch it, so no locator was involved
+ * at all. The machine-readable `reason` was already right in that case; only the
+ * prose was wrong, and prose is what a human reads when deciding what to fix.
+ */
+function refusalCause(reason: string): string {
+  switch (reason) {
+    case "literal_in_assertion":
+      return "the row's frozen assertion carries a tenant literal, so no " +
+        "corrected locator could be pooled";
+    case "tenant_locator_text":
+    case "tainted_attribute":
+    case "non_vocab_role":
+      return "every corrected locator was tenant-tainted";
+    default:
+      return "the corrected action was refused by the privacy boundary";
+  }
+}
+
+/**
  * Record one step outcome against the cache.
  *
  * Returns rather than throws when the row is absent: a program can be replayed
@@ -107,10 +131,11 @@ export function recordStepOutcome(
     (ctx.repair?.corrected_action.locator_fallback_chain.length ?? 0) > 0 &&
     row.compiled_action.locator_fallback_chain.length === 0
   ) {
+    const reason = row.pool_ineligible_reason ?? "pool_leak_refused";
     throw new CacheWriteRejectedError(
-      "repair rewrite refused: every corrected locator was tenant-tainted, " +
-        "leaving an action that cannot resolve. Previous version retained.",
-      row.pool_ineligible_reason ?? "pool_leak_refused",
+      `repair rewrite refused (${reason}): ${refusalCause(reason)}, leaving an ` +
+        "action that cannot resolve. Previous version retained.",
+      reason,
     );
   }
 

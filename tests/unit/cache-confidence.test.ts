@@ -204,6 +204,58 @@ describe("repair rewrite", () => {
       replaced_action_type: "click",
     });
   });
+
+  // --- #114: provenance belongs to one version, not to the lineage ---------
+
+  it("clears provenance on the next non-repair version", () => {
+    // The schema and the type both say repair_provenance is present *only* on a
+    // row written by a repair rewrite. Carried forward, it would make every
+    // later version claim to be the repair's output — with a `repaired_at` that
+    // no longer matches its own `last_verified_at`.
+    const repaired = {
+      ...row(),
+      ...applyOutcome(row(), "repaired", {
+        now: EARLIER,
+        repair: { run_id: "run-1", repair_attempt: 1, corrected_action: corrected },
+      }),
+    } as CacheRow;
+    expect(repaired.repair_provenance).toBeDefined();
+
+    for (const kind of ["pass", "failure"] as const) {
+      const next = applyOutcome(repaired, kind, { now: NOW });
+      expect(next.repair_provenance).toBeUndefined();
+    }
+  });
+
+  it("does not inherit a previous repair's provenance on a later repair", () => {
+    // A second repair with no repair context names no run, so it must not be
+    // labelled with the first repair's.
+    const first = {
+      ...row(),
+      ...applyOutcome(row(), "repaired", {
+        now: EARLIER,
+        repair: { run_id: "run-1", repair_attempt: 1, corrected_action: corrected },
+      }),
+    } as CacheRow;
+    expect(applyOutcome(first, "repaired", { now: NOW }).repair_provenance).toBeUndefined();
+  });
+
+  it("survives the store round-trip without provenance leaking forward", () => {
+    const store = new MemoryCacheStore();
+    store.write(row());
+    const key = { site_key: row().site_key, task_key: row().task_key, step_index: 0 };
+
+    recordStepOutcome(
+      { ...key, outcome: "REPAIRED_PASS", repair: { run_id: "run-1", repair_attempt: 1, corrected_action: corrected } },
+      { store, now: () => EARLIER },
+    );
+    expect(store.get(key)?.repair_provenance).toBeDefined();
+
+    recordStepOutcome({ ...key, outcome: "PASS" }, { store, now: () => NOW });
+    expect(store.get(key)?.repair_provenance).toBeUndefined();
+    // The repair itself is still on the record — the history is what carries it.
+    expect(store.allWrites().some((r) => r.repair_provenance !== undefined)).toBe(true);
+  });
 });
 
 describe("recordStepOutcome — the write path", () => {
@@ -238,6 +290,72 @@ describe("recordStepOutcome — the write path", () => {
     // entire experiment.
     expect(store.allWrites().length).toBe(4); // initial + three updates
     expect(isInvalidated(store.get(key)!)).toBe(true);
+  });
+
+  // --- #114: the refusal must name the cause it actually hit ---------------
+
+  it("blames the locators when the locators are what was tainted", () => {
+    const store = new MemoryCacheStore();
+    store.write(row());
+    expect(() =>
+      recordStepOutcome(
+        {
+          site_key: row().site_key,
+          task_key: row().task_key,
+          step_index: 0,
+          outcome: "REPAIRED_PASS",
+          repair: {
+            run_id: "run-1",
+            repair_attempt: 1,
+            corrected_action: {
+              type: "click",
+              locator_fallback_chain: [{ strategy: "text", text: "Northwind Trading invoice 4417" }],
+            },
+          },
+        },
+        { store, now: () => NOW },
+      ),
+    ).toThrow(/tenant_locator_text.*every corrected locator was tenant-tainted/s);
+  });
+
+  it("blames the assertion when the frozen assertion is what was tainted", () => {
+    // Same empty fallback chain, different cause: a repair cannot touch the
+    // assertion, so "every corrected locator was tenant-tainted" would send the
+    // reader looking at locators that were never the problem.
+    const store = new MemoryCacheStore();
+    store.write(
+      row({
+        pool_eligible: false,
+        pool_ineligible_reason: "literal_in_assertion",
+        assertion: {
+          ...row().assertion,
+          type: "text-matches",
+          expected: { template: "Welcome back, Northwind Trading" },
+        },
+      } as Partial<CacheRow>),
+    );
+
+    expect(() =>
+      recordStepOutcome(
+        {
+          site_key: row().site_key,
+          task_key: row().task_key,
+          step_index: 0,
+          outcome: "REPAIRED_PASS",
+          repair: {
+            run_id: "run-1",
+            repair_attempt: 1,
+            corrected_action: {
+              type: "click",
+              locator_fallback_chain: [
+                { strategy: "testid", testid: "modal-close", tenant_scoped: false },
+              ],
+            },
+          },
+        },
+        { store, now: () => NOW },
+      ),
+    ).toThrow(/literal_in_assertion.*frozen assertion carries a tenant literal/s);
   });
 
   it("is a no-op, not an error, when the cache has no such row", () => {

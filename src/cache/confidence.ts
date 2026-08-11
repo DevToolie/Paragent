@@ -53,7 +53,8 @@
 import type { CacheRow, CacheRowCandidate } from "./types.js";
 
 /**
- * Strip the classification fields before handing a row back to the write path.
+ * Strip the fields that describe the *previous* version rather than the next
+ * one, before handing a row back to the write path.
  *
  * `pool_eligible` / `pool_ineligible_reason` are **outputs** of a write, not
  * inputs to the next one. Forwarding the stored value would turn a
@@ -61,9 +62,23 @@ import type { CacheRow, CacheRowCandidate } from "./types.js";
  * `pool_eligible: true` and the row no longer earns it, so a repair that
  * produced a less-poolable action would blow up instead of being reclassified.
  * Reclassification is the correct behaviour — the locators changed.
+ *
+ * `repair_provenance` is dropped for a related reason (#114). Both the schema
+ * and its type say it is "present only on a row written by a repair rewrite",
+ * and a spread would carry it onto every later version: a plain `PASS` on a row
+ * that was *ever* repaired would keep claiming to be the repair's output, with a
+ * `repaired_at` that no longer matches its own `last_verified_at`. Clearing it
+ * here rather than in each branch is deliberate — the repair branch is the one
+ * place that sets it, so "only a repair rewrite carries provenance" is a
+ * property of this function instead of a rule two call sites must remember.
  */
 function forRewrite(row: CacheRow): CacheRowCandidate {
-  const { pool_eligible: _pe, pool_ineligible_reason: _pr, ...rest } = row;
+  const {
+    pool_eligible: _pe,
+    pool_ineligible_reason: _pr,
+    repair_provenance: _rp,
+    ...rest
+  } = row;
   return rest;
 }
 

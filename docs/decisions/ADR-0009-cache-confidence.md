@@ -4,7 +4,7 @@ doc_type: adr
 status: accepted
 owner: B5
 created: 2026-08-03
-updated: 2026-08-03
+updated: 2026-08-10
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -133,6 +133,14 @@ carries the corrected action, `confidence: 1`, `success_count: 1`, `failure_coun
 action starts as verified-once rather than inheriting the record of the action it replaced — plus
 `repair_provenance` linking it to the run and attempt that produced it. The superseded version
 stays on disk; the store is append-only.
+
+**"Only on a row written by a repair rewrite" is enforced, not just documented**
+([#114](https://github.com/DevToolie/Paragent/issues/114)). The next `PASS` or failure on that
+lineage clears the field, so provenance describes exactly one version. Carried forward it would
+make every later version claim to be the repair's output, with a `repaired_at` that no longer
+matches its own `last_verified_at` — an internally inconsistent row in the one place the design
+calls an audit trail. The repair itself is not lost: the earlier version is still on disk, which
+is where the history lives.
 
 `REPAIRED_PASS` is deliberately **not** scored as a plain pass. Scoring it that way would raise
 confidence in an action that had just failed.
