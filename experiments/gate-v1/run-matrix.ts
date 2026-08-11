@@ -392,7 +392,14 @@ function ledgerRow(versionId: string, r: RunResult): Record<string, unknown> {
     task_success: r.task_success,
     repair_count: r.repair_count,
     steps_replay_valid: r.steps_replay_valid,
+    steps_attempted: r.steps_attempted,
     steps_total: r.steps_total,
+    // A run stopped by its own clock is not a run that failed on the site
+    // (#84). Recorded here as well as in the NDJSON so the ledger a human reads
+    // says which of the two happened.
+    ...(r.budget_exhausted
+      ? { budget_exhausted: true, wall_clock_budget_ms: r.wall_clock_budget_ms }
+      : {}),
     // Both, on purpose. `outcome` is what the NDJSON carries; every genuine
     // failure reads REPAIR_EXHAUSTED there because stub repair always
     // proposes null, which flattens "locator gone" and "assertion false"

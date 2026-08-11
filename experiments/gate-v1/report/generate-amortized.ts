@@ -130,6 +130,7 @@ function renderHtml(
   <p class="meta">generated_at=${escapeXml(report.generated_at)} · step_rows=${report.row_counts.step} · run_rows=${report.row_counts.run}</p>
   <p class="meta">Empty or unwired inputs yield status=no_data and null values — never invented rates.</p>
   <p class="meta">amortization: ${report.amortization.payments} one-time program-build payment(s) across ${report.amortization.distinct_builds} distinct build(s)${report.amortization.payments === 0 ? " — the amortized curve is no_data until one is measured" : ""}.</p>
+  <p class="meta">truncation: ${report.truncation.runs_truncated_by_budget} of ${report.truncation.runs} run(s) stopped on their wall-clock budget; ${report.truncation.steps_unattempted} step(s) were never attempted and are in no denominator below.</p>
   <table>
     <thead><tr><th>metric</th><th>status</th><th>value</th><th>formula</th></tr></thead>
     <tbody>

@@ -4,7 +4,7 @@ doc_type: brief
 status: accepted
 owner: B0
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-11
 confidence: HIGH
 supersedes: null
 sources_verified: true

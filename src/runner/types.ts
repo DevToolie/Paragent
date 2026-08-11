@@ -250,11 +250,17 @@ export interface RunResult {
   repair_count: number;
   success_with_le_2_repairs: boolean;
   steps_total: number;
+  /** Steps that produced a metric row. `< steps_total` means the run stopped early. */
+  steps_attempted: number;
   steps_replay_valid: number;
   self_healed: boolean;
   time_to_repair_total_ms: number;
   step_results: StepAttemptResult[];
   wall_clock_total_ms: number;
+  /** The per-run ceiling in force. `<= 0` means the guard was disabled (#84). */
+  wall_clock_budget_ms: number;
+  /** True when the run stopped because the budget was spent, not because it finished. */
+  budget_exhausted: boolean;
   /** Per-run comparison baseline (§9 ratio denominator). Never amortized. */
   cost_fresh: Cost;
   /** One-time build payment, present only on the run that paid it (ADR-0010). */

@@ -12,7 +12,14 @@ export type StepOutcome =
   | "TIMEOUT"
   | "PAGE_ERROR"
   | "REPAIRED_PASS"
-  | "REPAIR_EXHAUSTED";
+  | "REPAIR_EXHAUSTED"
+  /**
+   * The step failed and the run's wall-clock budget ended its recovery (#84,
+   * ADR-0011). Distinct from `TIMEOUT` (the page did not respond in time — a
+   * property of the site) and from `REPAIR_EXHAUSTED` (repair was attempted and
+   * ran out of attempts). Here repair attempts remained and time did not.
+   */
+  | "BUDGET_EXHAUSTED";
 
 export type StepMode = "fresh" | "replay" | "repair";
 export type AssertionStrength = "strong" | "weak";
@@ -53,6 +60,12 @@ export interface RunMetric {
   repair_count: number;
   success_with_le_2_repairs: boolean;
   steps_total: number;
+  /**
+   * Steps that produced a step row. Absent on rows written before #84; when
+   * present and below `steps_total`, the run stopped early and the §9
+   * denominators cover only what it reached.
+   */
+  steps_attempted?: number;
   steps_replay_valid: number;
   self_healed: boolean;
   time_to_repair_total_ms?: number;
@@ -77,6 +90,10 @@ export interface RunMetric {
   cost_replay: Cost;
   cost_repair: Cost;
   wall_clock_total_ms: number;
+  /** Per-run ceiling in force for this run. `<= 0` means the guard was off (#84). */
+  wall_clock_budget_ms?: number;
+  /** True when the run stopped on its budget rather than finishing (#84). */
+  budget_exhausted?: boolean;
   amortized_cost_tokens?: number;
   recorded_at: string;
 }

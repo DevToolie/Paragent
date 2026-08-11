@@ -197,6 +197,44 @@ export function section9SampleFloor(rows: readonly MetricRow[]): {
   };
 }
 
+/**
+ * How much of the matrix the aggregates above do **not** cover (#84).
+ *
+ * Every §9 ratio here is computed over steps that produced rows, so a run cut
+ * short by its wall-clock budget shrinks the denominators. That is the right
+ * arithmetic — an unreached step is not evidence of anything — but a shrinking
+ * denominator that nobody states is exactly how a number gets flattered. This
+ * section makes the shortfall unmissable in the same report.
+ *
+ * Reported, never enforced: a truncated run is still a real measurement of the
+ * steps it reached.
+ */
+export function truncationSummary(rows: readonly MetricRow[]): {
+  runs: number;
+  runs_truncated_by_budget: number;
+  steps_unattempted: number;
+  status: "computed" | "no_data";
+} {
+  const runs = filterRuns(rows);
+  if (runs.length === 0) {
+    return {
+      runs: 0,
+      runs_truncated_by_budget: 0,
+      steps_unattempted: 0,
+      status: "no_data",
+    };
+  }
+  return {
+    runs: runs.length,
+    runs_truncated_by_budget: runs.filter((r) => r.budget_exhausted === true).length,
+    steps_unattempted: runs.reduce(
+      (sum, r) => sum + Math.max(0, r.steps_total - (r.steps_attempted ?? r.steps_total)),
+      0,
+    ),
+    status: "computed",
+  };
+}
+
 export function taskSuccessLe2Repairs(
   rows: readonly MetricRow[],
 ): GateReportSection {
@@ -285,10 +323,21 @@ export function repairCostVsFresh(rows: readonly MetricRow[]): {
   };
 }
 
+/**
+ * Of the runs that failed a step on first pass, how many recovered.
+ *
+ * The denominator counts against **attempted** steps, not `steps_total` (#84).
+ * A run truncated by its wall-clock budget never reached its later steps, and
+ * counting those as first-pass failures would put a run with nothing to heal
+ * into the denominator and score it as a self-heal failure — a value invented
+ * out of a step that was never executed. `steps_attempted` is absent on rows
+ * written before #84, where it equals `steps_total` by construction.
+ */
 export function selfHealRate(rows: readonly MetricRow[]): GateReportSection {
-  const failingFirstPass = filterRuns(rows).filter(
-    (r) => r.steps_total > 0 && r.steps_replay_valid < r.steps_total,
-  );
+  const failingFirstPass = filterRuns(rows).filter((r) => {
+    const attempted = r.steps_attempted ?? r.steps_total;
+    return attempted > 0 && r.steps_replay_valid < attempted;
+  });
   const denominator = failingFirstPass.length;
   const numerator = failingFirstPass.filter((r) => r.self_healed).length;
   if (denominator === 0) {
@@ -499,6 +548,7 @@ export function buildGateReport(rows: readonly MetricRow[]): {
   generated_at: string;
   row_counts: { step: number; run: number };
   sample: ReturnType<typeof section9SampleFloor>;
+  truncation: ReturnType<typeof truncationSummary>;
   metrics: GateReportSection[];
   per_version: VersionBreakdown[];
   amortized_points: AmortizationPoint[];
@@ -525,6 +575,9 @@ export function buildGateReport(rows: readonly MetricRow[]): {
     // Stated before the metrics, deliberately: a reader has to know whether the
     // sample can carry them before reading the numbers.
     sample: section9SampleFloor(rows),
+    // Beside the sample floor, for the same reason: both say what the numbers
+    // below them are and are not computed over.
+    truncation: truncationSummary(rows),
     metrics: [
       stepReplayValidity(rows),
       taskSuccessLe2Repairs(rows),
