@@ -4,7 +4,7 @@ doc_type: runbook
 status: accepted
 owner: B0
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-09
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -42,7 +42,7 @@ required only for the testbed; everything else runs without it.
 | `npm run test:canary` | Privacy boundary canaries — zero tenant strings in pool-eligible rows | **yes**, separate CI job |
 | `npm run test:integration` | Whole loop on a loopback fixture: record → compile → cache-write → replay → report | yes |
 | `npm run secret-scan` | `scripts/secret-scan.mjs` over the tree | yes |
-| `npm run validate:contracts` | Ajv-validates `contracts/examples/*` against the schemas | yes |
+| `npm run validate:contracts` | Ajv-validates `contracts/examples/*` against the schemas, plus every trajectory-shaped `.json` under `experiments/` — see below | yes |
 | `npm run lint` / `npm run typecheck` | eslint / `tsc --noEmit` | yes |
 | `npm run lint:docs` | `scripts/lint-docs.mjs` — frontmatter keys and values, `docs/README.md` index coverage, trailing Open-questions section, relative links that resolve | yes |
 | `npm run test` | Unit tests (`tests/unit`) | yes |
@@ -64,6 +64,24 @@ required only for the testbed; everything else runs without it.
 Credentials for the recorder come from `PARAGENT_USERNAME` and `PARAGENT_USER_SECRET`
 environment variables **only**. They must never reach a committed artifact —
 `assertNoLiteralSecrets` runs on every trajectory write.
+
+### Where a recording has to live: nowhere in particular
+
+`npm run recorder -- --out <path>` writes wherever you point it. `validate:contracts` finds a
+recording by its **shape** — a `trajectory_id` plus a `steps` array, or a `$schema` naming the
+trajectory schema — not by its directory, so a recording in `experiments/gate-v2/recordings/` is
+checked exactly like one in `experiments/gate-v1/trajectories/`. That includes the check against
+`additionalProperties: false`, which is what makes an accidental `cookies` field unrepresentable
+rather than merely discouraged.
+
+Two consequences worth knowing:
+
+- Anything in a directory literally named `trajectories/` is validated **regardless of shape**, so
+  a file there that does not parse fails loudly instead of being skipped for not looking like a
+  recording.
+- Discovery starts at `experiments/` and does not descend into `out/` (gitignored run artifacts).
+  A recording written outside `experiments/` entirely is still not discovered — put recordings
+  under `experiments/`.
 
 ---
 
