@@ -120,6 +120,23 @@ export interface CompiledStep {
   assertion: Assertion;
 }
 
+/**
+ * One thing a run needs bound before it starts (#122).
+ *
+ * Satisfied when **any** name in `any_of` has a binding. It is a set rather than
+ * a name because `fill`/`select`/`upload` consume the *first bound* entry of
+ * `param_refs`, so a chain of two refs is satisfied by either one; flattening
+ * that to "all of them" would refuse programs that run correctly today. The
+ * common case is a set of one.
+ *
+ * Derivation and enforcement live in `src/runner/params.ts`.
+ */
+export interface ParamRequirement {
+  any_of: string[];
+  /** Where it came from, e.g. `step 3 url_template`. Named in the refusal. */
+  source: string;
+}
+
 export interface CompiledProgram {
   schema_version: "1.0.0";
   program_id: string;
@@ -127,6 +144,20 @@ export interface CompiledProgram {
   task_key: string;
   testbed_version: string;
   steps: CompiledStep[];
+  /**
+   * What must be bound before this program can run (#122), derived from its
+   * steps when the program is built rather than re-derived on every replay.
+   *
+   * Optional so a hand-built program stays legal: `programRequirements()` falls
+   * back to deriving from `steps`, which is what keeps the check from depending
+   * on which code path produced the program. Names only — a value never appears
+   * on a program, and a binding is supplied at `run()`.
+   *
+   * `CompiledProgram` has no schema in `contracts/`; #120 is where a
+   * program-level entity gets one, and this field is where `required_params`
+   * should live when it does.
+   */
+  required_params?: ParamRequirement[];
 }
 
 /**

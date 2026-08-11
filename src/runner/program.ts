@@ -25,6 +25,7 @@
  */
 
 import type { CompiledTrajectoryBundle } from "../compiler/types.js";
+import { deriveRequiredParams } from "./params.js";
 import type {
   Assertion,
   CompiledAction,
@@ -47,6 +48,12 @@ export const PROGRAM_ID_PREFIX = "prog-";
  *
  * Steps are sorted by `step_index` rather than trusted in array order; the
  * bundle is JSON that may have been through other tools.
+ *
+ * `required_params` is derived here rather than at replay time (#122): what a
+ * program needs bound is a property of the program, not of any one run of it.
+ * It is derived, not read off the bundle — no contract carries it yet, and
+ * inventing a bundle field would be a schema change (#120 is where a
+ * program-level entity gets one).
  */
 export function bundleToProgram(
   bundle: CompiledTrajectoryBundle,
@@ -68,6 +75,7 @@ export function bundleToProgram(
     task_key: bundle.task_key,
     testbed_version: testbedVersion,
     steps,
+    required_params: deriveRequiredParams(steps),
   };
 }
 

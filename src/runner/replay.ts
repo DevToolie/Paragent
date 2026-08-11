@@ -19,6 +19,7 @@ import { MetricsEmitter } from "../metrics/emitter.js";
 import { executeAction, NETWORK_IDLE_WAIT_MS } from "./actions.js";
 import { evaluateAssertion } from "./assertions.js";
 import { capturePageState, emptyPageState } from "./page-state.js";
+import { assertParamsBound } from "./params.js";
 import {
   assertAssertionUnchanged,
   type RepairModelClient,
@@ -114,6 +115,15 @@ export class ReplayRunner {
     params: ParamBindings = {},
     runId: string = randomUUID(),
   ): Promise<RunResult> {
+    // Before the browser opens, before step 0, and before any metric is
+    // emitted (#122). A forgotten binding otherwise surfaces as PAGE_ERROR or
+    // ASSERTION_FAILED — the outcomes the gate counts as churn — at exactly the
+    // place in the run where real churn appears, with nothing in the row to
+    // tell them apart. A refused run is not a failed run, it is an absent one,
+    // so it must contribute nothing to any §9 denominator; throwing is the only
+    // shape `RunResult` cannot misrepresent.
+    assertParamsBound(program, params);
+
     const started = Date.now();
     const stepResults: StepAttemptResult[] = [];
     let repairCount = 0;

@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B4
 created: 2026-07-24
-updated: 2026-08-04
+updated: 2026-08-10
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -100,6 +100,47 @@ post-condition can say so — `network-idle` is an assertion type
 `tests/unit/runner-bounded-wait.test.ts` pins both halves: the clock (bounded, not 30 s) and the
 classification (`repair_count: 0` on a never-idle page, with the note still recorded). Reverting
 either fails it.
+
+## Parameter bindings are validated before step 0
+
+`ReplayRunner.run()` refuses a program whose parameters are not all bound, **before the browser
+opens and before any metric row is emitted** ([#122](https://github.com/DevToolie/Paragent/issues/122)).
+The refusal is an `UnboundParamsError` naming every missing requirement and where it came from.
+
+This is a measurement guarantee, not an ergonomic one. The value-carrying actions already failed
+closed — `fill` and `select` return `PAGE_ERROR` on a missing binding, and those guards are
+unchanged — but the template paths had no equivalent:
+
+| Shape | Unbound, before this |
+| --- | --- |
+| `http://{host}:{port}/dashboard/new` | `new URL()` throws → `PAGE_ERROR` |
+| `http://localhost:3000/d/{uid}/view` | **valid URL** → a real request to `/d/%7Buid%7D/view` |
+| `press` with a templated `key` | literal `{key}` reaches Playwright → `PAGE_ERROR` |
+| a templated assertion | compared with the hole still in it |
+
+Only the second row is silently wrong; the problem with the other three is that `PAGE_ERROR` and
+`ASSERTION_FAILED` are the outcomes §9 reads as churn evidence. A forgotten `--param` produced
+exactly those outcomes, at exactly the point in the run where real churn appears, and nothing in
+the metric row distinguished them — so one misconfigured parameter reported a *worse gate number*.
+
+**A refused run is absent, not failed.** It contributes nothing to any §9 denominator because it
+produces no row to contribute. `run()` throws rather than returning a `RunResult`, because every
+shape `RunResult` can take is a run that produced step outcomes, and a caller that treated a
+refusal as a result would put it straight back into the denominators this protects.
+
+What counts as required is derived in `src/runner/params.ts` from what the run actually reads:
+holes in `url_template` and `key`, the `param_refs` of `fill`/`select`/`upload`, and the assertion
+template that will be evaluated — `regex_template` when there is one, since `evaluateAssertion`
+prefers it. Two exclusions are deliberate. A `wait`'s `param_refs` are **not** required: a recorded
+`wait_ms` takes precedence (ADR-0008) and with neither the step falls back to the bounded
+`networkidle` hint. A `navigate`'s `param_refs` add nothing beyond its template, which is the
+ground truth. Requirements are `any_of` sets rather than names because `firstParam()` takes the
+first *bound* ref, so a two-ref chain is satisfied by either.
+
+`bundleToProgram` records the result on `CompiledProgram.required_params` — it is a property of the
+program, not of a run — and `programRequirements()` derives it on the fly when a program carries
+none, so the check does not depend on which code path built the program. Only parameter *names*
+ever appear, in the field and in the refusal; values are never persisted or logged.
 
 ## Invariants
 

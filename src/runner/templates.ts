@@ -2,7 +2,19 @@ import type { Assertion, ParamBindings } from "./types.js";
 
 const HOLE = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 
-/** Replace `{param}` holes with runtime bindings. Unbound holes are left intact. */
+/**
+ * Replace `{param}` holes with runtime bindings. Unbound holes are left intact.
+ *
+ * Leaving them intact is now an **unreachable** branch on the replay path rather
+ * than a tolerated one (#122): `ReplayRunner.run()` refuses a program whose
+ * requirements are unbound before step 0, so a hole arriving here without a
+ * binding is an internal invariant violation, not a user error. It is still not
+ * an exception, because `interpolate` is a string function with callers that
+ * legitimately hold partial bindings — `deriveRequiredParams` reads the same
+ * templates without any bindings at all. Pinned by
+ * `tests/unit/runner-params.test.ts`, which asserts both that the behaviour is
+ * unchanged and that `run()` no longer lets a program reach it.
+ */
 export function interpolate(template: string, params: ParamBindings): string {
   return template.replace(HOLE, (match, key: string) => {
     if (!Object.prototype.hasOwnProperty.call(params, key)) return match;

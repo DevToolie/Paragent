@@ -75,6 +75,21 @@ program must not be able to redirect itself away from the version being measured
 hole the program declares is the caller's to supply — inventing a default would silently
 substitute a value the recording never used.
 
+**An incompletely bound program is refused before the first container boots**
+([#122](https://github.com/DevToolie/Paragent/issues/122)). `run()` names every missing
+requirement and emits nothing. This used to fail as four `PAGE_ERROR` steps instead — the outcome
+§9 counts as churn — so a forgotten `--param` reported a worse gate number rather than an error.
+The live bundle in `artifacts/compiled/` needs all four of its own holes bound:
+
+```bash
+npm run gate:matrix -- --runs 3 \
+  --program artifacts/compiled/traj-gate-live-create-stat-dashboard-from-testdata-9.5.21.bundle.json \
+  --param 'dashboard_title=Paragent Gate {run}' \
+  --param 'panel_title=Gate Panel' \
+  --param series_alias=gate \
+  --param series_count=5
+```
+
 Unknown ids are rejected with the valid list, never defaulted:
 
 ```text

@@ -6,6 +6,7 @@ export * from "./locators.js";
 export * from "./assertions.js";
 export * from "./actions.js";
 export * from "./page-state.js";
+export * from "./params.js";
 export * from "./repair.js";
 export * from "./replay.js";
 export * from "./program.js";
