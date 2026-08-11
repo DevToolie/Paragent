@@ -53,7 +53,7 @@ Six packages under `src/`, ~6,700 lines, `npm run ci` green. The shape is right;
 1. **No live testbed run.** ADR-0003's own open questions admit not every tag was pulled. → M1
 2. **No real gate task.** The recorded task is 4 steps of login; PRD §8 wants 8–12 DOM-meaningful steps. → M2
 3. **No real repair model.** Self-heal rate is structurally 0 and `cost_repair` is structurally zero tokens. → M3
-4. **No fresh-reasoning baseline.** `cost_fresh` is always zeros, so the §9 kill line "repair cost ≥ 70% of fresh" has no denominator. → M3
+4. **No fresh-reasoning baseline.** `cost_fresh` is always zeros, so the §9 kill line "repair cost ≥ 70% of fresh" has no denominator. The §12 amortized curve needs a *different*, one-time number (`cost_program_build`), also unmeasured — [ADR-0010](./decisions/ADR-0010-amortization-cost-model.md) splits the two so #39 measures both rather than breaking one with the other. → M3
 
 ---
 

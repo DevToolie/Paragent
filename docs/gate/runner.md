@@ -280,7 +280,13 @@ npm run gate:report
 - Exact §9 kill thresholds (numeric gate) — **not invented**; pending founder PRD drop + Track-1 measurement (`docs/prd/` still placeholder).
 - Model wiring for `RepairModelClient` — stub only (`TODO(model-wiring)`); real proposals PENDING.
 - Whether `compiled_trajectory` bundle `$id` becomes a first-class contract (B3 packaging convention today).
-- Fresh-reasoning cost capture for `cost_fresh` — measured separately; defaults to zeros when unwired.
+- Fresh-reasoning cost capture for `cost_fresh` — measured separately; defaults to zeros when
+  unwired. Since [#123](https://github.com/DevToolie/Paragent/issues/123) this field means the
+  **per-run comparison baseline** only. The one-time cost of producing the compiled program is a
+  separate optional field, `cost_program_build` (+ `program_build_id`), passed to `ReplayRunner`
+  as `costProgramBuild`/`programBuildId` on the single run that paid it —
+  [ADR-0010](../decisions/ADR-0010-amortization-cost-model.md). Neither has been measured yet;
+  the amortized curve reports `no_data` until one is.
 - ~~Live `page` injection API for matrix vs caller-owned browser lifecycle.~~ **Settled (#62)** —
   the driver owns the lifecycle: a fresh Chromium and a fresh context per version, closed in the
   same `finally` as the container. Carrying a context between versions would let one version's

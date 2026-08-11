@@ -230,7 +230,11 @@ Empty NDJSON → scaffold with `status: no_data` and null values (never invented
 - The program under test is still `fixtures/compiled-program.json`, whose own
   `testbed_version` reads `pending-b1@placeholder` because it was compiled against no testbed at
   all. That is accurate and left alone; the runner overrides it per version.
-- Fresh-reasoning baseline cost measurement path — not wired; `cost_fresh` stays zeros until measured.
+- Fresh-reasoning baseline cost measurement path — not wired; `cost_fresh` stays zeros until
+  measured. It is the **per-run** §9 ratio denominator only. The §12 amortized curve consumes a
+  separate one-time `cost_program_build` and reports `no_data` until a payment is measured, which
+  nothing here emits yet ([ADR-0010](../../docs/decisions/ADR-0010-amortization-cost-model.md),
+  [#123](https://github.com/DevToolie/Paragent/issues/123)).
 - ~~Live matrix against Grafana OSS.~~ **Done (#62)** — `npm run gate:matrix` brings up each pin,
   drives Chromium, and emits real outcomes. What it does **not** yet establish: a *meaningful*
   number. The only Grafana-targeted bundle on `main` is a compile of a hand-written example, and

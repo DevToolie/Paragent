@@ -29,7 +29,11 @@ function escapeXml(s: string): string {
 }
 
 function renderSvg(
-  points: Array<{ n: number; amortized_tokens: number }>,
+  points: Array<{
+    n: number;
+    amortized_tokens: number;
+    program_build_paid?: boolean;
+  }>,
 ): string {
   const width = 640;
   const height = 320;
@@ -55,11 +59,23 @@ function renderSvg(
   const poly = points
     .map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.n)},${sy(p.amortized_tokens)}`)
     .join(" ");
+  // A one-time build payment is where the curve steps *up*. Marked rather than
+  // smoothed: a task recompiled after churn paid full price twice, and a plot
+  // showing only the decline overstates the result (#123).
+  const payments = points
+    .filter((p) => p.program_build_paid)
+    .map(
+      (p) =>
+        `<circle cx="${sx(p.n)}" cy="${sy(p.amortized_tokens)}" r="4" fill="#b23" />`,
+    )
+    .join("\n  ");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect width="100%" height="100%" fill="#ffffff"/>
   <path d="${poly}" fill="none" stroke="#222" stroke-width="2"/>
+  ${payments}
   <text x="${pad}" y="24" font-family="sans-serif" font-size="14" fill="#222">amortized tokens/task over N</text>
+  <text x="${pad}" y="40" font-family="sans-serif" font-size="11" fill="#b23">● one-time program-build payment</text>
 </svg>
 `;
 }
@@ -113,6 +129,7 @@ function renderHtml(
   <h1>Gate-v1 amortized report</h1>
   <p class="meta">generated_at=${escapeXml(report.generated_at)} · step_rows=${report.row_counts.step} · run_rows=${report.row_counts.run}</p>
   <p class="meta">Empty or unwired inputs yield status=no_data and null values — never invented rates.</p>
+  <p class="meta">amortization: ${report.amortization.payments} one-time program-build payment(s) across ${report.amortization.distinct_builds} distinct build(s)${report.amortization.payments === 0 ? " — the amortized curve is no_data until one is measured" : ""}.</p>
   <table>
     <thead><tr><th>metric</th><th>status</th><th>value</th><th>formula</th></tr></thead>
     <tbody>

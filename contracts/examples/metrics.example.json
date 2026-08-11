@@ -32,7 +32,14 @@
     "steps_replay_valid": 2,
     "self_healed": false,
     "time_to_repair_total_ms": 0,
+    "program_build_id": "build-example-001",
     "cost_fresh": {
+      "tokens_in": 12000,
+      "tokens_out": 800,
+      "wall_clock_ms": 45000,
+      "model_id": "example-model"
+    },
+    "cost_program_build": {
       "tokens_in": 12000,
       "tokens_out": 800,
       "wall_clock_ms": 45000,

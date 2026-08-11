@@ -56,7 +56,24 @@ export interface RunMetric {
   steps_replay_valid: number;
   self_healed: boolean;
   time_to_repair_total_ms?: number;
+  /**
+   * Per-run comparison baseline: what a fresh run of this task costs *now*.
+   *
+   * The denominator of `repairCostVsFresh`, which is a per-run ratio and needs a
+   * value on every row. **Never summed into the amortization numerator** — see
+   * `cost_program_build` and ADR-0010. Zeros mean "not measured".
+   */
   cost_fresh: Cost;
+  /**
+   * One-time capital cost: producing the compiled program this run replays.
+   *
+   * Present only on the run that consumed a given build's payment; **absent**
+   * means never measured, and amortization reports `no_data` rather than
+   * assuming a first point. Requires `program_build_id` when present.
+   */
+  cost_program_build?: Cost;
+  /** Which compiled build this run replays. A recompile is a new id (ADR-0010). */
+  program_build_id?: string;
   cost_replay: Cost;
   cost_repair: Cost;
   wall_clock_total_ms: number;

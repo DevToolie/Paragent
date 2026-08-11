@@ -4,7 +4,7 @@ doc_type: brief
 status: review
 owner: D2
 created: 2026-07-24
-updated: 2026-08-03
+updated: 2026-08-11
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -58,6 +58,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0007](decisions/ADR-0007-post-action-visibility.md) | `visible_landmarks` filtered for real; new `post_action_target_visible` | accepted | 2026-07-26 | Issue #71, out of PR #70 |
 | [ADR-0008](decisions/ADR-0008-wait-step-duration.md) | Recorded `wait` duration carried through as `wait_ms`, replacing the `networkidle` fallback for recorder output | accepted | 2026-08-03 | Issue #83 |
 | [ADR-0009](decisions/ADR-0009-cache-confidence.md) | Confidence decay (EWMA α=0.3), invalidation below 0.5, repair rewrite; `invalidated_at` + `repair_provenance` | accepted | 2026-08-03 | Issue #64. Thresholds are **chosen defaults, not measured** |
+| [ADR-0010](decisions/ADR-0010-amortization-cost-model.md) | One-time `cost_program_build` split from per-run `cost_fresh`; amortization is `no_data` without a measured payment; a recompile is a visible second payment | accepted | 2026-08-11 | Issue #123, before #39 lands a baseline. **No value measured yet** — the split is argued from arithmetic |
 
 ---
 
