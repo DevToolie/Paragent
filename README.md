@@ -21,7 +21,7 @@ in to repair just that step, and the repaired script is what runs next time.
      │ DEMO GIF PLACEHOLDER                                                     │
      │ Record the gif, save it to docs/assets/demo.gif, then delete these       │
      │ comment markers to publish it. Kept commented so the README never        │
-     │ renders a broken image. Tracking issue: "Record and embed demo GIF".     │
+     │ renders a broken image. Tracking issue: #137                             │
      └──────────────────────────────────────────────────────────────────────────┘
 <p align="center">
   <img src="docs/assets/demo.gif" alt="Recording a trajectory, replaying it without the model, and repairing it after the UI changes" width="720">
