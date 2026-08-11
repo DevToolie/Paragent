@@ -129,6 +129,85 @@ describe("no false positive on prose", () => {
   });
 });
 
+describe("co-occurrence is scoped to the array, not the file (#115)", () => {
+  // Short aliases, because the *source text* of this file is scanned too: an
+  // interpolation of 16+ characters inside `"value":"…"` is itself a match, and
+  // would break `npm run secret-scan` repo-wide. Same reason the values above
+  // are assembled at runtime.
+  const v = fakeCookieValue;
+  const hash = "a1b2c3d4".repeat(4);
+
+  /**
+   * The repro from #115: three unrelated fragments in one file. Each condition
+   * used to be tested with an independent `.test(body)` against the *whole*
+   * body, so these combined into a hit with no storage-state-shaped object
+   * present anywhere.
+   */
+  const unrelatedFragments = [
+    // A feature-flag list that happens to be called "cookies".
+    '{"cookies":["dark-mode","beta-nav"]}',
+    // An unrelated field named httpOnly, elsewhere entirely.
+    '{"proxy":{"httpOnly":true,"upstream":"localhost"}}',
+    // An unrelated 16+ char value: a hash, a UUID, a cache key.
+    `{"cacheKey":{"name":"bundle","value":"${hash}"}}`,
+  ].join("\n");
+
+  it("does not combine three unrelated matches into a hit", () => {
+    expect(scan(unrelatedFragments)).toBeNull();
+  });
+
+  it("does not depend on the fragments being far apart", () => {
+    // A distance bound alone would let this through when the fragments happen
+    // to be adjacent. Scoping to the array does not care how close they are.
+    expect(scan(unrelatedFragments.replace(/\n/g, ""))).toBeNull();
+  });
+
+  it("the same holds for the origins/localStorage half", () => {
+    const body = [
+      '{"origins":["https://a.example","https://b.example"]}',
+      '{"backup":{"localStorage":[]}}',
+      `{"etag":{"value":"${hash}"}}`,
+    ].join("\n");
+    expect(scan(body)).toBeNull();
+  });
+
+  it("still catches a dump whose real value sits deep in a long cookies array", () => {
+    // The other direction: scoping must not become a length limit. Everything
+    // here is inside one array, however long it runs.
+    const filler = Array.from(
+      { length: 40 },
+      (_, i) => `{"name":"c${i}","value":"...","httpOnly":true,"sameSite":"Lax"}`,
+    );
+    const real = `{"name":"session","value":"${v}","httpOnly":true,"sameSite":"Lax"}`;
+    const body = `{"cookies":[${[...filler, real].join(",")}],"origins":[]}`;
+    expect(body.length).toBeGreaterThan(2000);
+    expect(scan(body)).toBe("storage-state-cookies");
+  });
+
+  it("scans a truncated dump rather than skipping it — the cap fails toward detection", () => {
+    // An array that never closes (killed mid-write) still gets scanned over the
+    // capped window. Missing a partial dump would be the wrong direction.
+    const truncated = `{"cookies":[{"name":"session","value":"${v}","httpOnly":true`;
+    expect(scan(truncated)).toBe("storage-state-cookies");
+  });
+
+  it("is not fooled by a bracket inside a value", () => {
+    // The depth count is string-aware; a "]" in a cookie value must not end the
+    // array early and hide what follows.
+    const body =
+      '{"cookies":[{"name":"a","value":"]]]]","httpOnly":true},' +
+      `{"name":"session","value":"${v}","sameSite":"Lax"}]}`;
+    expect(scan(body)).toBe("storage-state-cookies");
+  });
+
+  it("checks every candidate array, not just the first", () => {
+    const body =
+      '{"flags":{"cookies":["a"]},' +
+      `"state":{"cookies":[{"name":"s","value":"${v}","httpOnly":true}]}}`;
+    expect(scan(body)).toBe("storage-state-cookies");
+  });
+});
+
 describe("the whole repo stays clean", () => {
   it("no tracked text file matches, so this suite cannot pass by breaking CI", () => {
     // Guards the guard. A pattern that flags something already in the tree

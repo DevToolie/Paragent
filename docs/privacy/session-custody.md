@@ -160,6 +160,16 @@ them, because the value *is* the secret. The patterns therefore catch session **
 session **discussion**, and 16 characters clears every placeholder in the tree ("...",
 "REDACTED", "<omitted>") while sitting far below a real session cookie.
 
+Those two conditions are checked **inside the candidate array**, not anywhere in the file
+([#115](https://github.com/DevToolie/Paragent/issues/115)). Testing each independently against the
+whole body let three unrelated fragments combine into a hit — a feature-flag list that happens to
+be named `cookies`, a field named `httpOnly` somewhere else, and any 16-character `"value"` in a
+third place. `secret-scan.mjs` now bracket-matches the array that opened the suspicion and looks
+for the companion key and the substantial value only within it, which is where a real dump keeps
+them. A distance bound would not have been enough: unrelated fragments can also happen to be
+adjacent. An array that never closes — a truncated dump — is scanned over a capped window rather
+than skipped, so the cap fails toward detection.
+
 `tests/unit/secret-scan.test.ts` pins both directions: a synthetic fixture
 (`tests/fixtures/storage-state.sample`, fake values only) is caught, every doc discussing cookies
 in prose is not, and a final case walks the whole tree asserting nothing already committed
