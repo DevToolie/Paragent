@@ -255,7 +255,12 @@ export interface RunResult {
   time_to_repair_total_ms: number;
   step_results: StepAttemptResult[];
   wall_clock_total_ms: number;
+  /** Per-run comparison baseline (§9 ratio denominator). Never amortized. */
   cost_fresh: Cost;
+  /** One-time build payment, present only on the run that paid it (ADR-0010). */
+  cost_program_build?: Cost;
+  /** Which compiled build this run replayed. Required alongside the payment. */
+  program_build_id?: string;
   cost_replay: Cost;
   cost_repair: Cost;
 }

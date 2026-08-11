@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://paragent.dev/contracts/metrics.schema.json",
   "title": "Metrics",
-  "description": "Instrumentation for PRD §9 gate metrics. Supports exact computation of: step-level replay-validity; task-level success with <=2 repairs; repair cost vs fresh-reasoning cost (tokens AND wall-clock); self-heal rate; time-to-repair. NEVER invent values — emit measured fields only.",
+  "description": "Instrumentation for PRD §9 gate metrics. Supports exact computation of: step-level replay-validity; task-level success with <=2 repairs; repair cost vs fresh-reasoning cost (tokens AND wall-clock); self-heal rate; time-to-repair; amortized tokens/task over N runs. Two distinct cost meanings are named separately and must not be conflated: cost_fresh is a PER-RUN comparison baseline, cost_program_build is the ONE-TIME cost of producing the compiled program (ADR-0010). NEVER invent values — emit measured fields only.",
   "oneOf": [
     { "$ref": "#/$defs/stepMetric" },
     { "$ref": "#/$defs/runMetric" }
@@ -111,6 +111,9 @@
     "runMetric": {
       "type": "object",
       "additionalProperties": false,
+      "dependentRequired": {
+        "cost_program_build": ["program_build_id"]
+      },
       "required": [
         "schema_version",
         "metric_kind",
@@ -175,7 +178,17 @@
         },
         "cost_fresh": {
           "$ref": "#/$defs/cost",
-          "description": "Baseline fresh-reasoning cost for this task (measured separately or on cold run)."
+          "description": "PER-RUN comparison baseline: what a fresh (uncompiled) run of this task would cost NOW. Legitimately present on every row — it is the denominator of the §9 repair-cost-vs-fresh ratio, which is a per-run quantity. NOT the amortization numerator's first point; that is cost_program_build. Zeros mean 'not measured' and make repairCostVsFresh report no_data. See ADR-0010.",
+          "$comment": "Do not sum this across runs. Summing a per-run baseline over N runs grows the numerator linearly and flattens the amortization curve (#123)."
+        },
+        "cost_program_build": {
+          "$ref": "#/$defs/cost",
+          "description": "ONE-TIME capital cost: what it cost to produce the compiled program this run replays — the fresh reasoning that was paid once for this (site_key, task_key, program_build_id). Present only on the run that consumed a given build's payment; absent everywhere else. Absent means 'never measured', and amortization then reports no_data rather than seeding a curve with an assumed first point. See ADR-0010.",
+          "$comment": "Added in #123. Optional, so pre-existing NDJSON rows stay valid and readable."
+        },
+        "program_build_id": {
+          "type": "string",
+          "description": "Identifies the compiled program build this run replays. A re-record/recompile after churn is a NEW build id and a SECOND payment: it stays in the same (site_key, task_key) amortization series and shows as a step up, never as a reset that hides it. Required whenever cost_program_build is present, so a payment is always attributable."
         },
         "cost_replay": {
           "$ref": "#/$defs/cost"
@@ -190,7 +203,7 @@
         "amortized_cost_tokens": {
           "type": "integer",
           "minimum": 0,
-          "description": "Optional precomputed: (fresh + sum(repair over N) + sum(replay over N)) / N — prefer computing in the report from raw rows."
+          "description": "Optional precomputed: (sum(cost_program_build where present + cost_repair + cost_replay) over first N runs) / N — prefer computing in the report from raw rows. cost_fresh is NOT a term here; it is the per-run ratio baseline."
         },
         "recorded_at": {
           "type": "string",

@@ -51,8 +51,28 @@ export interface ReplayRunnerOptions {
   repairClient?: RepairModelClient;
   metrics?: MetricsEmitter;
   runId?: string;
-  /** Fresh-reasoning baseline cost (measured separately). Defaults to zeros. */
+  /**
+   * Per-run fresh-reasoning **comparison baseline** — what a fresh run of this
+   * task costs now (measured separately, #39). Defaults to zeros, which
+   * `repairCostVsFresh` reads as "not measured" and reports as `no_data`.
+   *
+   * Attaching this to every run row is correct and is what the §9 ratio needs.
+   * It is **not** the amortization numerator: pass `costProgramBuild` for that,
+   * on the one run that paid it (#123, ADR-0010).
+   */
   costFresh?: Cost;
+  /**
+   * One-time cost of producing the compiled program this run replays.
+   *
+   * Pass it on the run that consumed the payment, and never afterwards.
+   * Omitted means never measured — amortization then reports `no_data` rather
+   * than seeding the curve with an assumed first point. Requires
+   * `programBuildId`; the runner refuses the pair otherwise, because an
+   * unattributable payment cannot be told apart from a second one.
+   */
+  costProgramBuild?: Cost;
+  /** Which compiled build this run replays. A recompile is a new id (ADR-0010). */
+  programBuildId?: string;
   page?: Page;
   /**
    * Ceiling for a parameterless `wait` step's `networkidle` fallback.
@@ -90,6 +110,8 @@ export class ReplayRunner {
   private readonly repairClient: RepairModelClient;
   private readonly metrics: MetricsEmitter;
   private readonly costFresh: Cost;
+  private readonly costProgramBuild?: Cost;
+  private readonly programBuildId?: string;
   private readonly page?: Page;
   private readonly networkIdleWaitMs: number;
   private readonly onStepOutcome?: (o: StepOutcomeObservation) => void;
@@ -101,6 +123,23 @@ export class ReplayRunner {
     this.repairClient = options.repairClient ?? new StubRepairModelClient();
     this.metrics = options.metrics ?? new MetricsEmitter();
     this.costFresh = options.costFresh ?? zeroCost();
+    // Refused at construction, not at emission: a build cost with no id is an
+    // unattributable payment, and the aggregate cannot tell one of those from a
+    // second payment for the same build (#123). Failing here means no run rows
+    // were written under the ambiguity.
+    if (options.costProgramBuild !== undefined && options.programBuildId === undefined) {
+      throw new Error(
+        "ReplayRunner: costProgramBuild requires programBuildId — a one-time " +
+          "program cost must say which build it paid for, or the amortization " +
+          "window cannot be reconstructed (see ADR-0010).",
+      );
+    }
+    if (options.costProgramBuild !== undefined) {
+      this.costProgramBuild = options.costProgramBuild;
+    }
+    if (options.programBuildId !== undefined) {
+      this.programBuildId = options.programBuildId;
+    }
     this.networkIdleWaitMs = options.networkIdleWaitMs ?? NETWORK_IDLE_WAIT_MS;
     if (options.onStepOutcome !== undefined) this.onStepOutcome = options.onStepOutcome;
     if (options.page !== undefined) this.page = options.page;
@@ -386,6 +425,12 @@ export class ReplayRunner {
       cost_replay: costReplay,
       cost_repair: costRepair,
     };
+    if (this.costProgramBuild !== undefined) {
+      runResult.cost_program_build = this.costProgramBuild;
+    }
+    if (this.programBuildId !== undefined) {
+      runResult.program_build_id = this.programBuildId;
+    }
 
     this.emitRunMetric(runResult);
     return runResult;
@@ -571,6 +616,15 @@ export class ReplayRunner {
       wall_clock_total_ms: result.wall_clock_total_ms,
       recorded_at: nowIso(),
     };
+    // Omitted rather than zero-filled: absent means "never measured", and the
+    // amortization aggregate reports no_data on that rather than curve-fitting
+    // a zero first point (#123).
+    if (result.cost_program_build !== undefined) {
+      row.cost_program_build = result.cost_program_build;
+    }
+    if (result.program_build_id !== undefined) {
+      row.program_build_id = result.program_build_id;
+    }
     this.metrics.emit(row as MetricRow);
   }
 }

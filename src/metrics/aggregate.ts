@@ -223,6 +223,14 @@ export function taskSuccessLe2Repairs(
   };
 }
 
+/**
+ * The §9 kill line: repair cost against a fresh run of the same task.
+ *
+ * Consumes `cost_fresh`, which is a **per-run** baseline and legitimately
+ * appears on every row — this is a mean-of-ratios question, so a denominator is
+ * needed on each run. That is the opposite of what `amortizedTokensOverN`
+ * needs, which is why the two now read different fields (#123, ADR-0010).
+ */
 export function repairCostVsFresh(rows: readonly MetricRow[]): {
   tokens: GateReportSection;
   wall_clock: GateReportSection;
@@ -336,48 +344,117 @@ export function meanTimeToRepair(
   };
 }
 
+/**
+ * One run's position on the amortization curve.
+ *
+ * `program_build_paid` marks the runs that carried a one-time payment — the
+ * points where the curve steps *up*. A reader has to be able to see those: a
+ * task recompiled after churn has paid full price twice, and a plot that shows
+ * only the decline overstates the result (#123).
+ */
+export interface AmortizationPoint {
+  n: number;
+  amortized_tokens: number;
+  program_build_paid: boolean;
+}
+
+/**
+ * Published in the report, so it states exactly what is summed. `cost_fresh` is
+ * deliberately **not** a term: it is a per-run comparison baseline (the
+ * denominator of `repairCostVsFresh`), and summing it over N would grow the
+ * numerator linearly with N and flatten the curve PRD §12 calls the demo.
+ */
+const AMORTIZED_FORMULA =
+  "(sum(cost_program_build where present + cost_repair + cost_replay) over first N runs) / N " +
+  "— no_data unless some run in the window carries a measured cost_program_build";
+
+/**
+ * The §12 curve: what one task costs per run once its one-time cost is spread
+ * over N runs.
+ *
+ * **The numerator sums `cost_program_build`, not `cost_fresh` (#123).** The two
+ * were one field, read as a one-time capital cost by this function and as a
+ * per-run operating cost by `repairCostVsFresh`. Both readings are legitimate;
+ * they are different quantities, and the disagreement was invisible only
+ * because the field was always zeros. ADR-0010 splits them.
+ *
+ * **No payment measured → `no_data`, not a curve.** Replay costs no tokens, so
+ * without a build cost the numerator is ~0 and the "curve" is a flat line at
+ * zero — which would publish the strongest possible version of the claim on the
+ * strength of a field nobody ever filled in. An unmeasured first point is
+ * absent, never assumed (CONTRIBUTING rule 3).
+ *
+ * **A recompile stays in the same series.** A second payment appears as a step
+ * up at the run that made it, rather than resetting N. Resetting would show two
+ * clean declines and hide that full price was paid twice — see ADR-0010 for the
+ * decision and what it costs.
+ */
 export function amortizedTokensOverN(
   rows: readonly MetricRow[],
   n?: number,
 ): {
-  points: Array<{ n: number; amortized_tokens: number }>;
+  points: AmortizationPoint[];
+  /**
+   * `program_build_id` of every row that carried a payment, in run order.
+   * Duplicates are **kept**: a repeated id means one build was paid for twice,
+   * which is an emitter bug, and de-duplicating here would hide it behind a
+   * prettier curve. Compare against `new Set(...).size`.
+   */
+  builds_paid: string[];
   section: GateReportSection;
 } {
   const runs = [...filterRuns(rows)].sort((a, b) =>
     a.recorded_at.localeCompare(b.recorded_at),
   );
   const limit = n === undefined ? runs.length : Math.min(n, runs.length);
-  const points: Array<{ n: number; amortized_tokens: number }> = [];
-  if (limit === 0) {
-    return {
-      points: [],
-      section: {
-        name: "amortized tokens/task over N runs",
-        formula:
-          "(sum(cost_fresh + cost_repair + cost_replay) over first N runs) / N",
-        value: null,
-        status: "no_data",
-        numerator: 0,
-        denominator: 0,
-      },
-    };
-  }
+  const noData = (): {
+    points: AmortizationPoint[];
+    builds_paid: string[];
+    section: GateReportSection;
+  } => ({
+    // Deliberately no points: an empty series renders as "no_data" in the SVG,
+    // where a zero-valued series would render as a flat line labelled as the demo.
+    points: [],
+    builds_paid: [],
+    section: {
+      name: "amortized tokens/task over N runs",
+      formula: AMORTIZED_FORMULA,
+      value: null,
+      status: "no_data",
+      numerator: 0,
+      denominator: 0,
+    },
+  });
+  if (limit === 0) return noData();
+
+  const points: AmortizationPoint[] = [];
+  const buildsPaid: string[] = [];
   let cumulative = 0;
   for (let i = 0; i < limit; i++) {
     const r = runs[i]!;
-    cumulative +=
-      totalTokens(r.cost_fresh) +
-      totalTokens(r.cost_repair) +
-      totalTokens(r.cost_replay);
-    points.push({ n: i + 1, amortized_tokens: cumulative / (i + 1) });
+    const paid = r.cost_program_build !== undefined;
+    if (paid) {
+      cumulative += totalTokens(r.cost_program_build!);
+      // Schema `dependentRequired` guarantees the id when the cost is present;
+      // the fallback names the violation rather than dropping the payment.
+      buildsPaid.push(r.program_build_id ?? `<unattributed:${r.run_id}>`);
+    }
+    cumulative += totalTokens(r.cost_repair) + totalTokens(r.cost_replay);
+    points.push({
+      n: i + 1,
+      amortized_tokens: cumulative / (i + 1),
+      program_build_paid: paid,
+    });
   }
+  if (buildsPaid.length === 0) return noData();
+
   const last = points[points.length - 1]!;
   return {
     points,
+    builds_paid: buildsPaid,
     section: {
       name: "amortized tokens/task over N runs",
-      formula:
-        "(sum(cost_fresh + cost_repair + cost_replay) over first N runs) / N",
+      formula: AMORTIZED_FORMULA,
       value: last.amortized_tokens,
       status: "computed",
       numerator: cumulative,
@@ -386,18 +463,34 @@ export function amortizedTokensOverN(
   };
 }
 
+/**
+ * Bucket totals across runs.
+ *
+ * `fresh` is a sum of per-run baselines and is **not** an amortization
+ * numerator — see `amortizedTokensOverN`. `program_build` sums only the rows
+ * that carried a payment, which is the quantity that is amortized.
+ */
 export function sumRunCosts(runs: readonly RunMetric[]): {
   fresh: Cost;
+  program_build: Cost;
   replay: Cost;
   repair: Cost;
 } {
   return runs.reduce(
     (acc, r) => ({
       fresh: addCost(acc.fresh, r.cost_fresh),
+      program_build: r.cost_program_build
+        ? addCost(acc.program_build, r.cost_program_build)
+        : acc.program_build,
       replay: addCost(acc.replay, r.cost_replay),
       repair: addCost(acc.repair, r.cost_repair),
     }),
-    { fresh: zeroCost(), replay: zeroCost(), repair: zeroCost() },
+    {
+      fresh: zeroCost(),
+      program_build: zeroCost(),
+      replay: zeroCost(),
+      repair: zeroCost(),
+    },
   );
 }
 
@@ -408,7 +501,17 @@ export function buildGateReport(rows: readonly MetricRow[]): {
   sample: ReturnType<typeof section9SampleFloor>;
   metrics: GateReportSection[];
   per_version: VersionBreakdown[];
-  amortized_points: Array<{ n: number; amortized_tokens: number }>;
+  amortized_points: AmortizationPoint[];
+  /**
+   * How many one-time payments the window contains, and for which builds.
+   * `payments > distinct_builds` means one build id was paid for twice — kept
+   * visible rather than corrected at aggregation time (#123).
+   */
+  amortization: {
+    payments: number;
+    distinct_builds: number;
+    builds_paid: string[];
+  };
 } {
   const repairVs = repairCostVsFresh(rows);
   const amortized = amortizedTokensOverN(rows);
@@ -433,5 +536,10 @@ export function buildGateReport(rows: readonly MetricRow[]): {
     ],
     per_version: perVersionBreakdown(rows),
     amortized_points: amortized.points,
+    amortization: {
+      payments: amortized.builds_paid.length,
+      distinct_builds: new Set(amortized.builds_paid).size,
+      builds_paid: amortized.builds_paid,
+    },
   };
 }
