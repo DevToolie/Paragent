@@ -67,7 +67,7 @@ We would rather lose on an explicit kill than raise on an unmeasured number.
 | --- | --- | --- |
 | 1 | Do compiled trajectories survive site churn? | Harness in progress — **gate number pending** |
 | 2 | Is there a vertical where counterparty holds? | **FAIL** — [DECISION.md](../research/vertical-search/DECISION.md) (C5, 2026-07-25); no Wave-2 lock |
-| 3 | Narrative | This Wave-1 draft; finalize after C5 |
+| 3 | Narrative | This Wave-1 draft, reconciled to the C5 FAIL of 2026-07-25 — no lock to finalize ([DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)) |
 
 A7’s seller-side questionnaire lead was **not locked**; C5 FAIL + C4 ALREADY_SOLVED (QAuto) close that Wave-2 wedge ([DECISION.md](../research/vertical-search/DECISION.md); [adversary-report.md](../research/vertical-search/adversary-report.md)). Historical A7 notes remain in [A7-backup.md](../research/census-week0/A7-backup.md).
 

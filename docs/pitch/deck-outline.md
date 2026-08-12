@@ -48,4 +48,4 @@ Compression of [`narrative.md`](./narrative.md). One point per slide. Vertical: 
 
 - Founder-preferred slide count / fundraising ask amounts — not invented here.
 - PRD §9 numeric thresholds for slide 12 — pending PRD drop + measurement.
-- Whether A7 portal-fill remains the lead after C1–C5 — **resolved, no.** C5 ranks security-questionnaires first only "for residual honesty" among *failed* surfaces and explicitly rejects locking it "because A7 said so" ([DECISION.md](../research/vertical-search/DECISION.md) §Surface scorecard).
+- Whether A7 portal-fill remains the lead after C1–C5 — **resolved, no.** C5 ranks security-questionnaires first only "for residual honesty" among *failed* surfaces and explicitly rejects locking it "because A7 said so" ([DECISION.md](../research/vertical-search/DECISION.md) §Surface scorecard for the ranking caveat; §Specific next action → Explicit non-goals for the A7 rejection).

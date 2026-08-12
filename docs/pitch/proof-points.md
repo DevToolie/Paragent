@@ -88,7 +88,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | D4 | Two orthogonal tracks: (1) churn survival on self-hosted OSS; (2) commercial vertical search; neither waits | narrative, deck 19, objections §9 | PROVEN (as plan text) | [pivot-brief-v0.3.md](../prd/pivot-brief-v0.3.md) §4; Track 2 now FAIL per C5 |
 | D5 | Track 1 version-bump churn is a proxy for organic production churn | narrative | ASSUMED (honesty requirement) | Wave pack / B1 brief; B1 docs may elaborate when merged |
 | D6 | Second consecutive vertical FAIL implicates the thesis, not only anchor selection | narrative kill table, objections §7 | ASSUMED (decision rule) | Wave pack Agent C5 gate text |
-| D7 | Two consecutive vertical FAILs (Week-0 + Track-2) | objections §7 (was rejected at D1 write) | PROVEN (as of C5) | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) + [DECISION.md](../research/vertical-search/DECISION.md) — D1 objections text may still deny this; see INTEGRITY-AUDIT |
+| D7 | Two consecutive vertical FAILs (Week-0 + Track-2) | objections §7 (was rejected at D1 write) | PROVEN (as of C5) | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) + [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) — objections §7 now states both FAILs in present tense; the earlier "D1 objections text may still deny this" caveat is obsolete |
 
 ---
 
