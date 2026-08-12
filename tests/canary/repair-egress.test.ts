@@ -1,0 +1,180 @@
+/**
+ * The repair prompt is an egress path, and this is what may leave (#125).
+ *
+ * Every other canary in this directory guards what reaches *disk*. This guards
+ * what reaches a **third party**: #27 wires a real Anthropic client, and the
+ * prompt it sends is the first channel in this codebase that carries
+ * page-derived content off the machine. Before #125 nothing asserted its shape,
+ * because there was no prompt — which is exactly when the boundary is cheapest
+ * to draw and hardest to remember to draw.
+ *
+ * Two directions, and the second is the one that will actually catch something:
+ *
+ * 1. Nothing outside the authorized shape appears in the payload.
+ * 2. **No client bypasses `serializeRepairContext()`.** A payload guard is
+ *    worthless if a client can serialize the `RepairContext` itself, and that
+ *    object holds `params` — the runtime bindings, secrets included.
+ */
+
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+import { serializeRepairContext } from "../../src/runner/repair-egress.js";
+import { emptyPageState } from "../../src/runner/page-state.js";
+import type { RepairContext } from "../../src/runner/types.js";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+/**
+ * Canary values, assembled at runtime.
+ *
+ * Spelling a secret-shaped literal here would make this file a `secret-scan`
+ * hit — the same reason `scripts/secret-scan.mjs` concatenates its own header
+ * pattern, and the same trap #100 hit twice.
+ */
+const CANARY = {
+  paramSecret: "CANARY-" + "PARAM-" + "b3f1a97c2e",
+  paramUser: "CANARY-" + "USER-" + "d40a17be",
+  errorText: "CANARY-" + "ERRTEXT-" + "9182ab3d",
+  assertionLiteral: "CANARY-" + "EXPECTED-" + "77c1e4",
+};
+
+function contextWithEverything(): RepairContext {
+  return {
+    run_id: "run-1",
+    attempt: 1,
+    failed_outcome: "LOCATOR_NOT_FOUND",
+    // The frozen assertion, including an `expected` the model must not see.
+    assertion: {
+      schema_version: "1.0.0",
+      assertion_id: "assert-0",
+      type: "element-visible",
+      strength: "strong",
+      target: { locator: { strategy: "testid", testid: "submit-button" } },
+      expected: { template: CANARY.assertionLiteral },
+      timeout_ms: 5000,
+      failure_classification: "assertion_failed",
+    },
+    step: {
+      step_index: 3,
+      row_id: "cache-row-3",
+      compiled_action: {
+        type: "fill",
+        param_refs: ["password"],
+        locator_fallback_chain: [
+          { strategy: "role_name", role: "textbox", name: "Alias" },
+          // A free-text locator: page content by definition, and tenant-tainted
+          // by the cache's own boundary.
+          { strategy: "text", text: CANARY.errorText },
+        ],
+      },
+      assertion: {
+        schema_version: "1.0.0",
+        assertion_id: "assert-0",
+        type: "element-visible",
+        strength: "strong",
+        timeout_ms: 5000,
+        failure_classification: "assertion_failed",
+      },
+    },
+    page_state: {
+      ...emptyPageState({ url: "http://127.0.0.1:3000/d/x", title: "Dash" }),
+      context_level: "interactive",
+      elements: [{ role: "button", name: "Save dashboard" }],
+    },
+    // The bag. Runtime bindings, secrets included.
+    params: { username: CANARY.paramUser, password: CANARY.paramSecret },
+    error_message: `locator resolved to text ${CANARY.errorText}`,
+  } as unknown as RepairContext;
+}
+
+describe("repair egress: only the authorized shape leaves (#125)", () => {
+  const payload = JSON.stringify(serializeRepairContext(contextWithEverything()));
+
+  it.each(Object.entries(CANARY))("does not carry %s", (_label, value) => {
+    expect(payload).not.toContain(value);
+  });
+
+  it("excludes params entirely — that is the bag secrets live in", () => {
+    const out = serializeRepairContext(contextWithEverything()) as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(out["params"]).toBeUndefined();
+    expect(payload).not.toContain("password");
+  });
+
+  it("excludes the assertion's expected value, keeping only type and strength", () => {
+    const out = serializeRepairContext(contextWithEverything());
+    expect(out.assertion).toEqual({ type: "element-visible", strength: "strong" });
+  });
+
+  it("drops a free-text locator while keeping the structural ones", () => {
+    const out = serializeRepairContext(contextWithEverything());
+    const strategies = out.step.failed_locators.map((l) => l["strategy"]);
+    expect(strategies).toEqual(["role_name", "text"]);
+    // The `text` locator survives as a strategy name with no text in it — the
+    // model learns a text locator failed without being told what it said.
+    const textLocator = out.step.failed_locators[1]!;
+    expect(textLocator["text"]).toBeUndefined();
+    expect(out.step.failed_locators[0]!["name"]).toBe("Alias");
+  });
+
+  it("still carries what a repair actually needs", () => {
+    // Counter-check. A payload that leaked nothing because it contained nothing
+    // would pass every assertion above and make repair impossible.
+    const out = serializeRepairContext(contextWithEverything());
+    expect(out.page.elements).toHaveLength(1);
+    expect(out.page.url).toContain("127.0.0.1");
+    expect(out.step.action_type).toBe("fill");
+    expect(out.context_level).toBe("interactive");
+  });
+
+  it("records the context level, so a self-heal rate is reproducible", () => {
+    // Two runs with the same model and different levels are not comparable.
+    expect(serializeRepairContext(contextWithEverything()).context_level).toBe("interactive");
+  });
+});
+
+describe("no repair client bypasses the egress boundary (#125)", () => {
+  /** Source files that could plausibly send something to a model. */
+  function sourceFiles(dir: string, out: string[] = []): string[] {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      if (ent.name === "node_modules" || ent.name.startsWith(".")) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) sourceFiles(full, out);
+      else if (ent.isFile() && ent.name.endsWith(".ts") && statSync(full).size < 500_000) {
+        out.push(full);
+      }
+    }
+    return out;
+  }
+
+  it("no implementation of RepairModelClient serializes the raw context", () => {
+    // Built by concatenation so this file does not match its own scan — the
+    // same trick, for the same reason, as `scripts/secret-scan.mjs`.
+    const rawSerialize = new RegExp(
+      "JSON\\s*\\.\\s*stringify\\s*\\(\\s*" + "(?:ctx|context)\\b",
+    );
+    const offenders: string[] = [];
+    for (const file of sourceFiles(path.join(ROOT, "src"))) {
+      if (file.endsWith("repair-egress.ts")) continue;
+      const body = readFileSync(file, "utf8");
+      if (rawSerialize.test(body)) offenders.push(path.relative(ROOT, file));
+    }
+    expect(offenders, "serialize through serializeRepairContext() instead").toEqual([]);
+  });
+
+  it("the scan is capable of firing", () => {
+    // Guards the guard: if the regex stopped matching, the case above would
+    // pass in a tree full of bypasses.
+    const rawSerialize = new RegExp(
+      "JSON\\s*\\.\\s*stringify\\s*\\(\\s*" + "(?:ctx|context)\\b",
+    );
+    expect(rawSerialize.test("const body = JSON.stringify(ctx);")).toBe(true);
+    expect(rawSerialize.test("const body = JSON.stringify(context)")).toBe(true);
+    expect(rawSerialize.test("JSON.stringify(serializeRepairContext(ctx))")).toBe(false);
+  });
+});

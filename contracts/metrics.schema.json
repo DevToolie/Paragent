@@ -4,14 +4,22 @@
   "title": "Metrics",
   "description": "Instrumentation for PRD §9 gate metrics. Supports exact computation of: step-level replay-validity; task-level success with <=2 repairs; repair cost vs fresh-reasoning cost (tokens AND wall-clock); self-heal rate; time-to-repair; amortized tokens/task over N runs. Two distinct cost meanings are named separately and must not be conflated: cost_fresh is a PER-RUN comparison baseline, cost_program_build is the ONE-TIME cost of producing the compiled program (ADR-0010). NEVER invent values — emit measured fields only.",
   "oneOf": [
-    { "$ref": "#/$defs/stepMetric" },
-    { "$ref": "#/$defs/runMetric" }
+    {
+      "$ref": "#/$defs/stepMetric"
+    },
+    {
+      "$ref": "#/$defs/runMetric"
+    }
   ],
   "$defs": {
     "cost": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tokens_in", "tokens_out", "wall_clock_ms"],
+      "required": [
+        "tokens_in",
+        "tokens_out",
+        "wall_clock_ms"
+      ],
       "properties": {
         "tokens_in": {
           "type": "integer",
@@ -71,25 +79,41 @@
           "type": "string",
           "const": "step"
         },
-        "run_id": { "type": "string" },
-        "site_key": { "type": "string" },
-        "task_key": { "type": "string" },
+        "run_id": {
+          "type": "string"
+        },
+        "site_key": {
+          "type": "string"
+        },
+        "task_key": {
+          "type": "string"
+        },
         "step_index": {
           "type": "integer",
           "minimum": 0
         },
-        "testbed_version": { "type": "string" },
-        "outcome": { "$ref": "#/$defs/stepOutcome" },
+        "testbed_version": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/stepOutcome"
+        },
         "replay_valid": {
           "type": "boolean",
           "description": "True iff first-pass replay satisfied the assertion without repair. Used for step-level replay-validity (PRD §9)."
         },
         "mode": {
           "type": "string",
-          "enum": ["fresh", "replay", "repair"],
+          "enum": [
+            "fresh",
+            "replay",
+            "repair"
+          ],
           "description": "Which cost path produced this step attempt."
         },
-        "cost": { "$ref": "#/$defs/cost" },
+        "cost": {
+          "$ref": "#/$defs/cost"
+        },
         "repair_attempt": {
           "type": "integer",
           "minimum": 0,
@@ -102,7 +126,10 @@
         },
         "assertion_strength": {
           "type": "string",
-          "enum": ["strong", "weak"]
+          "enum": [
+            "strong",
+            "weak"
+          ]
         },
         "recorded_at": {
           "type": "string",
@@ -114,7 +141,9 @@
       "type": "object",
       "additionalProperties": false,
       "dependentRequired": {
-        "cost_program_build": ["program_build_id"]
+        "cost_program_build": [
+          "program_build_id"
+        ]
       },
       "required": [
         "schema_version",
@@ -144,10 +173,18 @@
           "type": "string",
           "const": "run"
         },
-        "run_id": { "type": "string" },
-        "site_key": { "type": "string" },
-        "task_key": { "type": "string" },
-        "testbed_version": { "type": "string" },
+        "run_id": {
+          "type": "string"
+        },
+        "site_key": {
+          "type": "string"
+        },
+        "task_key": {
+          "type": "string"
+        },
+        "testbed_version": {
+          "type": "string"
+        },
         "task_success": {
           "type": "boolean",
           "description": "True if every step ended PASS or REPAIRED_PASS."
@@ -223,6 +260,15 @@
         "recorded_at": {
           "type": "string",
           "format": "date-time"
+        },
+        "repair_context_level": {
+          "type": "string",
+          "enum": [
+            "landmarks",
+            "interactive",
+            "tree"
+          ],
+          "description": "Context budget the repair model was given for this run (ADR-0012). Recorded because a self-heal rate is not reproducible without it: two runs with the same model_id and different levels are not comparable."
         }
       }
     }

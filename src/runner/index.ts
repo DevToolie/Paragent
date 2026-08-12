@@ -8,5 +8,6 @@ export * from "./assertions.js";
 export * from "./actions.js";
 export * from "./page-state.js";
 export * from "./repair.js";
+export * from "./repair-egress.js";
 export * from "./replay.js";
 export * from "./program.js";

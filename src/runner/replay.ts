@@ -19,6 +19,10 @@ import { MetricsEmitter } from "../metrics/emitter.js";
 import { executeAction, NETWORK_IDLE_WAIT_MS } from "./actions.js";
 import { evaluateAssertion } from "./assertions.js";
 import { capturePageState, emptyPageState } from "./page-state.js";
+import {
+  DEFAULT_CONTEXT_LEVEL,
+  type ContextLevel,
+} from "../shared/page-context.js";
 import { assertParamsBound } from "./params.js";
 import {
   assertAssertionUnchanged,
@@ -124,6 +128,12 @@ export interface ReplayRunnerOptions {
    * it is invoked after the outcome is final and its return value is ignored.
    */
   onStepOutcome?: (observation: StepOutcomeObservation) => void;
+  /**
+   * Context budget handed to the repair model (ADR-0012, #125). Defaults to
+   * `DEFAULT_CONTEXT_LEVEL`; recorded on the run row so a self-heal rate is
+   * reproducible.
+   */
+  repairContextLevel?: ContextLevel;
 }
 
 function nowIso(): string {
@@ -153,6 +163,7 @@ export class ReplayRunner {
   readonly runBudgetMs: number;
   private readonly now: () => number;
   private readonly onStepOutcome?: (o: StepOutcomeObservation) => void;
+  private readonly repairContextLevel: ContextLevel;
 
   constructor(options: ReplayRunnerOptions = {}) {
     this.dryRun = options.dryRun ?? false;
@@ -182,6 +193,7 @@ export class ReplayRunner {
     this.runBudgetMs = options.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS;
     this.now = options.now ?? Date.now;
     if (options.onStepOutcome !== undefined) this.onStepOutcome = options.onStepOutcome;
+    this.repairContextLevel = options.repairContextLevel ?? DEFAULT_CONTEXT_LEVEL;
     if (options.page !== undefined) this.page = options.page;
   }
 
@@ -306,7 +318,7 @@ export class ReplayRunner {
           repairCount += 1;
           const attempt = repairCount;
           const pageState = this.page
-            ? await capturePageState(this.page)
+            ? await capturePageState(this.page, this.repairContextLevel)
             : emptyPageState();
 
           const ctx: RepairContext = {
@@ -708,6 +720,11 @@ export class ReplayRunner {
       cost_replay: result.cost_replay,
       cost_repair: result.cost_repair,
       wall_clock_total_ms: result.wall_clock_total_ms,
+      // Only when a repair ran: recording a context level for a run that never
+      // asked a model anything would imply a measurement that did not happen.
+      ...(result.repair_count > 0
+        ? { repair_context_level: this.repairContextLevel }
+        : {}),
       recorded_at: nowIso(),
     };
     // Omitted rather than zero-filled: absent means "never measured", and the
