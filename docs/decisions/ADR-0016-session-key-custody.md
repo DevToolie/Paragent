@@ -80,8 +80,9 @@ exist and built Decision 3 on it. Verified against both vendors' current documen
 | Primitive | AWS KMS | GCP Cloud KMS |
 | --- | --- | --- |
 | Wrap/unwrap one secret under a key that never leaves the boundary | Yes — `Encrypt`/`Decrypt` against a customer managed key | Yes — `encrypt`/`decrypt` against a key |
-| Retain more than one key generation for decrypt after rotation | Yes — rotation keeps prior key material for decrypt | Yes: "Rotating keys creates new active key versions, but doesn't re-encrypt your data and doesn't disable or delete previous key versions" |
-| Destroy key material, on a mandatory delay, so what it protected becomes unrecoverable | Yes — scheduled deletion, 7–30 day waiting period (default 30) | Yes — destroy a key version, default 30-day scheduled-for-destruction window, restorable until it elapses |
+| Retain more than one key generation for decrypt after rotation | Yes: "AWS KMS retains all key material for a KMS key … even if key rotation is disabled", and on decrypt "AWS KMS uses the same version of the key material that was used to encrypt it" | Yes: "Rotating keys creates new active key versions, but doesn't re-encrypt your data and doesn't disable or delete previous key versions" |
+| Destroy key material, on a mandatory delay, so what it protected becomes unrecoverable | Yes, at **whole-key** granularity — scheduled deletion, 7–30 day waiting period (default 30) | Yes, at **key-version** granularity — destroy a version, default 30-day window, restorable until it elapses |
+| Destroy **one prior generation** while keeping the current one | **No**, not with built-in rotation — "AWS KMS deletes key material only when you delete the KMS key" | **Yes** — an individual key version can be destroyed |
 | **Revoke one individual ciphertext without affecting others** | **No** | **No** |
 
 The last row is the correction. Destruction granularity is the **key or key version, not the
@@ -95,7 +96,18 @@ version means that the key material is permanently deleted", and data encrypted 
 version "is considered *crypto-shredded*"
 ([Destroy and restore key versions](https://docs.cloud.google.com/kms/docs/destroy-restore) —
 access_date: 2026-08-12). Version retention across rotation is documented at
-[Key rotation](https://docs.cloud.google.com/kms/docs/key-rotation) — access_date: 2026-08-12.
+[Key rotation](https://docs.cloud.google.com/kms/docs/key-rotation) and, for AWS, at
+[Rotate AWS KMS keys](https://docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html) —
+both access_date: 2026-08-12.
+
+**The two vendors differ on the third row, and it constrains Decision 2 rather than Decision 3.**
+GCP can destroy one key version and keep the rest. AWS's built-in rotation cannot: it "retains all
+key material for a KMS key … even if key rotation is disabled" and "deletes key material only when
+you delete the KMS key" (rotate-keys, access_date: 2026-08-12). So on AWS, retiring one master
+generation independently means a **separate KMS key per generation** (what AWS calls manual
+rotation) rather than automatic rotation of one key. That is a live constraint on whichever vendor
+is eventually picked, and it is recorded here so the choice is made with it in view instead of
+discovering it during an incident.
 
 **The consequence that shapes Decision 3:** if erasure granularity equals key-material
 granularity, then per-tenant erasure requires per-tenant *secret material*. There is no vendor
@@ -120,7 +132,8 @@ or an equivalent are all shaped to do this; picking one is an infra decision thi
 made anywhere else, and inventing one here would be exactly the kind of speculation issue #146
 rules out. What is decided is the *shape* the vendor must satisfy, and it is now the shape the
 table above verifies rather than one assumed: wrap/unwrap one secret, retain more than one key
-generation for decrypt (Decision 2), and destroy key material on a bounded schedule. It is
+generation for decrypt, and **destroy a retired generation without destroying the current one** —
+the last of which AWS and GCP satisfy by different means (Decision 2). It is
 explicitly **not** "revoke one wrapped value independently" — no vendor offers that, which is why
 Decision 3 does not ask for it.
 
@@ -228,6 +241,15 @@ mechanism does buy: destroying the prior generation's key material in the KMS ma
 still carrying that epoch permanently unreadable, for every tenant at once. That is an incident
 response ("the previous master may have leaked"), or an end-of-deployment wipe. It is an outage,
 not an offboarding, so Decision 3 does not use it for single-tenant erasure.
+
+**Whether that destruction is even available depends on the vendor, per the table above.** GCP can
+destroy one key version and keep the current one. AWS's built-in rotation cannot — it deletes key
+material only when the whole KMS key is deleted — so getting per-epoch destruction on AWS means
+one KMS key per epoch, wrapping the master, rather than automatic rotation of a single key. This
+ADR does not pick a vendor, so it states the requirement instead: **whichever vendor is chosen,
+the deployment must be able to destroy a retired master generation without destroying the current
+one.** If that is arranged by separate keys rather than key versions, `key_epoch` maps to a key
+rather than to a key version, and nothing else in this decision changes.
 
 ## Decision 3 — Erasure: per-tenant erasure needs per-tenant secret material, so add exactly one
 
