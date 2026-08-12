@@ -4,7 +4,7 @@ doc_type: pitch
 status: draft
 owner: D1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -42,7 +42,7 @@ If counterparty multiplicity holds, **cross-portal pooling** is the product; **v
 
 ## Ask
 
-Help finish the **Track 1 gate number** and **Track 2 vertical adjudication** — not to scale an unmeasured cache. Details of financing: founder.
+Help finish the **Track 1 gate number** — not to scale an unmeasured cache. Track-2 vertical adjudication is **already closed**: FAIL, no surface locked ([DECISION.md](../research/vertical-search/DECISION.md), C5 2026-07-25; [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)). Details of financing: founder.
 
 ## Contact / docs
 
