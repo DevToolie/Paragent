@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-08-03
-updated: 2026-08-09
+updated: 2026-08-11
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -25,7 +25,48 @@ once a row is written — persistence, confidence, self-invalidation, and the re
 | `store.ts` | `CacheStore` (`write`/`get`/`list`), `JsonlCacheStore` (append-only, two files), `MemoryCacheStore` |
 | `confidence.ts` | The §5.3 model: decay, invalidation, repair rewrite ([ADR-0009](../decisions/ADR-0009-cache-confidence.md)) |
 | `update.ts` | `recordStepOutcome` — turns a step outcome into the next row version |
+| `resolve.ts` | `resolveProgram` — a whole program out of per-step rows, or a MISS with a reason ([ADR-0013](../decisions/ADR-0013-cache-program-entity.md)) |
 | `pipeline.ts` | Canary pipeline (merge-blocking) |
+
+## A program is a level above a row
+
+The cache is keyed per step, which is right for a row and insufficient for the thing a hit
+serves. Since [ADR-0013](../decisions/ADR-0013-cache-program-entity.md) every row carries a
+`program` object — `program_id`, `steps_total`, `compiled_at` — written by the compiler, which
+is the only actor that has seen the whole trajectory.
+
+`steps_total` is the field that matters. Without it, rows 0-3 of an 8-step flow are
+indistinguishable from a complete 4-step flow, because **every individual row is valid in both
+cases**. The consequence is not a bad number: it is a browser executing half a flow and stopping
+inside a form.
+
+`resolveProgram(store, { site_key, task_key })` therefore returns a program **only** when it holds
+`steps_total` contiguous rows starting at 0, all under one `program_id`. Anything else is a MISS
+with a reason — `no_rows`, `no_program_ref` (rows predate ADR-0013; completeness is never
+inferred), or `incomplete`. There is no "probably complete", and no shortened program is ever
+returned.
+
+`required_params` is **derived** from the resolved rows by `rowsToProgram()`, not stored on them,
+so a stale declaration cannot disagree with the steps it describes.
+
+### Completeness fails closed. Confidence does not.
+
+Two questions, deliberately opposite answers — this is the part most likely to be "fixed" later:
+
+| Question | Kind | Behaviour |
+| --- | --- | --- |
+| Do I hold every step? | structural | **fails closed** — MISS |
+| Are those steps still trustworthy? | empirical | **reported, never enforced** |
+
+A program is flagged `invalidated` when any of its rows is (a flow is only as replayable as its
+worst step), and is still returned **whole, with every row**. That is the rule below arriving
+through a new door: a read path is exactly where someone adds `if (row.confidence < THRESHOLD)
+skip`. `tests/unit/cache-resolve.test.ts` pins it, and is guard-proven — making the resolver drop
+invalidated rows fails three tests.
+
+**Nothing reads the cache yet.** `resolveProgram` has no caller in `src/` outside its own tests;
+wiring it into the runner and defining what a hit means for §9 is
+[#118](https://github.com/DevToolie/Paragent/issues/118).
 
 ## Read order is a store guarantee
 

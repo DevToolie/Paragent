@@ -112,6 +112,13 @@ function finalize(
   // finalize() builds the row explicitly rather than spreading, so anything the
   // update path sets has to be carried here or writeCacheRow — the only writer —
   // would silently drop it (ADR-0009).
+  //
+  // `program` is the ADR-0013 case, and dropping it would be quiet in the worst
+  // way: every confidence rewrite would strip a row's program identity, so a
+  // task would become unresolvable precisely *because* it had been replayed
+  // successfully. Carried through unchanged — a rewrite changes what a step
+  // does, never which program it belongs to.
+  if (candidate.program) row.program = { ...candidate.program };
   if (candidate.invalidated_at !== undefined) {
     row.invalidated_at = candidate.invalidated_at;
   }

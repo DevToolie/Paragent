@@ -25,6 +25,7 @@
  */
 
 import type { CompiledTrajectoryBundle } from "../compiler/types.js";
+import { PROGRAM_ID_PREFIX, programIdFor } from "../shared/program-id.js";
 import { requiredParams } from "./params.js";
 import type {
   Assertion,
@@ -33,8 +34,16 @@ import type {
   CompiledStep,
 } from "./types.js";
 
-/** Prefix for the synthesized `program_id`. See the module note. */
-export const PROGRAM_ID_PREFIX = "prog-";
+/**
+ * Prefix for the synthesized `program_id`.
+ *
+ * Re-exported rather than declared: since #120 the **compiler** writes this
+ * same identity onto every cache row, so a program resolved from the cache and
+ * the same program adapted from its bundle must agree on it. Two copies of a
+ * string that must match is the #74 failure mode, so there is one carrier —
+ * `src/shared/program-id.ts` — and `tests/unit/program-id.test.ts` asserts it.
+ */
+export { PROGRAM_ID_PREFIX };
 
 /**
  * Adapt a compiled bundle for replay at `testbedVersion`.
@@ -64,7 +73,7 @@ export function bundleToProgram(
 
   const program: CompiledProgram = {
     schema_version: "1.0.0",
-    program_id: `${PROGRAM_ID_PREFIX}${bundle.source_trajectory_id}`,
+    program_id: programIdFor(bundle.source_trajectory_id),
     site_key: bundle.site_key,
     task_key: bundle.task_key,
     testbed_version: testbedVersion,
@@ -73,6 +82,71 @@ export function bundleToProgram(
   // Derived here rather than at replay time: what a program needs bound is a
   // property of the program, and a caller has to be able to ask before it pays
   // for a container boot (#122). Names only — a value never enters a program.
+  program.required_params = requiredParams(program);
+  return program;
+}
+
+/**
+ * What `rowsToProgram` needs from a resolved program (ADR-0013, #120).
+ *
+ * Declared structurally rather than imported from `src/cache/`, for the reason
+ * `src/cache/update.ts` gives in the other direction: the cache is written *to*
+ * by the runner, and a package dependency either way would make the two
+ * inseparable. A `ResolvedProgram` satisfies this shape without either module
+ * importing the other.
+ */
+export interface ResolvedProgramLike {
+  program_id: string;
+  site_key: string;
+  task_key: string;
+  rows: ReadonlyArray<{
+    step_index: number;
+    row_id?: string;
+    compiled_action: unknown;
+    assertion: unknown;
+  }>;
+}
+
+/**
+ * Adapt rows resolved from the cache into a replayable program.
+ *
+ * The sibling of `bundleToProgram`, for the other source. It is deliberately a
+ * *pure adapter* and does no resolving of its own: whether these rows are a
+ * whole program was already decided by `resolveProgram()`, which fails closed,
+ * and re-deciding it here would put the completeness rule in two places.
+ *
+ * `required_params` is **derived here rather than stored on the rows** —
+ * ADR-0013's one deviation from what #120 sketched. The names a program needs
+ * bound are a function of its steps, so storing them would create a second
+ * source of truth that a recompile could leave stale; deriving them means the
+ * declaration cannot disagree with the steps it describes. The caller gets the
+ * same thing #120 asked for — the answer before a browser opens — because this
+ * runs before anything is launched.
+ */
+export function rowsToProgram(
+  resolved: ResolvedProgramLike,
+  testbedVersion: string,
+): CompiledProgram {
+  const steps: CompiledStep[] = [...resolved.rows]
+    .sort((a, b) => a.step_index - b.step_index)
+    .map((row) => {
+      const step: CompiledStep = {
+        step_index: row.step_index,
+        compiled_action: row.compiled_action as CompiledAction,
+        assertion: row.assertion as Assertion,
+      };
+      if (row.row_id !== undefined) step.row_id = row.row_id;
+      return step;
+    });
+
+  const program: CompiledProgram = {
+    schema_version: "1.0.0",
+    program_id: resolved.program_id,
+    site_key: resolved.site_key,
+    task_key: resolved.task_key,
+    testbed_version: testbedVersion,
+    steps,
+  };
   program.required_params = requiredParams(program);
   return program;
 }

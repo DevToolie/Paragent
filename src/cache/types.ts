@@ -3,6 +3,10 @@
  * Authoritative pool eligibility is decided at write time (B5), never by callers.
  */
 
+import type { ProgramRef } from "../shared/program-id.js";
+
+export type { ProgramRef };
+
 export type ActionType =
   | "navigate"
   | "click"
@@ -95,6 +99,12 @@ export interface CacheRow {
   site_key: string;
   task_key: string;
   step_index: number;
+  /**
+   * Which program this row is a step of (ADR-0013). Optional because rows
+   * written before #120 do not carry it — and a resolver treats their absence
+   * as a MISS with a reason, never as "probably complete".
+   */
+  program?: ProgramRef;
   compiled_action: CompiledAction;
   assertion: AssertionLike;
   confidence: number;

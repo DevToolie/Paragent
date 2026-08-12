@@ -9,3 +9,4 @@
 export const PACKAGE = "shared" as const;
 export * from "./landmarks.js";
 export * from "./page-context.js";
+export * from "./program-id.js";

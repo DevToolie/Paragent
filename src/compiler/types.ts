@@ -3,6 +3,10 @@
  * Do not invent fields outside those schemas for emitted CacheRow / Assertion.
  */
 
+import type { ProgramRef } from "../shared/program-id.js";
+
+export type { ProgramRef };
+
 export const COMPILER_VERSION = "0.1.0-b3" as const;
 export const SCHEMA_VERSION = "1.0.0" as const;
 
@@ -204,6 +208,13 @@ export interface CacheRow {
   site_key: string;
   task_key: string;
   step_index: number;
+  /**
+   * Which program this row is a step of (ADR-0013, #120). The compiler is the
+   * only thing that knows `steps_total`, so it is the only thing that can
+   * record it — a resolver reading rows back cannot derive the program's length
+   * from the rows it happens to hold, which is the question it is asking.
+   */
+  program?: ProgramRef;
   compiled_action: CompiledAction;
   assertion: Assertion;
   confidence: number;

@@ -43,6 +43,14 @@ export {
   type StepOutcomeReport,
 } from "./update.js";
 export {
+  resolveProgram,
+  type ProgramKey,
+  type ProgramMissReason,
+  type ProgramResolution,
+  type ResolvedProgram,
+  type UnresolvedProgram,
+} from "./resolve.js";
+export {
   JsonlCacheStore,
   MemoryCacheStore,
   POOL_FILE,
