@@ -24,6 +24,23 @@ import { RECORDER_VERSION, TrajectoryRecorder } from "./session.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 
+/**
+ * A path to show the user for something we just wrote (#134).
+ *
+ * `path.relative(ROOT, ...)` is right in a clone and actively misleading
+ * anywhere else: `ROOT` is derived from this module's location, so for an
+ * installed package it points inside `node_modules/paragent`, and writing
+ * `./trajectory.json` printed `../../../trajectory.json` — a path that is
+ * correct relative to a directory the user has never heard of.
+ *
+ * Relative to the working directory when that stays inside it (the common case,
+ * and the one where a short path helps), absolute otherwise.
+ */
+function displayPath(target: string): string {
+  const rel = path.relative(process.cwd(), target);
+  return rel === "" || rel.startsWith("..") || path.isAbsolute(rel) ? target : rel;
+}
+
 function parseArgs(argv: string[]) {
   const out: Record<string, string | boolean> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -49,6 +66,10 @@ function help(): never {
   --base-url   the ADR-0006 gate task (12 steps) against a seeded testbed
 
 Usage:
+  paragent record --fixture [--out <path>]
+  paragent record --base-url http://127.0.0.1:3000 [--headed] [--out <path>]
+
+From a clone, the same two through the repo script:
   npm run recorder -- --fixture [--out <path>]
   npm run recorder -- --base-url http://127.0.0.1:3000 [--headed] [--out <path>]
 
@@ -321,7 +342,7 @@ async function main() {
         await mkdir(path.dirname(outPath), { recursive: true });
         await recorder.write(outPath);
         console.log(
-          `wrote ${path.relative(ROOT, outPath)} — replay it by binding ` +
+          `wrote ${displayPath(outPath)} — replay it by binding ` +
             "host/port to a server for src/recorder/fixtures/",
         );
       } finally {
@@ -391,7 +412,7 @@ async function main() {
       await mkdir(path.dirname(outPath), { recursive: true });
       await recorder.write(outPath);
       console.log(
-        `wrote ${path.relative(ROOT, outPath)} — ${recorder.stepCount()} measured steps`,
+        `wrote ${displayPath(outPath)} — ${recorder.stepCount()} measured steps`,
       );
     }
   } finally {

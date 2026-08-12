@@ -15,7 +15,8 @@ function usage(): never {
   console.log(`paragent compiler (B3)
 
 Usage:
-  npm run compile -- --in <trajectory.json> [--out <bundle.json>] [--no-validate]
+  paragent compile --in <trajectory.json> [--out <bundle.json>] [--no-validate]
+  npm run compile -- --in <trajectory.json> [--out <bundle.json>]   (from a clone)
 
 Reads a trajectory conforming to contracts/trajectory.schema.json and emits a
 compiled_trajectory bundle (one cache-row per step).`);

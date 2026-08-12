@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Assertion, CacheRow, CompiledTrajectoryBundle } from "./types.js";
@@ -19,8 +21,35 @@ export interface ValidationResult {
   errors: string[];
 }
 
+/**
+ * Directory holding `contracts/`, found by walking up from this module (#134).
+ *
+ * This used to resolve against `process.cwd()`, which is correct exactly when
+ * the process was started from the repo root and wrong everywhere else. It
+ * survived because every caller was an npm script. An installed user running
+ * `paragent compile` from their own directory got `ENOENT` on a path inside
+ * *their* project — a packaging failure reported as a missing file they never
+ * had.
+ *
+ * Walking up rather than resolving a fixed number of `..` segments, because the
+ * depth differs between the two layouts this file runs in: `src/compiler/` in
+ * the repo, `dist/src/compiler/` in the published package.
+ */
+function packageRoot(): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 8; i++) {
+    if (existsSync(path.join(dir, "contracts", "cache-row.schema.json"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Last resort: the old behaviour, so a repo-root invocation still works even
+  // if the layout changes in a way this walk does not anticipate.
+  return process.cwd();
+}
+
 async function loadSchema(rel: string): Promise<object> {
-  const abs = path.resolve(process.cwd(), rel);
+  const abs = path.resolve(packageRoot(), rel);
   return JSON.parse(await readFile(abs, "utf8")) as object;
 }
 

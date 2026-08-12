@@ -47,35 +47,52 @@ loudly at the step that broke, instead of silently completing the wrong task.
 
 ## Try it in 60 seconds
 
-No credentials or live site needed — a browser fixture ships with the repo.
+No clone, no credentials, no live site — a browser fixture ships inside the package.
 
 ```bash
-git clone https://github.com/DevToolie/Paragent.git
-cd Paragent
-npm install
+npx playwright install chromium   # one-time: the browser binary Playwright drives
 
 # 1. Record a login → dashboard-list trajectory against the bundled fixture
 #    (the recorder serves it over loopback for the length of the recording)
-npm run recorder -- --fixture --out trajectory.json
+npx paragent record --fixture --out trajectory.json
 
 # 2. Compile it into a replayable bundle, one cache row per step
-npm run compile -- --in trajectory.json --out bundle.json
+npx paragent compile --in trajectory.json --out bundle.json
 ```
 
-Replaying that bundle needs `host` and `port` bound to a server for
-`src/recorder/fixtures/` — the same holes a recording against a real site carries.
+`npx playwright install chromium` is a separate step on purpose: it downloads a
+browser, and a package that pulls ~150 MB during `npm install` without asking is
+a bad guest. Everything else works offline.
+
+Replaying that bundle needs `host` and `port` bound to a server for the fixture
+pages — the same holes a recording against a real site carries.
 
 Point the recorder at a real site instead:
 
 ```bash
-npm run recorder -- --base-url http://127.0.0.1:3000 --headed
+npx paragent record --base-url http://127.0.0.1:3000 --headed
 ```
 
 Recorded values become parameter slots, so one recording covers a family of runs:
 
 ```bash
-npm run recorder -- --fixture --dashboard-title "Q3 Latency" --series-count 5
+npx paragent record --fixture --dashboard-title "Q3 Latency" --series-count 5
 ```
+
+<details>
+<summary>From a clone, if you want to contribute</summary>
+
+```bash
+git clone https://github.com/DevToolie/Paragent.git
+cd Paragent
+npm install
+npm run recorder -- --fixture --out trajectory.json
+npm run compile -- --in trajectory.json --out bundle.json
+```
+
+The npm scripts run the same code through `tsx`; the published package ships
+compiled JavaScript and does not need it.
+</details>
 
 Credentials are read from `PARAGENT_USERNAME` / `PARAGENT_USER_SECRET` and are never
 persisted to disk. Full command list: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
