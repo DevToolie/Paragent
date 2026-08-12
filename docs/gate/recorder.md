@@ -4,7 +4,7 @@ doc_type: runbook
 status: draft
 owner: B2
 created: 2026-07-25
-updated: 2026-08-11
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -24,11 +24,21 @@ No longer a working assumption: ADR-0003 pinned the matrix and
 
 | Field | Fixture path | Live path |
 | --- | --- | --- |
-| `site_key` | `grafana-oss@fixture` | `grafana-oss@{host}:{port}` of the instance recorded |
-| `task_key` | `login-open-dashboards-list` | `create-stat-dashboard-from-testdata` (ADR-0006) |
+| `site_key` | `grafana-oss@fixture` | `grafana-oss@{testbed_version}` of the instance recorded (e.g. `grafana-oss@9.5.21`) — **not** `{host}:{port}` (ADR-0015, issue #124) |
+| `task_key` | `login-open-dashboards-list`, or resolved from `--intent` (`src/intent/`, issue #124) | `create-stat-dashboard-from-testdata` (ADR-0006), or resolved from `--intent` |
 | `provenance.testbed_version` | `fixture-v1` | read from `/api/health` — `9.5.21` for the committed recording |
 
 No `pending-` placeholder survives on the live path.
+
+`site_key` names a product **version**, never an address — `{host}`/`{port}` are already
+parameters (`base_url_template`, `parameters.host`/`port`, `bindings`), so baking them into
+`site_key` too duplicated data that already had a home and made two recordings of the identical
+product+version, pointed at two different addresses, look like two different sites. Before
+ADR-0015 the live path built `grafana-oss@{host}:{port}` (`src/recorder/cli.ts`), which also
+disagreed with `contracts/trajectory.schema.json`'s own field description
+(`"e.g. grafana-oss@10.2.0"`) — the code is now the thing that matches the schema.
+`src/recorder/site-identity.ts::buildLiveSiteKey` takes a product and a version and nothing
+else, so there is no host or port parameter to thread through by mistake.
 
 ## Session preamble — logging in is NOT a measured step
 
@@ -338,10 +348,13 @@ Validate: `npm run validate:contracts` && `npm run test`
 
 ## Open questions / what I could not verify
 
-- ~~Final `site_key` / pinned Grafana version — blocked on ADR-0003.~~ **Answered (#24)** —
-  `site_key` is `grafana-oss@{host}:{port}` from the instance actually recorded, and
-  `provenance.testbed_version` is read from `/api/health`. No `pending-` placeholder remains on
-  the live path.
+- ~~Final `site_key` / pinned Grafana version — blocked on ADR-0003.~~ **Answered (#24), revised
+  by ADR-0015 (#124)** — `site_key` is `grafana-oss@{testbed_version}`, not
+  `grafana-oss@{host}:{port}`: the address is already parameterized
+  (`base_url_template`/`parameters.host`/`port`), and baking it into the identity too made the
+  same product+version at two addresses look like two different sites, which is the opposite of
+  what cross-instance cache reuse needs. `provenance.testbed_version` is still read from
+  `/api/health`. No `pending-` placeholder remains on the live path.
 - ~~Live Grafana first-login password-change interstitial stability across versions.~~
   **Answered (#60)** — it does not appear on any of the eight, because compose sets
   `GF_SECURITY_ADMIN_PASSWORD`. Unverified: what happens against a Grafana that does **not** set
