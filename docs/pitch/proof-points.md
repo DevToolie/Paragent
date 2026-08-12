@@ -96,7 +96,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 
 | ID | Claim | Appears in | Status | Source |
 | --- | --- | --- | --- | --- |
-| E1 | Seller-side portal questionnaire fill / trust-center visitor is a conditionally credible backup wedge | narrative, deck 18 | PROVEN (as A7 scout verdict) | [A7-backup.md](../research/census-week0/A7-backup.md) §4 — access_date 2026-07-24 |
+| E1 | Seller-side portal questionnaire fill / trust-center visitor **was** a conditionally credible backup wedge at A7; closed as a wedge post-C5 | narrative, deck 18 | PROVEN (as A7 scout verdict, 2026-07-24); **closed** as a live lead | [A7-backup.md](../research/census-week0/A7-backup.md) §4 — access_date 2026-07-24; closed by C4 ALREADY_SOLVED (QAuto category) + C5 FAIL — [adversary-report.md](../research/vertical-search/adversary-report.md); [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) |
 | E2 | Buyer-side TPRM inventory/assessment launch is weaker (heavily API'd) | narrative (non-lock), objections context | PROVEN (as A7) | [A7-backup.md](../research/census-week0/A7-backup.md) |
 | E3 | Vanta documents UI-only gaps (e.g. start security review; link evidence) and ships Chrome extension because portals lacked spreadsheet export | deck 18 / objections §8 backing | PROVEN | URLs in [A7-backup.md](../research/census-week0/A7-backup.md) §5 — e.g. https://developer.vanta.com/docs/guides/create-vendors-and-attach-documentation ; https://www.vanta.com/resources/how-we-built-questionnaire-automation-browser-extension — access_date 2026-07-24 |
 | E4 | SafeBase/Drata Chrome extension markets portal autofill (OneTrust, Whistic, ProcessUnity, etc.) | objections §8 | PROVEN | https://chromewebstore.google.com/detail/safebase-by-drata/mfmcakkhgmcedieeoahcnomefgigcnhm — via [A7](../research/census-week0/A7-backup.md) — access_date 2026-07-24 |
@@ -120,7 +120,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | F8 | Portal bot-detection / MFA / CAPTCHA can block agents | objections §6, deck 20 | ASSUMED as risk class; partial census support | PARTIAL/browser residues in [A4](../research/census-week0/A4-adversary.md); portal MFA notes in [A7](../research/census-week0/A7-backup.md); severity PENDING per vertical |
 | F9 | Intermediary already owning workflow kills counterparty thesis for that surface | narrative, deck 20, objections §7 | ASSUMED (method) | Wave pack Agent C4 intermediary rule |
 | F10 | Solo-founder self-falsification is a diligence asset vs "why hasn't a funded team done this" | narrative, objections §3 | ASSUMED (narrative judgment) | Process evidence is B1–B15 PROVEN; interpretation ASSUMED |
-| F11 | Financing / intro ask: support finishing Track 1 number + Track 2 adjudication | deck 21, one-pager | ASSUMED | Founder ask TBD; no dollar amounts invented |
+| F11 | Financing / intro ask: support finishing the **Track 1 gate number** (Track-2 adjudication is closed — C5 FAIL, no lock; not part of the ask) | deck 21, one-pager | ASSUMED | Founder ask TBD; no dollar amounts invented; Track-2 closure — [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) |
 | F12 | Track 1 can measure mechanism without third-party ToS/design partner via self-hosted OSS | objections §9, deck 19 | ASSUMED (plan) | Wave-2 shared context Track 1 |
 
 ---
