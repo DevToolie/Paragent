@@ -40,6 +40,33 @@
       "type": "integer",
       "minimum": 0
     },
+    "program": {
+      "type": "object",
+      "description": "The program this row is a step of (ADR-0013). Denormalized onto every row because the store is a flat append-only log with one record shape. steps_total is what lets a resolver distinguish a complete task from a truncated one: without it, rows 0-3 of an 8-step flow are indistinguishable from a complete 4-step flow, and every individual row is valid either way. Optional: rows written before #120 do not carry it, and a resolver treats its absence as a MISS with a reason rather than assuming completeness.",
+      "additionalProperties": false,
+      "required": [
+        "program_id",
+        "steps_total",
+        "compiled_at"
+      ],
+      "properties": {
+        "program_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "prog-<trajectory_id>. A naming convention, not a parsed format — see src/shared/program-id.ts."
+        },
+        "steps_total": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Step count of the complete program. Rows are step_index 0..steps_total-1."
+        },
+        "compiled_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the compiler produced this program. Breaks ties when a task has been recompiled and two program versions are both resolvable."
+        }
+      }
+    },
     "compiled_action": {
       "type": "object",
       "additionalProperties": false,

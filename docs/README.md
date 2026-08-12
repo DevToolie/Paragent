@@ -61,6 +61,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0010](decisions/ADR-0010-amortization-cost-model.md) | One-time `cost_program_build` split from per-run `cost_fresh`; amortization is `no_data` without a measured payment; a recompile is a visible second payment | accepted | 2026-08-11 | Issue #123, before #39 lands a baseline. **No value measured yet** — the split is argued from arithmetic |
 | [ADR-0011](decisions/ADR-0011-replay-wall-clock-budget.md) | Per-run wall-clock budget (5 min default); new `BUDGET_EXHAUSTED` outcome; unreached steps emit no row and the shortfall is reported (`steps_attempted`, `truncation`) | accepted | 2026-08-11 | Issue #84. Default is derived from per-step ceilings, **not** from an observed run-duration distribution |
 | [ADR-0012](decisions/ADR-0012-repair-context-budget.md) | Repair context budget: `interactive` (role + accessible name), never input values; `serializeRepairContext()` is the only egress | accepted | 2026-08-11 | Issue #125. Blocks #27 in substance |
+| [ADR-0013](decisions/ADR-0013-cache-program-entity.md) | Program entity in the cache (`program_id`, `steps_total`, `compiled_at`); a partial hit is a **MISS**; completeness fails closed while confidence stays advisory | accepted | 2026-08-11 | Issue #120. Precondition for #118. **Nothing reads the cache yet** — the resolver has no caller outside its tests |
 
 ---
 

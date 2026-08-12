@@ -4,6 +4,7 @@ import {
 } from "./assertions.js";
 import { buildLocatorFallbackChain } from "./locators.js";
 import { decidePoolEligibility } from "./pool.js";
+import { programIdFor } from "../shared/program-id.js";
 import {
   COMPILER_VERSION,
   SCHEMA_VERSION,
@@ -90,6 +91,15 @@ export function compileStep(
     site_key: trajectory.site_key,
     task_key: trajectory.task_key,
     step_index: idx,
+    // ADR-0013: the compiler is the only thing that knows how many steps the
+    // program has, so it is the only thing that can record it. A resolver
+    // reading rows back cannot derive `steps_total` from the rows it happens to
+    // hold — that is precisely the question it is trying to answer.
+    program: {
+      program_id: programIdFor(trajectory.trajectory_id),
+      steps_total: trajectory.steps.length,
+      compiled_at: compiledAt,
+    },
     compiled_action: action,
     assertion,
     confidence: 0,
