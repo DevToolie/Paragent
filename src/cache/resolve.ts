@@ -59,6 +59,31 @@ export interface ProgramKey {
 }
 
 /**
+ * Which rows a resolution may draw on (ADR-0014, #118).
+ *
+ * `any` is same-tenant reuse: the caller hands over its own store, and every row
+ * in it — pooled or tenant-scoped — belongs to the caller already.
+ *
+ * `pool_only` is the **cross-tenant** case, and it is the first time data flows
+ * *out* of the pool rather than into it. Every control built so far points the
+ * other way: `writeCacheRow()`, the taint rules, the allowlist and the canary
+ * suite all govern what may **enter**. "Nothing tenant-scoped got in" is a
+ * different claim from "nothing tenant-scoped comes back out to the wrong
+ * tenant", and only the first had a merge-blocking test before #118.
+ *
+ * Under `pool_only` a tenant-scoped row is not merely deprioritized — it is
+ * invisible, so a program that depends on one resolves as a MISS rather than
+ * silently degrading to a different program. `tests/canary/pool-read-leak.test.ts`
+ * asserts that from disk.
+ */
+export type ResolveScope = "any" | "pool_only";
+
+export interface ResolveOptions {
+  /** Defaults to `any` — same-tenant reuse. See `ResolveScope`. */
+  scope?: ResolveScope;
+}
+
+/**
  * Why a task did not resolve.
  *
  * A reason rather than a bare `undefined` because "no hit" is a measurement in
@@ -232,12 +257,32 @@ function describeIncomplete(candidate: Candidate): string {
  * guarantee this module depends on rather than re-implements — a second sort
  * would be a second place for the ordering rule to live.
  */
-export function resolveProgram(store: CacheStore, key: ProgramKey): ProgramResolution {
+export function resolveProgram(
+  store: CacheStore,
+  key: ProgramKey,
+  options: ResolveOptions = {},
+): ProgramResolution {
+  const scope = options.scope ?? "any";
   const filter: CacheListFilter = { site_key: key.site_key, task_key: key.task_key };
-  const rows = store.list(filter);
+  // `pool_eligible: true` reads a different index, not a filtered view of the
+  // default one. `writeCacheRowPair()` writes both copies of a row and the
+  // merged view deliberately lets the tenant version win, so filtering the
+  // default view at pool scope would return nothing for every task that has a
+  // tenant counterpart — which is all of them. See `CacheListFilter`.
+  //
+  // The eligibility is read off the row, never recomputed here:
+  // `writeCacheRow()` stays the only thing that classifies.
+  const rows =
+    scope === "pool_only" ? store.list({ ...filter, pool_eligible: true }) : store.list(filter);
+  const all = scope === "pool_only" ? store.list(filter) : rows;
 
   if (rows.length === 0) {
-    return miss(key, "no_rows", "nothing cached for this site_key/task_key");
+    const detail =
+      scope === "pool_only" && all.length > 0
+        ? `no pool-eligible rows for this site_key/task_key (${all.length} tenant-scoped row(s) ` +
+          "are not readable at pool scope)"
+        : "nothing cached for this site_key/task_key";
+    return miss(key, "no_rows", detail);
   }
 
   const candidates = groupByProgram(rows);

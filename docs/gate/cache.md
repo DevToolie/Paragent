@@ -64,9 +64,54 @@ through a new door: a read path is exactly where someone adds `if (row.confidenc
 skip`. `tests/unit/cache-resolve.test.ts` pins it, and is guard-proven — making the resolver drop
 invalidated rows fails three tests.
 
-**Nothing reads the cache yet.** `resolveProgram` has no caller in `src/` outside its own tests;
-wiring it into the runner and defining what a hit means for §9 is
-[#118](https://github.com/DevToolie/Paragent/issues/118).
+## The read path, and what a hit is
+
+Since [ADR-0014](../decisions/ADR-0014-cache-read-path.md) the matrix driver can resolve its
+program **from the cache** instead of from a file: `gate:matrix --from-cache <dir> --site-key <k>
+--task-key <k>`. It is opt-in, nothing in CI passes it, and `--program <bundle>` is unchanged and
+still the default — it is the only thing that works with no cache behind it.
+
+A hit is **provenance plus outcome**, and the two are stored separately:
+
+```
+cache hit  ≡  program_source == "cache"  AND  replay_valid
+```
+
+Replay uses no model, so a hit cannot mean "skipped a model call" — it means *this run did not
+need fresh reasoning to obtain a program*. Whether the program then worked is `replay_valid`,
+which already exists and is **not** redefined. A step that needed repair is a miss even though it
+passed, because it cost model tokens.
+
+`program_source` is never defaulted. A run that never consulted a cache emits nothing, so it lands
+in no hit-rate denominator — `no_data`, not `0%`. Aggregating this into a §9 section is
+[#67](https://github.com/DevToolie/Paragent/issues/67).
+
+**A MISS refuses the run.** `--from-cache` exits before any container boots, the same posture an
+unbound parameter takes (#122): a refused run is not a failed run, it is an absent one, and it
+contributes to no denominator.
+
+### Reading is the first outbound flow
+
+Every control before this one governs what may **enter** the pool. Reading is the other
+direction, and *"nothing tenant-scoped got in"* is a different claim from *"nothing tenant-scoped
+comes back out to the wrong tenant"*.
+
+A resolution therefore has a scope. `any` (default) is same-tenant reuse. `pool_only` is the
+cross-tenant case, where a tenant-scoped row is **invisible** — a program that needs one is a
+MISS, not a silently different program. `tests/canary/pool-read-leak.test.ts` is merge-blocking,
+asserts it from disk and after a reopen, and is guard-proven: making pool scope fall back to the
+merged view fails 4 tests.
+
+Reading never *classifies* — it reads the `pool_eligible` decision `writeCacheRow()` already
+stamped. A second classifier would be a second place for the boundary to drift.
+
+> ⚠️ `writeCacheRowPair()` writes **both** copies of a row, and the merged index deliberately lets
+> the tenant version win. So `list({ pool_eligible: true })` reads a **second index**, not a
+> filtered view of the default one — filtering the default view at pool scope returns nothing for
+> every task that has a tenant counterpart, which is all of them.
+
+**Still unmeasured.** No hit-rate number exists: no matrix run has been executed with
+`--from-cache` against a populated cache.
 
 ## Read order is a store guarantee
 

@@ -27,14 +27,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { MetricsEmitter, readMetricNdjson } from "../../src/metrics/emitter.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
-import { bundleToProgram, isCompiledBundle } from "../../src/runner/program.js";
+import { bundleToProgram, isCompiledBundle, rowsToProgram } from "../../src/runner/program.js";
+import { JsonlCacheStore } from "../../src/cache/store.js";
+import { resolveProgram } from "../../src/cache/resolve.js";
 import { requiredParams } from "../../src/runner/params.js";
 import type {
   CompiledProgram,
   ParamBindings,
   RunResult,
 } from "../../src/runner/types.js";
-import type { MetricRow, StepOutcome } from "../../src/metrics/types.js";
+import type { MetricRow, ProgramSource, StepOutcome } from "../../src/metrics/types.js";
 import {
   SECTION9_MIN_RUNS,
   SECTION9_MIN_STEP_EXECUTIONS,
@@ -110,6 +112,18 @@ interface Args {
   params: Record<string, string>;
   /** Repeats per version. See DEFAULT_RUNS_PER_VERSION for why the default is 3. */
   runs: number;
+  /**
+   * Resolve the program from a cache directory instead of a file (#118).
+   *
+   * Requires `--site-key` and `--task-key`: a cache is keyed by them, and
+   * taking them from a bundle would mean loading the file this flag exists to
+   * avoid consulting.
+   */
+  fromCache?: string;
+  siteKey?: string;
+  taskKey?: string;
+  /** Read only pool-eligible rows — the cross-tenant case (ADR-0014). */
+  poolOnly: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -121,11 +135,22 @@ function parseArgs(argv: string[]): Args {
     preamble: true,
     params: {},
     runs: DEFAULT_RUNS_PER_VERSION,
+    poolOnly: false,
   };
-  const valued = new Set(["--versions", "--program", "--port", "--param", "--runs"]);
+  const valued = new Set([
+    "--versions",
+    "--program",
+    "--port",
+    "--param",
+    "--runs",
+    "--from-cache",
+    "--site-key",
+    "--task-key",
+  ]);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? "";
     if (a === "--dry-run") args.dryRun = true;
+    else if (a === "--pool-only") args.poolOnly = true;
     else if (a === "--headed") args.headed = true;
     else if (a === "--keep-up") args.keepUp = true;
     else if (a === "--no-preamble") args.preamble = false;
@@ -181,6 +206,14 @@ function usage(): void {
                      version cannot separate churn from flakiness. PRD §9 wants
                      >=42 runs and >=400 step-executions across the matrix; the
                      report states the shortfall rather than hiding it.
+  --from-cache <dir> Resolve the program from the cache in <dir> instead of a
+                     file (#118). Needs --site-key and --task-key. Refuses the
+                     run — without counting it — when no COMPLETE program
+                     resolves, because a truncated program is never replayed.
+  --site-key <k>     Cache lookup key. Only meaningful with --from-cache.
+  --task-key <k>     Cache lookup key. Only meaningful with --from-cache.
+  --pool-only        Resolve from pool-eligible rows only: the cross-tenant
+                     case, where a tenant-scoped row must be invisible.
   --headed           Show the browser (live runs only).
   --keep-up          Leave each container running after its run, for inspection.
   --no-preamble      Skip the login preamble, for programs that log in as part
@@ -267,6 +300,9 @@ export async function loadProgram(file: string): Promise<CompiledProgram> {
 interface WalkOptions {
   walked: MatrixVersion[];
   program: CompiledProgram;
+  /** Where `program` came from (#118). Recorded on every row it produces. */
+  programSource?: ProgramSource;
+  cacheProgramInvalidated?: boolean;
   emitter: MetricsEmitter;
   matrix: ReturnType<typeof loadMatrix>;
   args: Args;
@@ -305,6 +341,7 @@ async function walkVersions(
             i,
             opts.args.runs,
             opts.args.params,
+            opts.programSource,
           ),
         );
       }
@@ -324,6 +361,10 @@ async function walkVersions(
       preamble: opts.args.preamble,
       extraParams: opts.args.params,
       runs: opts.args.runs,
+      ...(opts.programSource ? { programSource: opts.programSource } : {}),
+      ...(opts.cacheProgramInvalidated !== undefined
+        ? { cacheProgramInvalidated: opts.cacheProgramInvalidated }
+        : {}),
       // Persist after every run, not at the end. An interrupt during version 6
       // must not discard versions 1-5.
       onRunComplete: async () => {
@@ -464,14 +505,62 @@ async function main(): Promise<void> {
   const summaryPath = path.join(OUT_DIR, "matrix-run.json");
   const emitter = new MetricsEmitter(ndjsonPath);
 
-  const programPath = args.program ?? DEFAULT_PROGRAM;
   let program: CompiledProgram;
-  try {
-    program = await loadProgram(programPath);
-  } catch (err) {
-    console.error(`gate:matrix: ${err instanceof Error ? err.message : err}`);
-    process.exit(2);
-    return;
+  let programSource: ProgramSource = "file";
+  let cacheProgramInvalidated: boolean | undefined;
+  /** What the run summary records as the program's origin. */
+  let programOrigin: string;
+
+  if (args.fromCache !== undefined) {
+    // The cache read path (#118). Refuses rather than degrades: a MISS exits
+    // before any container boots, for the same reason an unbound parameter
+    // does (#122). A refused run is not a failed run — it is an absent one,
+    // and it contributes to no §9 denominator.
+    if (!args.siteKey || !args.taskKey) {
+      console.error(
+        "gate:matrix: --from-cache needs --site-key and --task-key " +
+          "(a cache is keyed by them; reading them from a bundle would mean " +
+          "loading the file --from-cache exists to avoid).",
+      );
+      process.exit(2);
+      return;
+    }
+    const store = new JsonlCacheStore({ dir: args.fromCache });
+    const resolution = resolveProgram(
+      store,
+      { site_key: args.siteKey, task_key: args.taskKey },
+      { scope: args.poolOnly ? "pool_only" : "any" },
+    );
+    if (resolution.status === "miss") {
+      console.error(
+        `gate:matrix: cache MISS for ${args.siteKey}/${args.taskKey} ` +
+          `(${resolution.reason}): ${resolution.detail}\n` +
+          "Nothing was run. A partial program is never replayed — see ADR-0013.",
+      );
+      process.exit(2);
+      return;
+    }
+    program = rowsToProgram(resolution, "unset");
+    programSource = "cache";
+    programOrigin = `cache:${path.relative(process.cwd(), args.fromCache)}`;
+    // Advisory, recorded so a reader can segment hit-rate by cache health. It
+    // did not and must not change what gets attempted (ADR-0009, ADR-0014).
+    cacheProgramInvalidated = resolution.invalidated;
+    console.log(
+      `gate:matrix: cache HIT ${resolution.program_id} ` +
+        `(${resolution.steps_total} steps` +
+        `${resolution.invalidated ? `, ${resolution.invalidated_step_indices.length} invalidated` : ""})`,
+    );
+  } else {
+    const programPath = args.program ?? DEFAULT_PROGRAM;
+    programOrigin = path.relative(process.cwd(), programPath);
+    try {
+      program = await loadProgram(programPath);
+    } catch (err) {
+      console.error(`gate:matrix: ${err instanceof Error ? err.message : err}`);
+      process.exit(2);
+      return;
+    }
   }
 
   // Pre-flight the bindings before anything expensive: no container boot, no
@@ -546,6 +635,8 @@ async function main(): Promise<void> {
   const { runs, baseline } = await walkVersions({
     walked,
     program,
+    ...(programSource === "cache" ? { programSource } : {}),
+    ...(cacheProgramInvalidated !== undefined ? { cacheProgramInvalidated } : {}),
     emitter,
     matrix,
     args,
@@ -591,7 +682,8 @@ async function main(): Promise<void> {
         versions_walked: [...new Set(runs.map((r) => r["version"]))],
         versions_skipped: skipped,
         program_id: program.program_id,
-        program_path: path.relative(process.cwd(), programPath),
+        program_path: programOrigin,
+        program_source: programSource,
         ...(baseline ? { state_baseline_version: baseline.id } : {}),
         runs,
       },
@@ -627,6 +719,7 @@ async function runDryVersion(
   runIndex: number,
   totalRuns: number,
   extraParams: Record<string, string> = {},
+  programSource?: ProgramSource,
 ): Promise<Record<string, unknown>> {
   // Only testbed_version varies. site_key/task_key stay whatever the compiled
   // program actually is — relabelling a local-demo program as a Grafana one
@@ -638,6 +731,7 @@ async function runDryVersion(
     dryRunOutcomes: dryOutcomes,
     metrics: emitter,
     maxRepairsPerRun: 2,
+    ...(programSource ? { programSource } : {}),
   });
 
   // `--param` is honoured here too, with the driver's own bindings winning —

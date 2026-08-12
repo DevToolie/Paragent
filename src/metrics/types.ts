@@ -31,6 +31,21 @@ export interface Cost {
   model_id?: string;
 }
 
+/**
+ * Where the program a run executed came from (ADR-0014, #118).
+ *
+ * **Provenance, not outcome.** A cache hit is `program_source === "cache"` AND
+ * `replay_valid` — two independent facts that #67 combines. They are kept apart
+ * here on purpose: `replay_valid` already means "the assertion passed on the
+ * first attempt", and overloading it to also mean "came from cache" would make
+ * one field answer two questions and neither answerable alone.
+ *
+ * Absent means the field predates #118 or was never set — never "file". A run
+ * that never consulted a cache contributes to no hit-rate denominator, because
+ * `no_data` and `0%` are different claims.
+ */
+export type ProgramSource = "cache" | "file";
+
 export interface StepMetric {
   schema_version: typeof METRICS_SCHEMA_VERSION;
   metric_kind: "step";
@@ -41,6 +56,12 @@ export interface StepMetric {
   testbed_version: string;
   outcome: StepOutcome;
   replay_valid: boolean;
+  /**
+   * Where this step's compiled action came from (ADR-0014). Denormalized onto
+   * the step row — as `site_key` and `task_key` already are — so hit-rate can
+   * be aggregated from step rows alone without joining to the run row.
+   */
+  program_source?: ProgramSource;
   mode: StepMode;
   cost: Cost;
   repair_attempt?: number;
@@ -100,6 +121,18 @@ export interface RunMetric {
    * repair was attempted. A self-heal rate without this is not reproducible.
    */
   repair_context_level?: "landmarks" | "interactive" | "tree";
+  /**
+   * Where this run's program came from (ADR-0014, #118). Absent on runs that
+   * predate the field — never assumed to be `file`.
+   */
+  program_source?: ProgramSource;
+  /**
+   * True when the resolved program had at least one invalidated row (ADR-0009).
+   * Recorded so a reader can segment hit-rate by cache health; **advisory** —
+   * it never suppressed a step, because confidence does not gate the
+   * measurement. Only meaningful when `program_source === "cache"`.
+   */
+  cache_program_invalidated?: boolean;
   recorded_at: string;
 }
 

@@ -62,6 +62,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0011](decisions/ADR-0011-replay-wall-clock-budget.md) | Per-run wall-clock budget (5 min default); new `BUDGET_EXHAUSTED` outcome; unreached steps emit no row and the shortfall is reported (`steps_attempted`, `truncation`) | accepted | 2026-08-11 | Issue #84. Default is derived from per-step ceilings, **not** from an observed run-duration distribution |
 | [ADR-0012](decisions/ADR-0012-repair-context-budget.md) | Repair context budget: `interactive` (role + accessible name), never input values; `serializeRepairContext()` is the only egress | accepted | 2026-08-11 | Issue #125. Blocks #27 in substance |
 | [ADR-0013](decisions/ADR-0013-cache-program-entity.md) | Program entity in the cache (`program_id`, `steps_total`, `compiled_at`); a partial hit is a **MISS**; completeness fails closed while confidence stays advisory | accepted | 2026-08-11 | Issue #120. Precondition for #118. **Nothing reads the cache yet** — the resolver has no caller outside its tests |
+| [ADR-0014](decisions/ADR-0014-cache-read-path.md) | Cache read path: a hit is `program_source == "cache"` **and** `replay_valid`, stored as two fields not one; `pool_only` scope makes tenant rows invisible to a cross-tenant reader | accepted | 2026-08-11 | Issue #118. Unblocks #67. `--from-cache` is opt-in; **no hit-rate measured yet** |
 
 ---
 
