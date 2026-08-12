@@ -4,7 +4,7 @@ doc_type: spec
 status: accepted
 owner: B5
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -40,7 +40,7 @@ unstated threat model is what the constraint in #98 warns about.
 | --- | --- | --- | --- |
 | **Local dev** | A developer laptop's filesystem, plus whatever backup/sync software watches it | Another process or user on the box reading the file; the file being copied into a backup, a bug report, or a repo | A compromised laptop with the developer's own privileges while the key is in memory |
 | **CI** | An ephemeral runner's disk and its log/artifact upload | A file surviving into an uploaded artifact; material reaching a log | Real session material — CI never has any, and the canary uses synthetic values |
-| **Prod (not yet built)** | Persistent storage under the product's control | Per-tenant separation of readable material; one tenant's key never yielding another's session | Key custody: a KMS, rotation, escrow, HSM. **Deferred — see below** |
+| **Prod (not yet built)** | Persistent storage under the product's control | Per-tenant separation of readable material; one tenant's key never yielding another's session | Key custody: a KMS, rotation, escrow, HSM. **Decided in [ADR-0016](../decisions/ADR-0016-session-key-custody.md), not yet implemented — see below** |
 
 Two threats are explicitly **not** addressed and must not be assumed away: an attacker who holds
 the master key, and an attacker with live access to the process while it is decrypting. This
@@ -86,6 +86,14 @@ tenant id is in `info`, so two tenants cannot land on the same key and neither c
 master. `key_id = HMAC-SHA256(master, "…/key-id/tenant=<id>")` truncated to 8 bytes — stable per
 tenant across files (it has to identify), while the key material is not (it must not).
 
+**This derivation is what v1 shipped, and [ADR-0016](../decisions/ADR-0016-session-key-custody.md)
+decides to change it before there is a first caller.** Erasing one tenant cryptographically
+requires per-tenant *secret* material to destroy, and every input above except the master is
+public or reconstructible — so the ADR adds a per-tenant erasure secret as a second secret input
+to HKDF. It is decided now rather than later precisely because changing derivation after real
+files exist means re-encrypting all of them, which is the same reason #98 refused to defer
+per-tenant derivation itself. Nothing in this module implements it yet.
+
 **Key material never prints.** `toJSON`, `toString` and the Node inspect hook on both key classes
 render `[redacted]`, so a key caught in a log line, an error dump or a `JSON.stringify` of an
 enclosing object shows a label. SC-03 says session material never reaches logs; a key is that.
@@ -114,13 +122,20 @@ secret scanner is a fixture that should not be in the repo.
 
 ## What v1 defers, explicitly
 
+**The first three rows below are no longer just deferred — they are decided.**
+[ADR-0016](../decisions/ADR-0016-session-key-custody.md) (issue #146) resolves master-key
+custody, rotation semantics, and the erasure story; what remains deferred is *implementing* that
+decision, not deciding it. The table is left in place because it is still the accurate record of
+what v1 shipped without, and the "What must happen before prod" column now points at the ADR
+instead of restating the open question.
+
 | Deferred | Why it is safe to defer | What must happen before prod |
 | --- | --- | --- |
-| **Key custody** — master key comes from `PARAGENT_SESSION_MASTER_KEY`, an env var | Nothing persists session material yet, and no real tenant exists | A KMS-held master, or per-tenant DEKs wrapped by one. The derivation is already per-tenant, which is the part that cannot be retrofitted without re-encrypting everything |
-| **Rotation** | No stored artifact to rotate | Envelope carries a `version` byte; rotation needs a key epoch beside it, and a re-wrap path |
-| **Deletion / tenant offboarding** | No stored artifact | "Delete the tenant's key" is a cheaper erasure than deleting files, and needs custody first |
-| **An index of what is stored** | One file per call, path chosen by the caller | Ties into the same offboarding question |
-| **Memory hygiene beyond the obvious** | Plaintext buffers are zeroed after use, but Node strings are not controllable | Anything stronger needs a different runtime, and is out of proportion to the current threat model |
+| **Key custody** — master key comes from `PARAGENT_SESSION_MASTER_KEY`, an env var | Nothing persists session material yet, and no real tenant exists | Decided in [ADR-0016](../decisions/ADR-0016-session-key-custody.md): a KMS-wrapped master. Not yet implemented, and no vendor is picked |
+| **Rotation** | No stored artifact to rotate | Decided in [ADR-0016](../decisions/ADR-0016-session-key-custody.md): a **global** `key_epoch` field beside `version` naming the master generation, retired by a batch **re-encryption** job (not a cheap re-wrap — the tenant key is derived, so every file is rewritten), never by lazy-on-read alone |
+| **Deletion / tenant offboarding** | No stored artifact | Decided in [ADR-0016](../decisions/ADR-0016-session-key-custody.md): "destroy the tenant's key" is the erasure story, and making that true requires **per-tenant secret material** — a per-tenant erasure secret held only in a KMS-custodied registry and mixed into HKDF, so destroying it makes that tenant's files underivable. Not file deletion, and **not** a non-secret counter: a marker that is readable from the envelope destroys nothing. Strength is bounded by how completely that secret can be destroyed, backups included — an open question in the ADR |
+| **An index of what is stored** | One file per call, path chosen by the caller | [ADR-0016](../decisions/ADR-0016-session-key-custody.md) answers the offboarding half with the per-tenant registry above; a full file-path index stays out of scope until a real caller exists to populate one |
+| **Memory hygiene beyond the obvious** | Plaintext buffers are zeroed after use, but Node strings are not controllable | Anything stronger needs a different runtime, and is out of proportion to the current threat model. Not addressed by ADR-0016 |
 
 A generated fallback master key is **refused**, not defaulted: it would encrypt successfully and
 be unrecoverable on the next process start — a write that looks like it worked over data that is
@@ -135,7 +150,9 @@ cannot be mistaken for key management.
   localStorage blobs, unusual `sameSite` values) breaks the assumption that it is plain JSON.
 - **Per-tenant means per `tenant_id` string, and no tenant model exists yet.** If tenancy later
   becomes hierarchical (org → workspace → user), "per-tenant key" needs re-deciding, and the
-  `info` string is the place it is pinned.
+  `info` string is the place it is pinned — as, now, is the granularity of ADR-0016's per-tenant
+  erasure secret, since "erase this tenant" and "erase this workspace" would want rows at
+  different levels.
 - **The threat model has not been reviewed by anyone outside this repo.** It is written to be
   argued with, and counsel sizing (#36) may change what "at rest" has to mean contractually.
 - Whether the envelope should carry an authenticated creation timestamp for staleness checks. It
