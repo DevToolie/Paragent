@@ -4,7 +4,7 @@ doc_type: pitch
 status: draft
 owner: D1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-12
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -40,7 +40,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | A7 | Repo is PUBLIC by decision; no credentials, tokens, or `.env` in git history; secret scanning + push protection enabled | (supporting; ToS/privacy posture) | PROVEN | [ADR-0005](../decisions/ADR-0005-repo-public.md) (supersedes [ADR-0002](../decisions/ADR-0002-repo-privacy.md), which claimed ALL-PRIVATE); [README.md](../../README.md) |
 | A8 | `pool_eligible` / fail-closed pooling fields exist on cache-row schema | narrative, deck 15, one-pager | PROVEN (schema) | [cache-row.schema.json](../../contracts/cache-row.schema.json) |
 | A9 | Full PRD §6 privacy boundary spec / PRD v0.2 text | narrative, deck 15, one-pager | PROVEN (docs in tree) | [PRD-trajectory-cache-v0.2.md](../prd/PRD-trajectory-cache-v0.2.md) §6; [boundary-spec.md](../privacy/boundary-spec.md); D1 draft absence note obsolete (D2 2026-07-25) |
-| A10 | Wave-1 pitch is draft; finalize after C5 | narrative frontmatter, deck 9, one-pager | ASSUMED (process) | Wave pack Agent D1; vertical lock pending C5 |
+| A10 | Wave-1 pitch is draft; C5 has adjudicated (FAIL) and this reconciliation pass updates the four pitch docs accordingly | narrative frontmatter, deck 9, one-pager | ASSUMED (process) | Wave pack Agent D1; vertical lock closed — C5 FAIL ([DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)) |
 
 ---
 
@@ -59,7 +59,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | B9 | Wrong thesis falsified: recurring observability console config as browser-agent gold | narrative, deck 6, objections §1 | PROVEN | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) §"Wrong thesis the kill list falsifies" |
 | B10 | Highest A5 pain often sat on tasks A4 killed as FULLY_API | narrative, deck 6 | PROVEN | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) evidence-quality §4 + killed table |
 | B11 | Structural finding: vendor builds API for what customers do repeatedly → high-frequency and permanently browser-only nearly mutually exclusive when user is vendor's customer | narrative, deck 3, one-pager, objections §1 | PROVEN (as census archive paraphrase for observability) | [census-week0/README.md](../research/census-week0/README.md); [A8-DECISION.md](../research/census-week0/A8-DECISION.md) |
-| B12 | Generalization of B11 beyond observability | narrative, deck 3 | ASSUMED | Pivot hypothesis; pending Track 2 falsification |
+| B12 | Generalization of B11 beyond observability | narrative, deck 3 | ASSUMED | Pivot hypothesis; Track 2 has since tested it and FAILed (2 survivors, 0 DURABLE surfaces) — C5 frames this as a thesis signal, not proof, with the company verdict deferred to Track-1 ([DECISION.md](../research/vertical-search/DECISION.md) §Decision narrative; [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)) |
 | B13 | Census archive is an asset to preserve | narrative, deck 4–5 | PROVEN (as project policy) | [census-week0/README.md](../research/census-week0/README.md); Wave pack §7 |
 | B14 | "Killed own anchor in 48 hours" | narrative (qualified), deck (process) | ASSUMED | Wave pack / founder framing; dated FAIL is 2026-07-24 — wall-clock **not independently verified** in census files |
 | B15 | 51-item evidence-backed falsification list produced before writing the execution layer | narrative, deck 5, one-pager | PROVEN (kill list exists; sequencing relative to Track-1 code is pack/README posture) | [A4-adversary.md](../research/census-week0/A4-adversary.md); [A8](../research/census-week0/A8-DECISION.md); Track-1 "harness in progress" — [README.md](../../README.md) |
@@ -130,10 +130,10 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | ID | Non-claim | Why listed |
 | --- | --- | --- |
 | G1 | No latency, cost-savings %, or replay-validity % stated as fact | Hard rule — inventing metrics is fireable |
-| G2 | No locked vertical name | C5 pending |
+| G2 | No locked vertical name | C5 FAIL — closed, not pending ([DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)) |
 | G3 | No customer / design-partner names | Privacy rule |
 | G4 | No assertion that an API "does not exist" globally — only cited FULLY_API / NO_PATH_FOUND per census method | A4 hard rule preserved |
-| G5 | Deck does not claim two censuses have already failed | objections §7 |
+| G5 | Docs do not claim the two vertical FAILs disprove the company thesis outright — C5 frames them as evidence about the *selection thesis*, with the company verdict deferred to the Track-1 number, not asserted as a foregone kill | Supersedes this row's prior framing ("deck does not claim two censuses have already failed"), which is no longer accurate now that objections §7 and narrative's kill table state the two FAILs in present tense (see D7) — [DECISION.md](../research/vertical-search/DECISION.md) §Decision narrative; [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) |
 
 ---
 
@@ -165,6 +165,6 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 
 ## Open questions / what I could not verify
 
-- D1 “PRD absent” / “C5 pending” rows corrected where matched; residual pitch prose may lag — see INTEGRITY-AUDIT.
-- Objections §7 may still say only one FAIL exists; C5 is now the second — contradiction surfaced, not auto-rewritten in full.
+- D1 “PRD absent” / “C5 pending” rows corrected where matched; this PR (issue #34) closes the remaining residual pitch prose flagged by INTEGRITY-AUDIT D-01/D-07/E-12 — narrative.md, deck-outline.md, and objections.md's stale "search in progress" / "pending Track 2" / "PENDING C5" language is now reconciled with ADR-0004 + DECISION.md.
+- Objections §7 now states two consecutive FAILs in present tense (resolved); confirm no other pitch doc still implies only one.
 - Any claim that appears in a future deck design beyond this outline needs a new proof-points row before use.

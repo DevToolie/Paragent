@@ -4,7 +4,7 @@ doc_type: pitch
 status: draft
 owner: D1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -12,7 +12,7 @@ sources_verified: true
 
 # Paragent — pitch narrative (Wave 1 draft)
 
-Vertical: **search in progress** (pending Track 2 / C5). No vertical is locked in this draft. Finalize after C5.
+Vertical: **FAIL — no surface locked.** C5 adjudicated all six Wave-2 surfaces on 2026-07-25: 2 task survivors against the ≥6-on-one-surface gate, 0 DURABLE surfaces ([DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)).
 
 ## The insight (falsifiable)
 
@@ -20,7 +20,7 @@ A SaaS vendor builds an API for whatever **its paying customers** do repeatedly.
 
 Structural reading of that kill list: **high-frequency** and **permanently browser-only** are nearly mutually exclusive **when the laborer is the vendor's customer** ([`docs/research/census-week0/README.md`](../research/census-week0/README.md); A8 decision narrative).
 
-**Pivot hypothesis (unproven):** invert the relationship. Target work where the person doing it is the **counterparty** to the software's customer — no API, no bulk tools, no roadmap sympathy, permanently, because the portal owner has no incentive to reduce *their* labor; frequency accrues because one worker faces **many** portals (shared Wave-2 context; founder pivot framing). This claim is falsifiable by Track 2: if C4/C5 find that every candidate surface is already API'd, EDI'd, or owned by an intermediary, the thesis fails — not merely the first vertical.
+**Pivot hypothesis (tested — FAILed as a vertical lock):** invert the relationship. Target work where the person doing it is the **counterparty** to the software's customer — no API, no bulk tools, no roadmap sympathy, permanently, because the portal owner has no incentive to reduce *their* labor; frequency accrues because one worker faces **many** portals (shared Wave-2 context; founder pivot framing). This claim was falsifiable by Track 2, and Track 2 falsified it: C4/C5 found every one of the six candidate surfaces already API'd, EDI'd, or owned by an intermediary (5× ALREADY_SOLVED, 1× ERODING, 0 DURABLE) — the thesis FAILed as a lockable wedge, not merely the first vertical ([DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)).
 
 ## The proof of process
 
@@ -54,8 +54,8 @@ Real kill conditions — not theater:
 | Kill | What it looks like | Owner |
 | --- | --- | --- |
 | Mechanism fails churn | Replay validity / success-with-≤2-repairs below the (still unset) Track-1 threshold | Track 1 |
-| Thesis fails twice | Second consecutive vertical FAIL (≤2 survivors or ALREADY_SOLVED / multiplicity 1 across surfaces) → question whether there is a company, not just a bad anchor | Track 2 / C5 |
-| Intermediary owns the labor | Clearinghouse / network / GRC autofill already absorbs the work; "counterparty" is their customer | C4 durability |
+| Thesis fails twice — **already occurred** | Second consecutive vertical FAIL (≤2 survivors or ALREADY_SOLVED / multiplicity 1 across surfaces) → question whether there is a company, not just a bad anchor. **Realized:** Week-0 FAIL (2/70, 2026-07-24) + Track-2 FAIL (2/75, 2026-07-25, 0 DURABLE surfaces) — [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) | Track 2 / C5 — closed |
+| Intermediary owns the labor — **already occurred, all six surfaces** | Clearinghouse / network / GRC autofill already absorbs the work; "counterparty" is their customer. **Realized:** C4 found 5× ALREADY_SOLVED + 1× ERODING across all six Wave-2 surfaces, 0 DURABLE — [adversary-report.md](../research/vertical-search/adversary-report.md); [DECISION.md](../research/vertical-search/DECISION.md) | C4 durability — closed |
 | ToS / portal blocks | Hosted portals ban automated interaction without consent; pilots become counsel+MSA gated (A6 already HIGH for Datadog/Grafana consoles — [`A6-tos.md`](../research/census-week0/A6-tos.md), access_date 2026-07-24) | Legal + GTM |
 | Models get cheap enough | Fresh reasoning cost falls until caching's economic wedge collapses | Market / Track 1 cost curves |
 
