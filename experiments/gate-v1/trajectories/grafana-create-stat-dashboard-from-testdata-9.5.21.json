@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "trajectory_id": "traj-gate-live-create-stat-dashboard-from-testdata-9.5.21",
-  "site_key": "grafana-oss@127.0.0.1:3000",
+  "site_key": "grafana-oss@9.5.21",
   "task_key": "create-stat-dashboard-from-testdata",
   "recorded_at": "2026-07-28T19:25:52.091Z",
   "base_url_template": "http://{host}:{port}",

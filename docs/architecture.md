@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B0
 created: 2026-07-25
-updated: 2026-08-11
+updated: 2026-08-12
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -36,6 +36,7 @@ artifact on the left is never handed to the box on the right by any code path ou
 
 ```mermaid
 flowchart LR
+  INTENT["intent<br/>src/intent/"]
   TB["testbed<br/>Grafana OSS @ pinned tag<br/>src/testbed/"]
   REC["recorder<br/>src/recorder/"]
   TRAJ["trajectory.json<br/>experiments/gate-v1/trajectories/"]
@@ -70,6 +71,8 @@ flowchart LR
   RUN -->|"metrics.schema.json"| NDJSON
   NDJSON -->|"PRD §9 aggregates, no_data-safe"| REPORT
 
+  INTENT -->|"resolveTaskIntent() → task_key or MISS<br/>src/recorder/select-task.ts (#124)"| REC
+
   linkStyle 4 stroke:#c00,stroke-width:2px
 ```
 
@@ -101,12 +104,24 @@ synthesized assertion and writes a `compiled_trajectory` bundle to `artifacts/co
 Issue [#52](https://github.com/DevToolie/Paragent/issues/52) (end-to-end integration test:
 record → compile → cache-write → replay) is the issue that closes both.
 
+**A new entry point, ahead of the recorder.** `src/intent/` ([#124](https://github.com/DevToolie/Paragent/issues/124),
+[ADR-0015](./decisions/ADR-0015-task-identity-and-intent-resolution.md)) resolves a
+natural-language goal to the `task_key` that names it, or a typed MISS — the thing an agent
+actually arrives with is a goal, not a slug, and before this every `task_key` in the system was
+one a human had typed. `src/recorder/cli.ts` calls it through
+`src/recorder/select-task.ts::resolveTaskKeyForRecording` before falling back to an explicit
+`--task-key`. **Not shown as an edge into `CACHE`:** the more obviously cache-shaped call site —
+resolving intent in front of `gate:matrix --from-cache`, which already looks up a program by
+`(site_key, task_key)` — is not wired yet (ADR-0015 Open Questions); drawing that edge now would
+claim a hop that does not exist, the same reason break 1 above is dashed rather than solid.
+
 ---
 
 ## Package table
 
 | Package | Responsibility | Public entry point | Contract read | Contract written | Spec doc |
 | --- | --- | --- | --- | --- | --- |
+| `src/intent/` | Resolve a natural-language goal to a `task_key`, or a typed MISS — normalized exact match against a known-task catalog, behind a swappable `IntentMatcher` (#124) | `src/intent/index.ts` (library only — called from `src/recorder/select-task.ts`) | none | none — `task_key` is an opaque string handed to a caller, not a contract field this package owns | [decisions/ADR-0015](./decisions/ADR-0015-task-identity-and-intent-resolution.md) |
 | `src/testbed/` | Boot + seed Grafana OSS at a pinned tag: compose project, provisioning overlay, HTTP seed | `src/testbed/index.ts`; CLI `src/testbed/cli.ts` (`npm run testbed`) | `scripts/testbed/matrix.json` (not a JSON Schema) | none | [gate/testbed.md](./gate/testbed.md) |
 | `src/recorder/` | Capture a Playwright run as parameterised steps with ranked locator candidates; refuse literal secrets | `src/recorder/index.ts`; CLI `src/recorder/cli.ts` (`npm run recorder`) | none | `trajectory.schema.json` | [gate/recorder.md](./gate/recorder.md) |
 | `src/compiler/` | One cache row per step: locator fallback chain, synthesized assertion, fail-closed `pool_eligible` pre-check | `src/compiler/index.ts`; CLI `src/compiler/cli.ts` (`npm run compile`) | `trajectory.schema.json` | `cache-row.schema.json`, `assertion.schema.json` | [gate/compiler.md](./gate/compiler.md) |
@@ -116,6 +131,11 @@ record → compile → cache-write → replay) is the issue that closes both.
 | `src/shared/` | **Not a pipeline stage.** In-page JS source strings two capture sites must run identically — today the `visible_landmarks` enumeration | `src/shared/index.ts` (library only) | none | none — feeds the `trajectory.schema.json` `visible_landmarks` field written by the recorder | see below |
 | `src/session/` | **Not a pipeline stage, and has no callers.** Encrypted-at-rest persistence for browser session state, so the first code that needs it has no unencrypted path (SC-01, #98) | `src/session/index.ts` (library only) | none | none — a binary envelope, not a repo contract | [privacy/session-state-encryption.md](./privacy/session-state-encryption.md) |
 | `experiments/gate-v1/` | Throwaway harness: walk the version list, emit rows, render the report. **Not a product API** | `npm run gate:matrix`, `npm run gate:report` | `metrics.schema.json`, `scripts/testbed/matrix.json` (via `src/testbed/matrix.ts`) | `metrics.schema.json` | [experiments/gate-v1/README.md](../experiments/gate-v1/README.md) |
+
+`src/intent/` has no spec doc under `gate/` either — it is not a stage that transforms one
+contract into another, so [ADR-0015](./decisions/ADR-0015-task-identity-and-intent-resolution.md)
+is both the design record and the spec, the same shape `src/cache/` takes with
+`privacy/boundary-spec.md` below.
 
 `src/cache/` has no spec doc under `gate/`; its contract is
 [privacy/boundary-spec.md](./privacy/boundary-spec.md) and the merge-blocking canary
