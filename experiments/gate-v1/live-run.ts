@@ -23,6 +23,7 @@
 
 import { chromium, type Browser, type Page } from "playwright";
 import { MetricsEmitter } from "../../src/metrics/emitter.js";
+import type { ProgramSource } from "../../src/metrics/types.js";
 import { establishSession, LoginFailedError } from "../../src/recorder/preamble.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
 import type {
@@ -167,6 +168,14 @@ export interface LiveRunOptions {
   extraParams?: Record<string, string>;
   readyTimeoutSeconds?: number;
   maxRepairsPerRun?: number;
+  /**
+   * Where the program came from (#118). Passed through rather than inferred:
+   * this module is handed a `CompiledProgram` and cannot tell a cache-resolved
+   * one from a file-loaded one — which is the point of recording it.
+   */
+  programSource?: ProgramSource;
+  /** Advisory cache-health flag (ADR-0009). Never changes what is attempted. */
+  cacheProgramInvalidated?: boolean;
   /** Repeats of the program against this version. Defaults to 1. */
   runs?: number;
   /**
@@ -396,6 +405,10 @@ export async function runVersionLive(
           page,
           metrics: opts.emitter,
           maxRepairsPerRun: opts.maxRepairsPerRun ?? 2,
+          ...(opts.programSource ? { programSource: opts.programSource } : {}),
+          ...(opts.cacheProgramInvalidated !== undefined
+            ? { cacheProgramInvalidated: opts.cacheProgramInvalidated }
+            : {}),
         });
 
         const params: ParamBindings = {

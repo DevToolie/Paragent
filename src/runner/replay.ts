@@ -16,6 +16,7 @@ import {
 } from "../metrics/types.js";
 import { addCost, measureWallClock, zeroCost } from "../metrics/cost.js";
 import { MetricsEmitter } from "../metrics/emitter.js";
+import type { ProgramSource } from "../metrics/types.js";
 import { executeAction, NETWORK_IDLE_WAIT_MS } from "./actions.js";
 import { evaluateAssertion } from "./assertions.js";
 import { capturePageState, emptyPageState } from "./page-state.js";
@@ -134,6 +135,24 @@ export interface ReplayRunnerOptions {
    * reproducible.
    */
   repairContextLevel?: ContextLevel;
+  /**
+   * Where this run's program came from (ADR-0014, #118).
+   *
+   * Told to the runner rather than discovered by it: the caller is the thing
+   * that resolved the program, and a runner that reached into `src/cache/` to
+   * ask would invert the dependency the whole package is built around — the
+   * cache is written *to* by the runner, never read *by* it.
+   *
+   * Absent means "not recorded", which is not the same as `"file"`. A run that
+   * never consulted a cache belongs in no hit-rate denominator, so the field is
+   * simply not emitted rather than defaulted.
+   */
+  programSource?: ProgramSource;
+  /**
+   * Whether the resolved program carried an invalidated row (ADR-0009).
+   * **Advisory only** — it does not and must not change what is attempted.
+   */
+  cacheProgramInvalidated?: boolean;
 }
 
 function nowIso(): string {
@@ -164,6 +183,8 @@ export class ReplayRunner {
   private readonly now: () => number;
   private readonly onStepOutcome?: (o: StepOutcomeObservation) => void;
   private readonly repairContextLevel: ContextLevel;
+  private readonly programSource?: ProgramSource;
+  private readonly cacheProgramInvalidated?: boolean;
 
   constructor(options: ReplayRunnerOptions = {}) {
     this.dryRun = options.dryRun ?? false;
@@ -194,6 +215,11 @@ export class ReplayRunner {
     this.now = options.now ?? Date.now;
     if (options.onStepOutcome !== undefined) this.onStepOutcome = options.onStepOutcome;
     this.repairContextLevel = options.repairContextLevel ?? DEFAULT_CONTEXT_LEVEL;
+    // Not defaulted: absent means "not recorded", never "file". See the option.
+    if (options.programSource !== undefined) this.programSource = options.programSource;
+    if (options.cacheProgramInvalidated !== undefined) {
+      this.cacheProgramInvalidated = options.cacheProgramInvalidated;
+    }
     if (options.page !== undefined) this.page = options.page;
   }
 
@@ -695,6 +721,10 @@ export class ReplayRunner {
     if (step.assertion_strength !== undefined) {
       row.assertion_strength = step.assertion_strength;
     }
+    // Denormalized onto the step row so hit-rate aggregates from step rows
+    // alone (#67) without joining to the run row — the same reason `site_key`
+    // and `task_key` are already here.
+    if (this.programSource !== undefined) row.program_source = this.programSource;
     this.metrics.emit(row);
   }
 
@@ -724,6 +754,14 @@ export class ReplayRunner {
       // asked a model anything would imply a measurement that did not happen.
       ...(result.repair_count > 0
         ? { repair_context_level: this.repairContextLevel }
+        : {}),
+      ...(this.programSource !== undefined
+        ? { program_source: this.programSource }
+        : {}),
+      // Only meaningful alongside a cache provenance, and only when the caller
+      // actually told us — a run row must not imply a cache it never consulted.
+      ...(this.programSource === "cache" && this.cacheProgramInvalidated !== undefined
+        ? { cache_program_invalidated: this.cacheProgramInvalidated }
         : {}),
       recorded_at: nowIso(),
     };

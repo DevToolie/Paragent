@@ -102,6 +102,14 @@
           "type": "boolean",
           "description": "True iff first-pass replay satisfied the assertion without repair. Used for step-level replay-validity (PRD §9)."
         },
+        "program_source": {
+          "type": "string",
+          "enum": [
+            "cache",
+            "file"
+          ],
+          "description": "Where this step's compiled action came from (ADR-0014). PROVENANCE, not outcome: a cache hit is program_source=cache AND replay_valid, two independent facts combined at aggregation time. Kept separate from replay_valid so neither field answers two questions. Absent means never set — never assumed to be 'file', because a run that never consulted a cache belongs in no hit-rate denominator."
+        },
         "mode": {
           "type": "string",
           "enum": [
@@ -260,6 +268,18 @@
         "recorded_at": {
           "type": "string",
           "format": "date-time"
+        },
+        "program_source": {
+          "type": "string",
+          "enum": [
+            "cache",
+            "file"
+          ],
+          "description": "Where this run's program came from (ADR-0014, #118). Absent on runs predating the field — never assumed."
+        },
+        "cache_program_invalidated": {
+          "type": "boolean",
+          "description": "True when the resolved program had at least one invalidated row (ADR-0009). Advisory: it never suppressed a step, because confidence does not gate the measurement. Only meaningful when program_source is 'cache'."
         },
         "repair_context_level": {
           "type": "string",

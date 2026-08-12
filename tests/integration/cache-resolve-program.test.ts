@@ -32,6 +32,8 @@ import { resolveProgram } from "../../src/cache/resolve.js";
 import type { CacheRow, CacheRowCandidate } from "../../src/cache/types.js";
 import { bundleToProgram, rowsToProgram } from "../../src/runner/program.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
+import type { MetricsEmitter } from "../../src/metrics/emitter.js";
+import type { MetricRow } from "../../src/metrics/types.js";
 
 const SITE = "fixture@local";
 const TASK = "three-step";
@@ -193,6 +195,104 @@ describe("compile → write → resolve → replay", () => {
     expect(result.steps_total).toBe(3);
     expect(result.steps_attempted).toBe(3);
     expect(result.task_success).toBe(true);
+  });
+});
+
+describe("the read path records provenance and gates nothing (#118)", () => {
+  let dir: string;
+
+  beforeAll(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "paragent-readpath-"));
+  });
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** Resolve, replay, and hand back the rows the run emitted. */
+  async function runFromCache(
+    cacheDir: string,
+    invalidateStep?: number,
+  ): Promise<MetricRow[]> {
+    const store = new JsonlCacheStore({ dir: cacheDir });
+    const bundle = compileTrajectory(trajectory());
+    for (const [i, row] of (bundle.rows as unknown as CacheRow[]).entries()) {
+      const candidate = { ...row } as unknown as CacheRowCandidate;
+      if (i === invalidateStep) {
+        // A row the cache considers stale (ADR-0009). It must still run.
+        candidate.confidence = 0.1;
+        candidate.invalidated_at = "2026-08-10T00:00:00.000Z";
+      }
+      writeCacheRowPair(candidate, { store });
+    }
+
+    const resolution = resolveProgram(store, { site_key: SITE, task_key: TASK });
+    if (resolution.status !== "hit") throw new Error(`expected a hit: ${resolution.detail}`);
+
+    const emitted: MetricRow[] = [];
+    const runner = new ReplayRunner({
+      dryRun: true,
+      dryRunOutcomes: ["PASS", "PASS", "PASS"],
+      metrics: { emit: (row: MetricRow) => emitted.push(row) } as unknown as MetricsEmitter,
+      programSource: "cache",
+      cacheProgramInvalidated: resolution.invalidated,
+    });
+    await runner.run(rowsToProgram(resolution, "11.0.0"), {
+      host: "127.0.0.1",
+      port: 3000,
+      username: "someone",
+    });
+    return emitted;
+  }
+
+  it("stamps program_source on every step row and on the run row", async () => {
+    // Provenance, not outcome. #67 combines it with `replay_valid`; storing the
+    // conjunction here would make one field answer two questions.
+    const rows = await runFromCache(path.join(dir, "provenance"));
+    const steps = rows.filter((r) => r.metric_kind === "step");
+    const run = rows.find((r) => r.metric_kind === "run");
+
+    expect(steps).toHaveLength(3);
+    for (const step of steps) expect(step["program_source"]).toBe("cache");
+    expect(run?.["program_source"]).toBe("cache");
+  });
+
+  it("an invalidated program still attempts every step", async () => {
+    // #64's invariant on the read path: a hit may change where the program came
+    // from, never whether a step is attempted. Skipping a stale row here would
+    // shrink the step-validity denominator and inflate the headline number.
+    const rows = await runFromCache(path.join(dir, "invalidated"), 1);
+    const steps = rows.filter((r) => r.metric_kind === "step");
+    const run = rows.find((r) => r.metric_kind === "run");
+
+    expect(steps.map((s) => s["step_index"])).toEqual([0, 1, 2]);
+    expect(run?.["steps_attempted"]).toBe(3);
+    // Recorded so a reader can segment, never consulted during the run.
+    expect(run?.["cache_program_invalidated"]).toBe(true);
+  });
+
+  it("a healthy cache-resolved run is not flagged — the flag is not blanket", async () => {
+    const rows = await runFromCache(path.join(dir, "healthy"));
+    const run = rows.find((r) => r.metric_kind === "run");
+    expect(run?.["cache_program_invalidated"]).toBe(false);
+  });
+
+  it("a file-loaded run carries no provenance at all", async () => {
+    // Absent means absent — never defaulted to "file" as a value that would
+    // land such a run in a hit-rate denominator it does not belong in.
+    const emitted: MetricRow[] = [];
+    const bundle = compileTrajectory(trajectory());
+    const runner = new ReplayRunner({
+      dryRun: true,
+      dryRunOutcomes: ["PASS", "PASS", "PASS"],
+      metrics: { emit: (row: MetricRow) => emitted.push(row) } as unknown as MetricsEmitter,
+    });
+    await runner.run(bundleToProgram(bundle, "11.0.0"), {
+      host: "127.0.0.1",
+      port: 3000,
+      username: "someone",
+    });
+    for (const row of emitted) expect(row["program_source"]).toBeUndefined();
   });
 });
 

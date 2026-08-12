@@ -60,6 +60,21 @@ export interface CacheKey {
 export interface CacheListFilter {
   site_key?: string;
   task_key?: string;
+  /**
+   * Restrict to rows with this `pool_eligible` value (#118).
+   *
+   * Not a cosmetic filter over the default view — it reads a **different
+   * index**. `writeCacheRowPair()` writes both a pool row and a tenant row for
+   * the same key, and the default view deliberately lets the tenant version win
+   * (see the load-order note on `JsonlCacheStore`). That is the conservative
+   * choice for a same-tenant read and it makes the pooled version unreachable,
+   * so a cross-tenant reader — the only thing that may *not* see tenant rows —
+   * would otherwise find nothing at all.
+   *
+   * The value is read off the row, never recomputed: `writeCacheRow()` stays
+   * the only thing that classifies.
+   */
+  pool_eligible?: boolean;
 }
 
 /**
@@ -134,14 +149,25 @@ function compareRows(a: CacheRow, b: CacheRow): number {
  * `writeCacheRow()`, not by reaching into it.
  */
 abstract class IndexedCacheStore implements CacheStore {
-  /** Latest row per key. */
+  /** Latest row per key, pool and tenant merged — tenant wins. */
   protected readonly latest = new Map<string, CacheRow>();
+  /**
+   * Latest row per key **per eligibility**, so a pooled row stays reachable
+   * after its tenant counterpart supersedes it in `latest` (#118).
+   *
+   * Kept alongside rather than replacing `latest`: the merged view is the right
+   * default for a same-tenant read, and changing what `get()` returns would
+   * change the meaning of every existing caller.
+   */
+  protected readonly latestByEligibility = new Map<string, CacheRow>();
 
   abstract write(row: CacheRow): void;
 
   protected index(row: CacheRow): CacheRow {
     const copy = structuredClone(row);
-    this.latest.set(cacheKeyString(cacheKeyOf(copy)), copy);
+    const key = cacheKeyString(cacheKeyOf(copy));
+    this.latest.set(key, copy);
+    this.latestByEligibility.set(`${key}\0${copy.pool_eligible ? "1" : "0"}`, copy);
     return copy;
   }
 
@@ -156,7 +182,13 @@ abstract class IndexedCacheStore implements CacheStore {
    * reload, so it is never what comes back.
    */
   list(filter?: CacheListFilter): CacheRow[] {
-    return [...this.latest.values()]
+    const source =
+      filter?.pool_eligible === undefined
+        ? this.latest.values()
+        : [...this.latestByEligibility.values()].filter(
+            (r) => r.pool_eligible === filter.pool_eligible,
+          );
+    return [...source]
       .filter((r) => matchesFilter(r, filter))
       .sort(compareRows)
       .map((r) => structuredClone(r));
