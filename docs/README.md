@@ -62,8 +62,9 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0011](decisions/ADR-0011-replay-wall-clock-budget.md) | Per-run wall-clock budget (5 min default); new `BUDGET_EXHAUSTED` outcome; unreached steps emit no row and the shortfall is reported (`steps_attempted`, `truncation`) | accepted | 2026-08-11 | Issue #84. Default is derived from per-step ceilings, **not** from an observed run-duration distribution |
 | [ADR-0012](decisions/ADR-0012-repair-context-budget.md) | Repair context budget: `interactive` (role + accessible name), never input values; `serializeRepairContext()` is the only egress | accepted | 2026-08-11 | Issue #125. Blocks #27 in substance |
 | [ADR-0013](decisions/ADR-0013-cache-program-entity.md) | Program entity in the cache (`program_id`, `steps_total`, `compiled_at`); a partial hit is a **MISS**; completeness fails closed while confidence stays advisory | accepted | 2026-08-11 | Issue #120. Precondition for #118. **Nothing reads the cache yet** — the resolver has no caller outside its tests |
-| [ADR-0014](decisions/ADR-0014-cache-read-path.md) | Cache read path: a hit is `program_source == "cache"` **and** `replay_valid`, stored as two fields not one; `pool_only` scope makes tenant rows invisible to a cross-tenant reader | accepted | 2026-08-11 | Issue #118. Unblocks #67. `--from-cache` is opt-in; **no hit-rate measured yet** |
+| [ADR-0014](decisions/ADR-0014-cache-read-path.md) | Cache read path: a hit is `program_source == "cache"` **and** `replay_valid`, stored as two fields not one; `pool_only` scope makes tenant rows invisible to a cross-tenant reader | accepted | 2026-08-12 | Issue #118. Unblocks #67. `--from-cache` is opt-in; **no hit-rate measured yet**. Open questions updated 2026-08-12 with what the pool actually contains (#126 / ADR-0017) |
 | [ADR-0015](decisions/ADR-0015-task-identity-and-intent-resolution.md) | Task identity (phrasing/parameters/host don't fork it, product version does); intent → task_key via normalized exact match behind a swappable `IntentMatcher`, MISS on no confident match; `site_key` drops the address (`grafana-oss@{version}`, never `@{host}:{port}`) | accepted | 2026-08-12 | Issue #124. New package `src/intent/`, wired into `src/recorder/cli.ts`. `gate:matrix --from-cache` wiring **not done yet** |
+| [ADR-0017](decisions/ADR-0017-pool-vocabulary-rule.md) | Pinned-version vocabulary rule added to the pool allowlist (`src/cache/vocabulary.ts`), additive to `isChromeName`; measured **zero** row-level yield change on the one live bundle — compiler pre-check and recorder tagging are the binding constraints there, not vocabulary | accepted | 2026-08-12 | Issue #126. Multi-version matrix yield is `no_data` — no Docker testbed in this environment |
 
 ---
 
@@ -115,10 +116,11 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | --- | --- | --- | --- | --- |
 | [testbed.md](gate/testbed.md) | Grafana OSS matrix | draft | 2026-07-25 | ADR-0003 |
 | [recorder.md](gate/recorder.md) | Recorder | draft | 2026-07-24 | — |
-| [compiler.md](gate/compiler.md) | Compiler | draft | 2026-07-24 | — |
+| [compiler.md](gate/compiler.md) | Compiler | draft | 2026-08-12 | Its own `1/12` pre-check number annotated against ADR-0017's `7/12` authoritative recount |
 | [runner.md](gate/runner.md) | Replay / repair | draft | 2026-07-24 | Measured gate number pending |
-| [cache.md](gate/cache.md) | Persistence, confidence, repair rewrite | draft | 2026-08-03 | ADR-0009; confidence **never gates** the measurement |
+| [cache.md](gate/cache.md) | Persistence, confidence, repair rewrite | draft | 2026-08-12 | ADR-0009; confidence **never gates** the measurement |
 | [assertion-audit.md](gate/assertion-audit.md) | Assertion-strength audit of the live bundle | draft | 2026-07-30 | Issue #61; found a strong assertion that is not load-bearing live (locator staleness, #24) |
+| [pool-vocabulary.md](gate/pool-vocabulary.md) | Pool yield on the live bundle: compiler pre-check vs authoritative write path, vocabulary rule's measured (zero) marginal effect | draft | 2026-08-12 | Issue #126; [ADR-0017](decisions/ADR-0017-pool-vocabulary-rule.md); multi-version matrix is `no_data` |
 | [../experiments/gate-v1/README.md](../experiments/gate-v1/README.md) | Throwaway harness | draft | 2026-07-25 | Empty → `no_data` |
 
 ---
