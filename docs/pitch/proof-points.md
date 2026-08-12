@@ -4,7 +4,7 @@ doc_type: pitch
 status: draft
 owner: D1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-12
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -113,9 +113,9 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | F1 | Replay at near-zero / near-free token cost | narrative, deck 11, one-pager | PENDING | **[PENDING TRACK-1]** — do not invent |
 | F2 | Amortized cost trends down; snapshot-compression competitors stay flat | narrative, deck 11, objections §2 | ASSUMED (product bet) + PENDING measurement | Wave pack D1 mechanism point; measure via [metrics.schema.json](../../contracts/metrics.schema.json) |
 | F3 | Compilation survives site churn at acceptable rates | narrative kill table, deck 20, objections §2/§7 | PENDING | **[PENDING TRACK-1]** |
-| F4 | Under counterparty model, cross-portal pooling is the product (not v2) | narrative, deck 13, one-pager | ASSUMED | Wave pack D1 moat point; requires Track 2 multiplicity |
+| F4 | Under counterparty model, cross-portal pooling is the product (not v2) | narrative, deck 13, one-pager | ASSUMED | Wave pack D1 moat point; requires Track 2 multiplicity. **Measured caveat (2026-08-12):** on the one live Track-1 bundle, authoritative pool yield is 7/12 rows and the new vocabulary rule adds zero to that — [docs/gate/pool-vocabulary.md](../gate/pool-vocabulary.md); [ADR-0017](../decisions/ADR-0017-pool-vocabulary-rule.md) |
 | F5 | v1 cold-start is economically self-justifying single-tenant | narrative, deck 14, one-pager | ASSUMED | Wave pack D1 cold-start; not measured |
-| F6 | Differentiation vs OpenAI/Anthropic/Browserbase = compiled asserted poolable cache + privacy allowlist | objections §2 | ASSUMED | Competitive framing; no primary-source competitor roadmap cited |
+| F6 | Differentiation vs OpenAI/Anthropic/Browserbase = compiled asserted poolable cache + privacy allowlist | objections §2 | ASSUMED | Competitive framing; no primary-source competitor roadmap cited. **Measured caveat (2026-08-12):** "poolable" is a real, tested mechanism (write-time allowlist + vocabulary rule, [ADR-0017](../decisions/ADR-0017-pool-vocabulary-rule.md)); measured cross-tenant yield on the one live bundle is unchanged by it — [docs/gate/pool-vocabulary.md](../gate/pool-vocabulary.md) |
 | F7 | If models get cheap enough, caching wedge can die | narrative, deck 20, objections §5 | ASSUMED (kill condition logic) | Wave pack D1 "what would make us wrong"; empirical curve **[PENDING TRACK-1]** |
 | F8 | Portal bot-detection / MFA / CAPTCHA can block agents | objections §6, deck 20 | ASSUMED as risk class; partial census support | PARTIAL/browser residues in [A4](../research/census-week0/A4-adversary.md); portal MFA notes in [A7](../research/census-week0/A7-backup.md); severity PENDING per vertical |
 | F9 | Intermediary already owning workflow kills counterparty thesis for that surface | narrative, deck 20, objections §7 | ASSUMED (method) | Wave pack Agent C4 intermediary rule |

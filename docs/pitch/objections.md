@@ -4,7 +4,7 @@ doc_type: pitch
 status: draft
 owner: D1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -22,7 +22,7 @@ We only belong where the laborer is structurally outside the vendor's API roadma
 
 ## 2. Why won't OpenAI / Anthropic / Browserbase just do this?
 
-**ASSUMED competitive framing:** foundation-model labs and browser-infra vendors optimize general agent capability and session hosting. Paragent's bet is a **compiled, asserted, poolable trajectory cache** with write-time privacy allowlisting — a different layer.
+**ASSUMED competitive framing:** foundation-model labs and browser-infra vendors optimize general agent capability and session hosting. Paragent's bet is a **compiled, asserted, poolable trajectory cache** with write-time privacy allowlisting — a different layer. "Poolable" is a tested write-time mechanism, not yet a measured yield: on the one live bundle, 7 of 12 rows are pool-eligible through the authoritative path, unchanged by the latest allowlist addition ([docs/gate/pool-vocabulary.md](../gate/pool-vocabulary.md); [ADR-0017](../decisions/ADR-0017-pool-vocabulary-rule.md)).
 
 What we do **not** claim: that they cannot enter; that we have a moat today; that model vendors will ignore caching. Diligence answer: if Track 1 shows compilation does not survive churn, there is no company regardless of who ships browsers ([README.md](../../README.md) Track 1 status — gate number pending).
 
@@ -52,7 +52,7 @@ Honest present tense: observability is dead as anchor; Wave-2 surfaces are **not
 
 ## 8. Isn't portal autofill already a crowded category?
 
-Yes — and C4/C5 treat that as a **kill**, not an open wedge: QAuto intermediaries already productize seller-side portal fill ([adversary-report.md](../research/vertical-search/adversary-report.md); C5: do not lock questionnaires “because A7 said so”). A7’s Chrome-extension notes remain historical demand signal ([A7-backup.md](../research/census-week0/A7-backup.md), access_date 2026-07-24). Differentiation vs extensions (compilation + assertions + poolable cache) stays **ASSUMED** until Track 1 measures.
+Yes — and C4/C5 treat that as a **kill**, not an open wedge: QAuto intermediaries already productize seller-side portal fill ([adversary-report.md](../research/vertical-search/adversary-report.md); C5: do not lock questionnaires “because A7 said so”). A7’s Chrome-extension notes remain historical demand signal ([A7-backup.md](../research/census-week0/A7-backup.md), access_date 2026-07-24). Differentiation vs extensions (compilation + assertions + poolable cache) stays **ASSUMED** until Track 1 measures — the one partial measurement so far is pool *yield*, not the full gate number, and it does not move this claim ([docs/gate/pool-vocabulary.md](../gate/pool-vocabulary.md)).
 
 ## 9. Can you measure without a design partner?
 

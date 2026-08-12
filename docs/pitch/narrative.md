@@ -4,7 +4,7 @@ doc_type: pitch
 status: draft
 owner: D1
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -43,7 +43,7 @@ The product bet (ASSUMED until measured): compilation amortizes reasoning across
 
 ## The moat (stated carefully)
 
-Under the counterparty model, **no single customer** warms a cache across hundreds of portals they each touch a few times a year — so **cross-agent / cross-portal pooling** is the product, not a v2 feature (**ASSUMED** product thesis; depends on Track 2 multiplicity holding).
+Under the counterparty model, **no single customer** warms a cache across hundreds of portals they each touch a few times a year — so **cross-agent / cross-portal pooling** is the product, not a v2 feature (**ASSUMED** product thesis; depends on Track 2 multiplicity holding). The write-time mechanism that makes pooling privacy-safe is real and tested; measured *yield* from it is not yet the network effect this claim describes — on the one live Track-1 bundle, authoritative pool yield is 7 of 12 rows and unmoved by the newest allowlist addition ([docs/gate/pool-vocabulary.md](../gate/pool-vocabulary.md); [ADR-0017](../decisions/ADR-0017-pool-vocabulary-rule.md)).
 
 Honest cold-start: **v1 must be economically self-justifying single-tenant** (**ASSUMED** go-to-market; not measured). Pooling is the compounding layer if, and only if, privacy allowlisting keeps pooled rows free of tenant literals ([PRD §6](../prd/PRD-trajectory-cache-v0.2.md); [boundary-spec.md](../privacy/boundary-spec.md)).
 
