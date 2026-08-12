@@ -127,7 +127,7 @@ export const VOCABULARY_SNAPSHOT: readonly VocabularyEntry[] = [
     source: {
       url: "https://raw.githubusercontent.com/grafana/grafana/v9.5.21/public/app/features/dashboard/components/PanelEditor/PanelEditor.tsx",
       access_date: "2026-08-12",
-      note: "Line 362: data-testid={selectors.components.PanelEditor.applyButton}; selector value in components.ts:137.",
+      note: "Line 362: data-testid={selectors.components.PanelEditor.applyButton}; selector value in components.ts:138.",
     },
   },
 ];
