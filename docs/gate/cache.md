@@ -110,8 +110,26 @@ stamped. A second classifier would be a second place for the boundary to drift.
 > filtered view of the default one — filtering the default view at pool scope returns nothing for
 > every task that has a tenant counterpart, which is all of them.
 
-**Still unmeasured.** No hit-rate number exists: no matrix run has been executed with
-`--from-cache` against a populated cache.
+### Hit-rate is reported (#67)
+
+`cacheHitRate()` in `src/metrics/aggregate.ts` is the fifth §9 secondary metric, and it renders in
+`report.json`, `report.csv`, `report.html` and its own `hit-rate.svg`:
+
+```
+count(program_source=cache AND replay_valid=true) / count(program_source=cache)
+```
+
+It emits a **per-N series** as well as a pooled ratio, because "over time" is part of the metric —
+a single number cannot show a trend. `n` indexes **cache-consulting runs**, not all runs, so a run
+that never touched the cache cannot flat-line the curve; each point carries its `run_id` for
+joining back to the amortized series. §9 pairs the two: amortized cost shows the *effect*,
+hit-rate shows the *mechanism*.
+
+**No target and no threshold.** §9 gives a direction ("up") and no number; inventing one would be
+the category-B failure `docs/INTEGRITY-AUDIT.md` exists for.
+
+**Still unmeasured.** The section computes, and reports `no_data` — no matrix run has been
+executed with `--from-cache` against a populated cache, so there is nothing in the denominator.
 
 ## Read order is a store guarantee
 
