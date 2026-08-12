@@ -4,7 +4,7 @@ doc_type: brief
 status: review
 owner: D2
 created: 2026-07-24
-updated: 2026-08-11
+updated: 2026-08-12
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -63,6 +63,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0012](decisions/ADR-0012-repair-context-budget.md) | Repair context budget: `interactive` (role + accessible name), never input values; `serializeRepairContext()` is the only egress | accepted | 2026-08-11 | Issue #125. Blocks #27 in substance |
 | [ADR-0013](decisions/ADR-0013-cache-program-entity.md) | Program entity in the cache (`program_id`, `steps_total`, `compiled_at`); a partial hit is a **MISS**; completeness fails closed while confidence stays advisory | accepted | 2026-08-11 | Issue #120. Precondition for #118. **Nothing reads the cache yet** — the resolver has no caller outside its tests |
 | [ADR-0014](decisions/ADR-0014-cache-read-path.md) | Cache read path: a hit is `program_source == "cache"` **and** `replay_valid`, stored as two fields not one; `pool_only` scope makes tenant rows invisible to a cross-tenant reader | accepted | 2026-08-11 | Issue #118. Unblocks #67. `--from-cache` is opt-in; **no hit-rate measured yet** |
+| [ADR-0015](decisions/ADR-0015-task-identity-and-intent-resolution.md) | Task identity (phrasing/parameters/host don't fork it, product version does); intent → task_key via normalized exact match behind a swappable `IntentMatcher`, MISS on no confident match; `site_key` drops the address (`grafana-oss@{version}`, never `@{host}:{port}`) | accepted | 2026-08-12 | Issue #124. New package `src/intent/`, wired into `src/recorder/cli.ts`. `gate:matrix --from-cache` wiring **not done yet** |
 
 ---
 

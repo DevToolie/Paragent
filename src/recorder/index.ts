@@ -7,6 +7,11 @@ export { captureFingerprint } from "./fingerprint.js";
 export { establishSession, LoginFailedError } from "./preamble.js";
 export type { EstablishSessionOptions, SessionInfo } from "./preamble.js";
 export { collectLocatorCandidates } from "./locators.js";
+export { buildLiveSiteKey } from "./site-identity.js";
+export {
+  resolveTaskKeyForRecording,
+  type TaskKeyDecision,
+} from "./select-task.js";
 export {
   assertNoLiteralSecrets,
   digestSignals,

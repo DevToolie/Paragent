@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-08-03
-updated: 2026-08-11
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -130,6 +130,39 @@ the category-B failure `docs/INTEGRITY-AUDIT.md` exists for.
 
 **Still unmeasured.** The section computes, and reports `no_data` — no matrix run has been
 executed with `--from-cache` against a populated cache, so there is nothing in the denominator.
+
+### The denominator has two honest definitions, and they are not the same number
+
+`n` today indexes **cache-consulting runs** — runs that passed `--from-cache --site-key
+<k> --task-key <k>` on the command line. That denominator presumes the caller already knew the
+exact `task_key`, which is precisely the gap [#124](https://github.com/DevToolie/Paragent/issues/124)
+names: every run that reaches the cache today is a run whose caller had already done the lookup a
+cache is supposed to save.
+
+[ADR-0015](../decisions/ADR-0015-task-identity-and-intent-resolution.md) adds
+`src/intent/`, resolving a natural-language goal to a `task_key` instead of requiring one
+typed in. Once a caller reaches `--from-cache` *through* `resolveTaskIntent()` rather than by
+already knowing the slug, hit-rate has a second, more honest denominator available:
+
+| Denominator | What it counts | What it presumes |
+| --- | --- | --- |
+| **Cache-consulting runs** (today, `cacheHitRate()`) | Runs that passed an explicit `--task-key` and reached `resolveProgram()` | The caller already knew the task existed and its exact slug |
+| **Tasks requested** (post-#124, not yet wired) | Runs that arrived with a goal — resolved through `src/intent/`, successfully or not — regardless of whether resolution then hit the cache | Only that a goal was asked for |
+
+The two differ by exactly what #124 adds: an intent MISS (`src/intent/types.ts`,
+`IntentMissReason`) is not a cache miss and is not a cache hit — it is a request that never
+reached `resolveProgram()` at all, and it belongs in the *tasks-requested* denominator but not in
+*cache-consulting runs*. Reporting the narrower denominator as if it were the wider one is not
+wrong today (nothing conflates them), but it would become wrong the moment `--intent` is wired
+into `gate:matrix --from-cache` (ADR-0015's Open Questions — not done yet) without a second,
+explicitly-labelled series alongside the existing one. Whoever wires that call site should add
+the second denominator here rather than replace the first: the two answer different questions
+("of the runs that consulted the cache, how many hit" vs. "of the tasks anyone asked for, how
+many were served from cache"), and PRD §9 wants both once intent resolution has a caller past the
+recorder.
+
+**Still `no_data` either way.** Neither denominator has been populated by a real run — this
+section states the shape of the future measurement, not a new number.
 
 ## Read order is a store guarantee
 
@@ -262,6 +295,7 @@ is the measurement, and losing the recording is strictly better than losing the 
 | Row fields and `additionalProperties: false` | `contracts/cache-row.schema.json` | 2026-08-03 |
 | Chosen defaults and the rejected alternatives | `docs/decisions/ADR-0009-cache-confidence.md` | 2026-08-03 |
 | Two-file append-only store | `docs/privacy/boundary-spec.md` | 2026-08-03 |
+| The two hit-rate denominators, and why they differ | `docs/decisions/ADR-0015-task-identity-and-intent-resolution.md` | 2026-08-12 |
 
 ## Open questions / what I could not verify
 
@@ -278,3 +312,8 @@ is the measurement, and losing the recording is strictly better than losing the 
   `onStepOutcome`, so a live matrix run records no confidence today. Wiring it is deliberate
   future work — it would make the gate's own runs mutate a cache, and that ordering deserves its
   own decision.
+- **The tasks-requested denominator has no caller yet.** `src/intent/` (ADR-0015, #124) exists
+  and is wired into `src/recorder/cli.ts`, but `gate:matrix --from-cache` — the thing that would
+  actually populate a hit-rate number — still takes only `--task-key`, not `--intent`. Until that
+  wiring lands, the second row of the denominator table above describes a shape, not a series
+  anything emits.
