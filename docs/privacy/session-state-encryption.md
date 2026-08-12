@@ -4,7 +4,7 @@ doc_type: spec
 status: accepted
 owner: B5
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -40,7 +40,7 @@ unstated threat model is what the constraint in #98 warns about.
 | --- | --- | --- | --- |
 | **Local dev** | A developer laptop's filesystem, plus whatever backup/sync software watches it | Another process or user on the box reading the file; the file being copied into a backup, a bug report, or a repo | A compromised laptop with the developer's own privileges while the key is in memory |
 | **CI** | An ephemeral runner's disk and its log/artifact upload | A file surviving into an uploaded artifact; material reaching a log | Real session material — CI never has any, and the canary uses synthetic values |
-| **Prod (not yet built)** | Persistent storage under the product's control | Per-tenant separation of readable material; one tenant's key never yielding another's session | Key custody: a KMS, rotation, escrow, HSM. **Deferred — see below** |
+| **Prod (not yet built)** | Persistent storage under the product's control | Per-tenant separation of readable material; one tenant's key never yielding another's session | Key custody: a KMS, rotation, escrow, HSM. **Decided in [ADR-0016](../decisions/ADR-0016-session-key-custody.md), not yet implemented — see below** |
 
 Two threats are explicitly **not** addressed and must not be assumed away: an attacker who holds
 the master key, and an attacker with live access to the process while it is decrypting. This
@@ -114,13 +114,20 @@ secret scanner is a fixture that should not be in the repo.
 
 ## What v1 defers, explicitly
 
+**The first three rows below are no longer just deferred — they are decided.**
+[ADR-0016](../decisions/ADR-0016-session-key-custody.md) (issue #146) resolves master-key
+custody, rotation semantics, and the erasure story; what remains deferred is *implementing* that
+decision, not deciding it. The table is left in place because it is still the accurate record of
+what v1 shipped without, and the "What must happen before prod" column now points at the ADR
+instead of restating the open question.
+
 | Deferred | Why it is safe to defer | What must happen before prod |
 | --- | --- | --- |
-| **Key custody** — master key comes from `PARAGENT_SESSION_MASTER_KEY`, an env var | Nothing persists session material yet, and no real tenant exists | A KMS-held master, or per-tenant DEKs wrapped by one. The derivation is already per-tenant, which is the part that cannot be retrofitted without re-encrypting everything |
-| **Rotation** | No stored artifact to rotate | Envelope carries a `version` byte; rotation needs a key epoch beside it, and a re-wrap path |
-| **Deletion / tenant offboarding** | No stored artifact | "Delete the tenant's key" is a cheaper erasure than deleting files, and needs custody first |
-| **An index of what is stored** | One file per call, path chosen by the caller | Ties into the same offboarding question |
-| **Memory hygiene beyond the obvious** | Plaintext buffers are zeroed after use, but Node strings are not controllable | Anything stronger needs a different runtime, and is out of proportion to the current threat model |
+| **Key custody** — master key comes from `PARAGENT_SESSION_MASTER_KEY`, an env var | Nothing persists session material yet, and no real tenant exists | Decided in [ADR-0016](../decisions/ADR-0016-session-key-custody.md): a KMS-wrapped master, HKDF derivation unchanged. Not yet implemented, and no vendor is picked |
+| **Rotation** | No stored artifact to rotate | Decided in [ADR-0016](../decisions/ADR-0016-session-key-custody.md): a `key_epoch` field beside `version`, retired by a batch re-wrap job, not lazy-on-read alone |
+| **Deletion / tenant offboarding** | No stored artifact | Decided in [ADR-0016](../decisions/ADR-0016-session-key-custody.md): "destroy the tenant's key" is the erasure story, via a new per-tenant epoch registry — not file deletion |
+| **An index of what is stored** | One file per call, path chosen by the caller | [ADR-0016](../decisions/ADR-0016-session-key-custody.md) answers the offboarding half with the epoch registry above; a full file-path index stays out of scope until a real caller exists to populate one |
+| **Memory hygiene beyond the obvious** | Plaintext buffers are zeroed after use, but Node strings are not controllable | Anything stronger needs a different runtime, and is out of proportion to the current threat model. Not addressed by ADR-0016 |
 
 A generated fallback master key is **refused**, not defaulted: it would encrypt successfully and
 be unrecoverable on the next process start — a write that looks like it worked over data that is

@@ -63,6 +63,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [ADR-0012](decisions/ADR-0012-repair-context-budget.md) | Repair context budget: `interactive` (role + accessible name), never input values; `serializeRepairContext()` is the only egress | accepted | 2026-08-11 | Issue #125. Blocks #27 in substance |
 | [ADR-0013](decisions/ADR-0013-cache-program-entity.md) | Program entity in the cache (`program_id`, `steps_total`, `compiled_at`); a partial hit is a **MISS**; completeness fails closed while confidence stays advisory | accepted | 2026-08-11 | Issue #120. Precondition for #118. **Nothing reads the cache yet** — the resolver has no caller outside its tests |
 | [ADR-0014](decisions/ADR-0014-cache-read-path.md) | Cache read path: a hit is `program_source == "cache"` **and** `replay_valid`, stored as two fields not one; `pool_only` scope makes tenant rows invisible to a cross-tenant reader | accepted | 2026-08-11 | Issue #118. Unblocks #67. `--from-cache` is opt-in; **no hit-rate measured yet** |
+| [ADR-0016](decisions/ADR-0016-session-key-custody.md) | Session-key custody: KMS-wrapped master (HKDF derivation unchanged); rotation via `key_epoch` + batch re-wrap; erasure via a per-tenant epoch registry, not file deletion; dev/CI keep the env-var path unmodified | accepted | 2026-08-12 | Issue #146, follow-up to #98/#143. Decision only — no vendor picked, nothing implemented |
 
 ---
 
@@ -128,7 +129,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | --- | --- | --- | --- | --- |
 | [boundary-spec.md](privacy/boundary-spec.md) | Write-time allowlist | review | 2026-07-24 | PRD §6; canary merge-blocking |
 | [session-custody.md](privacy/session-custody.md) | Session-custody checklist + gap analysis | draft | 2026-08-11 | PRD §7; distinct from §6's pooling allowlist — see doc. SC-01 closed by #98; SC-02/04 enforced; SC-03/05/06 open (#100, #102, #103) |
-| [session-state-encryption.md](privacy/session-state-encryption.md) | SC-01 mechanism: threat model per environment, the envelope, and what key custody v1 **defers** | accepted | 2026-08-11 | Issue #98. A capability with **no callers** — nothing persists session material yet, and this does not change that |
+| [session-state-encryption.md](privacy/session-state-encryption.md) | SC-01 mechanism: threat model per environment, the envelope, and what key custody v1 **defers** | accepted | 2026-08-12 | Issue #98. A capability with **no callers** — nothing persists session material yet, and this does not change that. Custody/rotation/erasure now **decided** in [ADR-0016](decisions/ADR-0016-session-key-custody.md) |
 
 ---
 
