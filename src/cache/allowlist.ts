@@ -5,6 +5,8 @@
  * WAI-ARIA 1.2 https://www.w3.org/TR/wai-aria-1.2/#role_definitions (2026-07-24).
  */
 
+import { isKnownVendorAccessibleName, isKnownVendorTestId } from "./vocabulary.js";
+
 export const ALLOWED_ARIA_ROLES: ReadonlySet<string> = new Set([
   "banner", "complementary", "contentinfo", "form", "main", "navigation",
   "region", "search", "article", "document", "feed", "figure", "group",
@@ -63,12 +65,29 @@ export function isChromeName(value: string): boolean {
   return UI_CHROME_NAMES.has(value) || isTemplateOnly(value);
 }
 
+/**
+ * `isChromeName` plus the pinned-version product-vocabulary snapshot
+ * (issue #126, `vocabulary.ts`). Additive: a string that is generic chrome
+ * OR a source-cited string the pinned open-source software renders itself
+ * is pool-safe. `isChromeName` alone is left unchanged and still used
+ * unqualified where a wider vocabulary match would be a scope increase
+ * (`assertionHasTenantLiteral` in write.ts — see ADR-0017 open questions).
+ */
+export function isPoolSafeAccessibleName(value: string): boolean {
+  return isChromeName(value) || isKnownVendorAccessibleName(value);
+}
+
 export function isAllowedRole(role: string): boolean {
   return ALLOWED_ARIA_ROLES.has(role);
 }
 
 export function isAllowedTestId(testid: string): boolean {
   return ALLOWED_TESTID_VALUES.has(testid) || isTemplateOnly(testid);
+}
+
+/** `isAllowedTestId` plus the pinned-version vocabulary snapshot. See {@link isPoolSafeAccessibleName}. */
+export function isPoolSafeTestId(testid: string): boolean {
+  return isAllowedTestId(testid) || isKnownVendorTestId(testid);
 }
 
 export function isPoolSafeStructuralPath(path: string): boolean {

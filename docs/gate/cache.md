@@ -169,10 +169,19 @@ section states the shape of the future measurement, not a new number.
 `list()` returns rows sorted by `(site_key, task_key, step_index)`. Ordering belongs to the store,
 not to each caller: `JsonlCacheStore` loads the pool file to exhaustion before the tenant file, so
 insertion order is write order in-process and *file* order after a reload, and a task with mixed
-eligibility — the normal case, 1 of 12 steps on the only compiled bundle in the repo — reads back
-with its pool rows hoisted to the front. A resolver assembling a program from `list()` would then
-replay the flow out of order against a live site with every row individually valid, which reads as
-ordinary churn failure.
+eligibility — the normal case — reads back with its pool rows hoisted to the front. A resolver
+assembling a program from `list()` would then replay the flow out of order against a live site
+with every row individually valid, which reads as ordinary churn failure.
+
+What "mixed eligibility" actually contains, on the only compiled bundle in the repo: the artifact
+itself stamps `1` pool-eligible row of 12 (the compiler's pre-check, `src/compiler/pool.ts`), but
+routing the same rows through the **authoritative** write path (`writeCacheRow`, this package) puts
+`7` of 12 in the pool file and 5 in the tenant file — see
+[`pool-vocabulary.md`](./pool-vocabulary.md) and [ADR-0017](../decisions/ADR-0017-pool-vocabulary-rule.md)
+(issue #126). The pool file a real `writeCacheRowPair` call would produce is larger than the
+artifact's own stamped field suggests, because nothing today pushes a compiled bundle through this
+package automatically (open question below) — the artifact's field is a pre-check, not what
+`list({ pool_eligible: true })` would actually return once a row is written for real.
 
 Load order is unchanged and still pool-then-tenant, so a key present in both files reads back as
 the tenant-scoped version. Only the read order is sorted. Both stores run the same contract test

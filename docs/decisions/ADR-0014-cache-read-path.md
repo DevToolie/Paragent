@@ -4,7 +4,7 @@ doc_type: adr
 status: accepted
 owner: B4
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -186,8 +186,22 @@ store's second index is internal and unobservable except through
 - **Whether `site_key` is the right tenancy boundary.** A `CacheRow` has no
   tenant identifier; tenancy is expressed by which directory a store points at.
   That is sufficient for the single-tenant case and is not obviously sufficient
-  for anything else. #126 is the related open question about whether product
-  vocabulary and tenant data can be told apart at all.
+  for anything else.
+- **What the pool actually contains, now that #126 has an answer
+  ([ADR-0017](./ADR-0017-pool-vocabulary-rule.md)).** Product vocabulary and
+  tenant data *can* be told apart, for pinned self-hosted open-source software,
+  and a rule now exists. But on the one bundle this repo can measure, that
+  rule moves the row-level pool count by zero — the authoritative write path
+  already puts 7 of 12 rows in the pool file (not the 1 of 12 the compiled
+  artifact's own pre-check field suggests; see
+  [`docs/gate/pool-vocabulary.md`](../gate/pool-vocabulary.md)), and the
+  vocabulary rule's real leverage today is on repair-proposed locators, not on
+  anything `pool_only` scope has ever read from a store. The `pool_only`
+  scope this ADR added is exercised by tests against synthetic rows
+  (`tests/canary/pool-read-leak.test.ts`); it has not yet been exercised
+  against a store populated by pushing a real compiled bundle through
+  `writeCacheRowPair` — nothing in the live pipeline does that yet (see
+  `docs/gate/cache.md` "Wiring").
 - **What a hit means once repair can rewrite a program mid-run.** Today a repair
   makes a step a miss. If a repaired row is written back and later resolved, the
   same program is a hit on the next run — which is the intended self-healing

@@ -9,7 +9,9 @@ import {
   isAllowedRole,
   isAllowedTestId,
   isChromeName,
+  isPoolSafeAccessibleName,
   isPoolSafeStructuralPath,
+  isPoolSafeTestId,
   isTemplateOnly,
 } from "./allowlist.js";
 import type { CompiledLocator, LocatorTaintResult, TaintReason } from "./types.js";
@@ -91,21 +93,24 @@ export const DEFAULT_TAINT_RULES: readonly TaintRule[] = [
   },
   {
     id: "aria_label_or_name_tenant",
-    description: "Accessible names/labels not chrome/template are tainted.",
+    description:
+      "Accessible names/labels not chrome, template, or known pinned-version vendor vocabulary (#126) are tainted.",
     check: (loc) => {
       if (loc.strategy !== "role_name" && loc.strategy !== "label") return null;
       for (const s of accessibleStrings(loc)) {
-        if (!isChromeName(s)) return "aria_or_name_tenant";
+        if (!isPoolSafeAccessibleName(s)) return "aria_or_name_tenant";
       }
       return null;
     },
   },
   {
     id: "role_text_tenant",
-    description: "role_name with non-chrome text field is tainted.",
+    description: "role_name with non-chrome, non-vendor-vocabulary text field is tainted.",
     check: (loc) => {
       if (loc.strategy !== "role_name") return null;
-      if (loc.text !== undefined && !isChromeName(loc.text)) return "role_text_tenant";
+      if (loc.text !== undefined && !isPoolSafeAccessibleName(loc.text)) {
+        return "role_text_tenant";
+      }
       return null;
     },
   },
@@ -120,11 +125,11 @@ export const DEFAULT_TAINT_RULES: readonly TaintRule[] = [
   },
   {
     id: "non_vocab_testid",
-    description: "testid values outside chrome vocabulary are tainted.",
+    description: "testid values outside chrome / vendor vocabulary are tainted.",
     check: (loc) => {
       if (loc.strategy !== "testid" && loc.testid === undefined) return null;
       const id = loc.testid ?? "";
-      if (!id || !isAllowedTestId(id)) return "non_vocab_testid";
+      if (!id || !isPoolSafeTestId(id)) return "non_vocab_testid";
       return null;
     },
   },

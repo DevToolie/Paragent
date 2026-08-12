@@ -4,7 +4,7 @@ doc_type: spec
 status: review
 owner: B5
 created: 2026-07-24
-updated: 2026-08-11
+updated: 2026-08-12
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -148,6 +148,17 @@ Open, and shared with [#126](https://github.com/DevToolie/Paragent/issues/126): 
 name is page-authored. On self-hosted open-source software at a pinned tag it is vendor
 vocabulary anyone can reproduce; on a closed portal it may carry tenant strings this spec has not
 classified.
+
+**#126 answered the pool-write half of this** — not the repair-egress half described above, which
+is still open. [ADR-0017](../decisions/ADR-0017-pool-vocabulary-rule.md) adds
+`src/cache/vocabulary.ts`: a committed, source-cited snapshot of accessible names/testids verified
+against the pinned open-source artifact itself, additive to `UI_CHROME_NAMES` in the positive
+allowlist above (rule 1) and to `ALLOWED_TESTID_VALUES` (rule 3), never a bypass of
+`writeCacheRow()`. It still refuses a locator carrying `tenant_scoped: true` regardless of
+vocabulary match — vocabulary widens what counts as chrome, it does not override an upstream
+tenant claim. It does not apply to the repair payload this section governs, and it does not extend
+to closed SaaS portals, which have no public vocabulary to verify against and remain on the
+50-word floor.
 
 ## Attacks this does NOT defend against
 

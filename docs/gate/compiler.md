@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B3
 created: 2026-07-25
-updated: 2026-07-28
+updated: 2026-08-12
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -73,6 +73,13 @@ alias, series count and panel title are all rendered back into the page, so a re
 recorded *where* the value landed would let synthesis emit `text-matches` / `count-equals`
 against a typed hole. That is [#61](https://github.com/DevToolie/Paragent/issues/61), and
 nothing here promotes a weak assertion to strong to make the number look better.
+
+> **Update 2026-08-12 (issue #126):** the `1/12` below is this file's own pre-check number,
+> confirmed unchanged. Routed through the authoritative write path instead
+> (`src/cache/write.ts`), the same bundle is `7/12` — see
+> [`pool-vocabulary.md`](./pool-vocabulary.md) and
+> [ADR-0017](../decisions/ADR-0017-pool-vocabulary-rule.md). The gap is the pre-check being
+> stricter than its own authority (safe, per this file's own rule below), not an error here.
 
 ### One row in twelve is poolable, and that is the honest number
 
