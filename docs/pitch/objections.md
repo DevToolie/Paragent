@@ -12,13 +12,13 @@ sources_verified: true
 
 # Objections — honest answers
 
-Answers prefer "we don't know yet" over invention. Vertical remains **search in progress**.
+Answers prefer "we don't know yet" over invention. Vertical: **FAIL — no surface locked** ([DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)).
 
 ## 1. Why not Terraform / the vendor API?
 
 **If a clean API or Terraform path exists, Paragent should lose.** Week-0 proved the point: 51/70 observability tasks were FULLY_API with citations; the highest-pain A5 tasks were often already automatable via REST/IaC ([A8-DECISION.md](../research/census-week0/A8-DECISION.md); [A4-adversary.md](../research/census-week0/A4-adversary.md), access_date 2026-07-24). Building a UI replay cache for work competent teams already IaC is exactly the trap A8 named.
 
-We only belong where the laborer is structurally outside the vendor's API roadmap — the counterparty hypothesis (**ASSUMED**, pending Track 2).
+We only belong where the laborer is structurally outside the vendor's API roadmap — the counterparty hypothesis (**ASSUMED** as originally framed; tested by Track 2 and **FAILed** as a lockable wedge — [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)).
 
 ## 2. Why won't OpenAI / Anthropic / Browserbase just do this?
 

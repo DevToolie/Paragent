@@ -19,7 +19,9 @@ import {
   startFixtureServer,
 } from "./fixture.js";
 import { establishSession, LoginFailedError } from "./preamble.js";
+import { resolveTaskKeyForRecording } from "./select-task.js";
 import { RECORDER_VERSION, TrajectoryRecorder } from "./session.js";
+import { buildLiveSiteKey } from "./site-identity.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -75,6 +77,13 @@ From a clone, the same two through the repo script:
 
 Typed values become parameter slots; override them for a repeat run:
   --series-alias <s>  --series-count <n>  --panel-title <s>  --dashboard-title <s>
+
+Which task_key: --task-key wins if given. Otherwise --intent "<goal>" is resolved
+against the known-task catalog (src/intent/, issue #124) — a normalized exact match
+against a phrasing already on file, never a guess. A miss or a near-miss that is not
+confident enough to resolve refuses the recording rather than picking one:
+  paragent record --base-url http://127.0.0.1:3000 --intent "create a stat dashboard from testdata"
+With neither flag, the historical default applies (unchanged behavior).
 
 The live task is recorded against the matrix base version (${RECORDED_AGAINST}). Later
 versions are what the gate replays it on — running the recorder against them is
@@ -288,12 +297,24 @@ async function main() {
         : `grafana-${TASK_KEY}-${RECORDED_AGAINST}.json`,
     );
 
+  // site_key names a product+version, never an address — see
+  // src/recorder/site-identity.ts. "@pending-version" is filled in once the
+  // live path has read the version off the instance; an explicit --site-key
+  // is never touched by that fill-in (see below).
   const site_key =
     (args["site-key"] as string | undefined) ??
-    (useFixture ? "grafana-oss@fixture" : "grafana-oss@pending-adr0003");
-  const task_key =
-    (args["task-key"] as string | undefined) ??
-    (useFixture ? "login-open-dashboards-list" : TASK_KEY);
+    (useFixture ? "grafana-oss@fixture" : "grafana-oss@pending-version");
+  const taskKeyResult = resolveTaskKeyForRecording(
+    args,
+    useFixture ? "login-open-dashboards-list" : TASK_KEY,
+  );
+  if ("errorMessage" in taskKeyResult) {
+    console.error(`recorder: ${taskKeyResult.errorMessage}`);
+    process.exit(5);
+    return;
+  }
+  if (taskKeyResult.note) console.log(taskKeyResult.note);
+  const task_key = taskKeyResult.task_key;
   const values: TaskValues = {
     series_alias: (args["series-alias"] as string | undefined) ?? "paragent_series",
     series_count: (args["series-count"] as string | undefined) ?? "3",
@@ -384,7 +405,16 @@ async function main() {
 
       const recorder = new TrajectoryRecorder(page, {
         trajectory_id: `traj-gate-live-${TASK_KEY}-${testbedVersion}`,
-        site_key: site_key.replace("@pending-adr0003", `@${host}:${port}`),
+        // host/port stay out of site_key — they are already parameters below
+        // (`base_url_template`, `parameters.host`/`port`, `bindings`).
+        // buildLiveSiteKey takes no host/port argument at all, so there is no
+        // way to thread one through by mistake (site-identity.ts). An
+        // explicit --site-key has no "@pending-version" substring, so this is
+        // a no-op for it, same as the placeholder it replaces.
+        site_key: site_key.replace(
+          "grafana-oss@pending-version",
+          buildLiveSiteKey("grafana-oss", testbedVersion),
+        ),
         task_key,
         base_url_template: "http://{host}:{port}",
         provenance: {

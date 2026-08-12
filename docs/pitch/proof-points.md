@@ -40,7 +40,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | A7 | Repo is PUBLIC by decision; no credentials, tokens, or `.env` in git history; secret scanning + push protection enabled | (supporting; ToS/privacy posture) | PROVEN | [ADR-0005](../decisions/ADR-0005-repo-public.md) (supersedes [ADR-0002](../decisions/ADR-0002-repo-privacy.md), which claimed ALL-PRIVATE); [README.md](../../README.md) |
 | A8 | `pool_eligible` / fail-closed pooling fields exist on cache-row schema | narrative, deck 15, one-pager | PROVEN (schema) | [cache-row.schema.json](../../contracts/cache-row.schema.json) |
 | A9 | Full PRD §6 privacy boundary spec / PRD v0.2 text | narrative, deck 15, one-pager | PROVEN (docs in tree) | [PRD-trajectory-cache-v0.2.md](../prd/PRD-trajectory-cache-v0.2.md) §6; [boundary-spec.md](../privacy/boundary-spec.md); D1 draft absence note obsolete (D2 2026-07-25) |
-| A10 | Wave-1 pitch is draft; finalize after C5 | narrative frontmatter, deck 9, one-pager | ASSUMED (process) | Wave pack Agent D1; vertical lock pending C5 |
+| A10 | Wave-1 pitch is draft; C5 has adjudicated (FAIL) and this reconciliation pass updates the four pitch docs accordingly | narrative frontmatter, deck 9, one-pager | ASSUMED (process) | Wave pack Agent D1; vertical lock closed — C5 FAIL ([DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)) |
 
 ---
 
@@ -59,7 +59,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | B9 | Wrong thesis falsified: recurring observability console config as browser-agent gold | narrative, deck 6, objections §1 | PROVEN | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) §"Wrong thesis the kill list falsifies" |
 | B10 | Highest A5 pain often sat on tasks A4 killed as FULLY_API | narrative, deck 6 | PROVEN | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) evidence-quality §4 + killed table |
 | B11 | Structural finding: vendor builds API for what customers do repeatedly → high-frequency and permanently browser-only nearly mutually exclusive when user is vendor's customer | narrative, deck 3, one-pager, objections §1 | PROVEN (as census archive paraphrase for observability) | [census-week0/README.md](../research/census-week0/README.md); [A8-DECISION.md](../research/census-week0/A8-DECISION.md) |
-| B12 | Generalization of B11 beyond observability | narrative, deck 3 | ASSUMED | Pivot hypothesis; pending Track 2 falsification |
+| B12 | Generalization of B11 beyond observability | narrative, deck 3 | ASSUMED | Pivot hypothesis; Track 2 has since tested it and FAILed (2 survivors, 0 DURABLE surfaces) — C5 frames this as a thesis signal, not proof, with the company verdict deferred to Track-1 ([DECISION.md](../research/vertical-search/DECISION.md) §Decision narrative; [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)) |
 | B13 | Census archive is an asset to preserve | narrative, deck 4–5 | PROVEN (as project policy) | [census-week0/README.md](../research/census-week0/README.md); Wave pack §7 |
 | B14 | "Killed own anchor in 48 hours" | narrative (qualified), deck (process) | ASSUMED | Wave pack / founder framing; dated FAIL is 2026-07-24 — wall-clock **not independently verified** in census files |
 | B15 | 51-item evidence-backed falsification list produced before writing the execution layer | narrative, deck 5, one-pager | PROVEN (kill list exists; sequencing relative to Track-1 code is pack/README posture) | [A4-adversary.md](../research/census-week0/A4-adversary.md); [A8](../research/census-week0/A8-DECISION.md); Track-1 "harness in progress" — [README.md](../../README.md) |
@@ -88,7 +88,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | D4 | Two orthogonal tracks: (1) churn survival on self-hosted OSS; (2) commercial vertical search; neither waits | narrative, deck 19, objections §9 | PROVEN (as plan text) | [pivot-brief-v0.3.md](../prd/pivot-brief-v0.3.md) §4; Track 2 now FAIL per C5 |
 | D5 | Track 1 version-bump churn is a proxy for organic production churn | narrative | ASSUMED (honesty requirement) | Wave pack / B1 brief; B1 docs may elaborate when merged |
 | D6 | Second consecutive vertical FAIL implicates the thesis, not only anchor selection | narrative kill table, objections §7 | ASSUMED (decision rule) | Wave pack Agent C5 gate text |
-| D7 | Two consecutive vertical FAILs (Week-0 + Track-2) | objections §7 (was rejected at D1 write) | PROVEN (as of C5) | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) + [DECISION.md](../research/vertical-search/DECISION.md) — D1 objections text may still deny this; see INTEGRITY-AUDIT |
+| D7 | Two consecutive vertical FAILs (Week-0 + Track-2) | objections §7 (was rejected at D1 write) | PROVEN (as of C5) | [A8-DECISION.md](../research/census-week0/A8-DECISION.md) + [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) — objections §7 now states both FAILs in present tense; the earlier "D1 objections text may still deny this" caveat is obsolete |
 
 ---
 
@@ -96,7 +96,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 
 | ID | Claim | Appears in | Status | Source |
 | --- | --- | --- | --- | --- |
-| E1 | Seller-side portal questionnaire fill / trust-center visitor is a conditionally credible backup wedge | narrative, deck 18 | PROVEN (as A7 scout verdict) | [A7-backup.md](../research/census-week0/A7-backup.md) §4 — access_date 2026-07-24 |
+| E1 | Seller-side portal questionnaire fill / trust-center visitor **was** a conditionally credible backup wedge at A7; closed as a wedge post-C5 | narrative, deck 18 | PROVEN (as A7 scout verdict, 2026-07-24); **closed** as a live lead | [A7-backup.md](../research/census-week0/A7-backup.md) §4 — access_date 2026-07-24; closed by C4 ALREADY_SOLVED (QAuto category) + C5 FAIL — [adversary-report.md](../research/vertical-search/adversary-report.md); [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) |
 | E2 | Buyer-side TPRM inventory/assessment launch is weaker (heavily API'd) | narrative (non-lock), objections context | PROVEN (as A7) | [A7-backup.md](../research/census-week0/A7-backup.md) |
 | E3 | Vanta documents UI-only gaps (e.g. start security review; link evidence) and ships Chrome extension because portals lacked spreadsheet export | deck 18 / objections §8 backing | PROVEN | URLs in [A7-backup.md](../research/census-week0/A7-backup.md) §5 — e.g. https://developer.vanta.com/docs/guides/create-vendors-and-attach-documentation ; https://www.vanta.com/resources/how-we-built-questionnaire-automation-browser-extension — access_date 2026-07-24 |
 | E4 | SafeBase/Drata Chrome extension markets portal autofill (OneTrust, Whistic, ProcessUnity, etc.) | objections §8 | PROVEN | https://chromewebstore.google.com/detail/safebase-by-drata/mfmcakkhgmcedieeoahcnomefgigcnhm — via [A7](../research/census-week0/A7-backup.md) — access_date 2026-07-24 |
@@ -120,7 +120,7 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | F8 | Portal bot-detection / MFA / CAPTCHA can block agents | objections §6, deck 20 | ASSUMED as risk class; partial census support | PARTIAL/browser residues in [A4](../research/census-week0/A4-adversary.md); portal MFA notes in [A7](../research/census-week0/A7-backup.md); severity PENDING per vertical |
 | F9 | Intermediary already owning workflow kills counterparty thesis for that surface | narrative, deck 20, objections §7 | ASSUMED (method) | Wave pack Agent C4 intermediary rule |
 | F10 | Solo-founder self-falsification is a diligence asset vs "why hasn't a funded team done this" | narrative, objections §3 | ASSUMED (narrative judgment) | Process evidence is B1–B15 PROVEN; interpretation ASSUMED |
-| F11 | Financing / intro ask: support finishing Track 1 number + Track 2 adjudication | deck 21, one-pager | ASSUMED | Founder ask TBD; no dollar amounts invented |
+| F11 | Financing / intro ask: support finishing the **Track 1 gate number** (Track-2 adjudication is closed — C5 FAIL, no lock; not part of the ask) | deck 21, one-pager | ASSUMED | Founder ask TBD; no dollar amounts invented; Track-2 closure — [DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) |
 | F12 | Track 1 can measure mechanism without third-party ToS/design partner via self-hosted OSS | objections §9, deck 19 | ASSUMED (plan) | Wave-2 shared context Track 1 |
 
 ---
@@ -130,10 +130,10 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 | ID | Non-claim | Why listed |
 | --- | --- | --- |
 | G1 | No latency, cost-savings %, or replay-validity % stated as fact | Hard rule — inventing metrics is fireable |
-| G2 | No locked vertical name | C5 pending |
+| G2 | No locked vertical name | C5 FAIL — closed, not pending ([DECISION.md](../research/vertical-search/DECISION.md); [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md)) |
 | G3 | No customer / design-partner names | Privacy rule |
 | G4 | No assertion that an API "does not exist" globally — only cited FULLY_API / NO_PATH_FOUND per census method | A4 hard rule preserved |
-| G5 | Deck does not claim two censuses have already failed | objections §7 |
+| G5 | Docs do not claim the two vertical FAILs disprove the company thesis outright — C5 frames them as evidence about the *selection thesis*, with the company verdict deferred to the Track-1 number, not asserted as a foregone kill | Supersedes this row's prior framing ("deck does not claim two censuses have already failed"), which is no longer accurate now that objections §7 and narrative's kill table state the two FAILs in present tense (see D7) — [DECISION.md](../research/vertical-search/DECISION.md) §Decision narrative; [ADR-0004](../decisions/ADR-0004-vertical-track2-fail.md) |
 
 ---
 
@@ -165,6 +165,6 @@ Diligence backing for [`narrative.md`](./narrative.md), [`deck-outline.md`](./de
 
 ## Open questions / what I could not verify
 
-- D1 “PRD absent” / “C5 pending” rows corrected where matched; residual pitch prose may lag — see INTEGRITY-AUDIT.
-- Objections §7 may still say only one FAIL exists; C5 is now the second — contradiction surfaced, not auto-rewritten in full.
+- D1 “PRD absent” / “C5 pending” rows corrected where matched; this PR (issue #34) closes the remaining residual pitch prose flagged by INTEGRITY-AUDIT D-01/D-07/E-12 — narrative.md, deck-outline.md, and objections.md's stale "search in progress" / "pending Track 2" / "PENDING C5" language is now reconciled with ADR-0004 + DECISION.md.
+- Objections §7 now states two consecutive FAILs in present tense (resolved); confirm no other pitch doc still implies only one.
 - Any claim that appears in a future deck design beyond this outline needs a new proof-points row before use.
