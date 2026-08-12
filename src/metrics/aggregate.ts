@@ -513,6 +513,143 @@ export function amortizedTokensOverN(
 }
 
 /**
+ * One point on the hit-rate trend (#67).
+ *
+ * Shaped like `AmortizationPoint` on purpose — the report plots the two curves
+ * together, and §9 pairs them: amortized cost shows the *effect*, hit-rate shows
+ * the *mechanism*. If tokens fell for an unrelated reason (a cheaper model, a
+ * shorter task) hit-rate would stay flat and expose it.
+ */
+export interface CacheHitRatePoint {
+  /**
+   * Index over **cache-consulting runs**, not over all runs.
+   *
+   * A run that never consulted the cache contributes no denominator, so
+   * including it would flat-line the curve for a reason that has nothing to do
+   * with the cache. `run_id` is carried so a reader can join back to the
+   * amortized series rather than assume the two share an x-axis.
+   */
+  n: number;
+  run_id: string;
+  /** Cumulative through this point — the trend §9 asks for. */
+  hit_rate: number;
+  /** Cumulative denominator, so a reader can see how thin an early point is. */
+  cache_steps: number;
+}
+
+/** Published in the report so the number states exactly what it counts. */
+const CACHE_HIT_RATE_FORMULA =
+  "count(program_source=cache AND replay_valid=true) / count(program_source=cache)";
+
+/**
+ * Cache hit-rate on anchor tasks over time (PRD §9 secondary metric).
+ *
+ * ## What counts as a hit
+ *
+ * Defined in [ADR-0014](../../docs/decisions/ADR-0014-cache-read-path.md), and
+ * it is a **conjunction of two independently stored facts**:
+ *
+ * ```
+ * cache hit  ≡  program_source == "cache"  AND  replay_valid
+ * ```
+ *
+ * Replay is deterministic and uses no model — the model only appears in repair
+ * — so a hit cannot mean "skipped a model call during replay". It means *this
+ * run did not need fresh reasoning to obtain a program*. That is provenance;
+ * whether the program then worked is `replay_valid`, which already exists and
+ * is deliberately **not** redefined here. #67 is explicit that hit-rate must not
+ * be squeezed into an existing field.
+ *
+ * **A repaired step is a miss**, even though it passed: it cost model tokens,
+ * which is the thing this metric exists to track. `REPAIRED_PASS` therefore
+ * lands in the denominator and not the numerator, via `replay_valid === false`.
+ *
+ * ## Why the denominator excludes file-loaded steps
+ *
+ * A step whose program came from `--program <bundle>` has no cache provenance at
+ * all, and `program_source` is simply absent on it. Counting those as misses
+ * would make hit-rate a function of **how the operator invoked the runner**
+ * rather than of the cache: a matrix run against a file bundle would report 0%,
+ * which reads as "the cache is failing" when the truth is "the cache was never
+ * asked". So they are excluded entirely and an all-file run reports `no_data`.
+ *
+ * No target and no threshold. §9 gives a direction ("up") and no number, and
+ * inventing one here would be exactly the category-B failure
+ * `docs/INTEGRITY-AUDIT.md` exists for.
+ */
+export function cacheHitRate(rows: readonly MetricRow[]): {
+  points: CacheHitRatePoint[];
+  section: GateReportSection;
+} {
+  const noData = (): { points: CacheHitRatePoint[]; section: GateReportSection } => ({
+    // Deliberately no points: an empty series renders as "no_data", where a
+    // zero-valued series would render as a flat line labelled as a measurement.
+    points: [],
+    section: {
+      name: "cache hit-rate over N runs",
+      formula: CACHE_HIT_RATE_FORMULA,
+      value: null,
+      status: "no_data",
+      numerator: 0,
+      denominator: 0,
+    },
+  });
+
+  // Only steps that actually carry provenance. Absent means the run never
+  // consulted a cache — not "file", and not a miss.
+  const steps = dedupeLatestSteps(filterSteps(rows)).filter(
+    (s) => s.program_source === "cache",
+  );
+  if (steps.length === 0) return noData();
+
+  // Grouped by run and ordered by the run's earliest step, rather than by a
+  // joined run row: a step row is the thing being counted, and a series that
+  // silently dropped runs whose run row was missing would understate the trend
+  // without saying so.
+  const byRun = new Map<string, StepMetric[]>();
+  for (const step of steps) {
+    const bucket = byRun.get(step.run_id);
+    if (bucket) bucket.push(step);
+    else byRun.set(step.run_id, [step]);
+  }
+  const runIds = [...byRun.keys()].sort((a, b) => {
+    const first = (id: string) =>
+      byRun.get(id)!.reduce((min, s) => (s.recorded_at < min ? s.recorded_at : min), "\uffff");
+    const fa = first(a);
+    const fb = first(b);
+    return fa === fb ? a.localeCompare(b) : fa.localeCompare(fb);
+  });
+
+  const points: CacheHitRatePoint[] = [];
+  let hits = 0;
+  let total = 0;
+  for (const [i, runId] of runIds.entries()) {
+    for (const step of byRun.get(runId)!) {
+      total += 1;
+      if (step.replay_valid) hits += 1;
+    }
+    points.push({
+      n: i + 1,
+      run_id: runId,
+      hit_rate: hits / total,
+      cache_steps: total,
+    });
+  }
+
+  return {
+    points,
+    section: {
+      name: "cache hit-rate over N runs",
+      formula: CACHE_HIT_RATE_FORMULA,
+      value: hits / total,
+      status: "computed",
+      numerator: hits,
+      denominator: total,
+    },
+  };
+}
+
+/**
  * Bucket totals across runs.
  *
  * `fresh` is a sum of per-run baselines and is **not** an amortization
@@ -553,6 +690,12 @@ export function buildGateReport(rows: readonly MetricRow[]): {
   per_version: VersionBreakdown[];
   amortized_points: AmortizationPoint[];
   /**
+   * Hit-rate trend (#67). Indexed over cache-consulting runs, so it does **not**
+   * share an x-axis with `amortized_points` — each point carries its `run_id`
+   * for joining. Empty when nothing consulted a cache.
+   */
+  cache_hit_rate_points: CacheHitRatePoint[];
+  /**
    * How many one-time payments the window contains, and for which builds.
    * `payments > distinct_builds` means one build id was paid for twice — kept
    * visible rather than corrected at aggregation time (#123).
@@ -565,6 +708,7 @@ export function buildGateReport(rows: readonly MetricRow[]): {
 } {
   const repairVs = repairCostVsFresh(rows);
   const amortized = amortizedTokensOverN(rows);
+  const hitRate = cacheHitRate(rows);
   return {
     prd_section: "§9",
     generated_at: new Date().toISOString(),
@@ -586,9 +730,13 @@ export function buildGateReport(rows: readonly MetricRow[]): {
       selfHealRate(rows),
       meanTimeToRepair(rows),
       amortized.section,
+      // Beside the amortized curve on purpose: §9 pairs them, because
+      // amortized cost shows the effect and hit-rate shows the mechanism.
+      hitRate.section,
     ],
     per_version: perVersionBreakdown(rows),
     amortized_points: amortized.points,
+    cache_hit_rate_points: hitRate.points,
     amortization: {
       payments: amortized.builds_paid.length,
       distinct_builds: new Set(amortized.builds_paid).size,

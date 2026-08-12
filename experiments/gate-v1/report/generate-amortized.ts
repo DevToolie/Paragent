@@ -18,6 +18,8 @@ export interface ReportPaths {
   csv: string;
   html: string;
   svg: string;
+  /** Hit-rate trend (#67). §9 pairs it with the amortized curve. */
+  hitRateSvg: string;
 }
 
 function escapeXml(s: string): string {
@@ -98,9 +100,59 @@ function renderCsv(sections: GateReportSection[]): string {
   return [header, ...lines].join("\n") + "\n";
 }
 
+/**
+ * Hit-rate trend (#67).
+ *
+ * A separate chart rather than a second series on the amortized axes: the two
+ * are indexed differently (`n` here counts **cache-consulting runs**) and their
+ * units share nothing. Overlaying them would imply an alignment that does not
+ * exist. §9 pairs them because amortized cost shows the *effect* and hit-rate
+ * shows the *mechanism* — if tokens fell for an unrelated reason, this curve
+ * stays flat and says so.
+ *
+ * The y-axis is pinned to 0..1 rather than scaled to the data: auto-scaling a
+ * rate makes a run of 0.02 look like a full-height climb.
+ */
+function renderHitRateSvg(
+  points: Array<{ n: number; hit_rate: number; cache_steps: number }>,
+): string {
+  const width = 640;
+  const height = 320;
+  const pad = 40;
+  if (points.length === 0) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="100%" height="100%" fill="#f7f7f7"/>
+  <text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="14">no_data — cache hit-rate (nothing consulted a cache)</text>
+</svg>
+`;
+  }
+  const xs = points.map((p) => p.n);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const sx = (n: number) =>
+    pad + ((n - minX) / Math.max(maxX - minX, 1)) * (width - 2 * pad);
+  const sy = (v: number) => height - pad - v * (height - 2 * pad);
+  const poly = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.n)},${sy(p.hit_rate)}`)
+    .join(" ");
+  const last = points[points.length - 1]!;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <line x1="${pad}" y1="${sy(0)}" x2="${width - pad}" y2="${sy(0)}" stroke="#ccc" stroke-width="1"/>
+  <line x1="${pad}" y1="${sy(1)}" x2="${width - pad}" y2="${sy(1)}" stroke="#ccc" stroke-width="1"/>
+  <path d="${poly}" fill="none" stroke="#1a6" stroke-width="2"/>
+  <text x="${pad}" y="24" font-family="sans-serif" font-size="14" fill="#222">cache hit-rate over N cache-consulting runs</text>
+  <text x="${pad}" y="40" font-family="sans-serif" font-size="11" fill="#555">y axis pinned 0..1 · ${last.cache_steps} cache-provenance step(s) · no target line: §9 gives a direction, not a threshold</text>
+</svg>
+`;
+}
+
 function renderHtml(
   report: ReturnType<typeof buildGateReport>,
   svgRelative: string,
+  hitRateSvgRelative: string,
 ): string {
   const rows = report.metrics
     .map(
@@ -139,6 +191,9 @@ ${rows}
   </table>
   <h2>Amortized tokens chart</h2>
   <img src="${escapeXml(svgRelative)}" alt="amortized tokens over N" width="640" height="320"/>
+  <h2>Cache hit-rate chart</h2>
+  <p class="meta">The mechanism behind the curve above: amortized cost shows the effect, hit-rate shows why. A hit is <code>program_source=cache</code> <strong>and</strong> <code>replay_valid</code> — a repaired step is a miss because it cost model tokens. Steps from a file-loaded program carry no provenance and are in no denominator.</p>
+  <img src="${escapeXml(hitRateSvgRelative)}" alt="cache hit-rate over N" width="640" height="320"/>
 </body>
 </html>
 `;
@@ -157,14 +212,20 @@ export async function writeReport(
     csv: path.join(outDir, "report.csv"),
     html: path.join(outDir, "report.html"),
     svg: path.join(outDir, "amortized.svg"),
+    hitRateSvg: path.join(outDir, "hit-rate.svg"),
   };
 
   await writeFile(paths.json, JSON.stringify(report, null, 2) + "\n", "utf8");
   await writeFile(paths.csv, renderCsv(report.metrics), "utf8");
   await writeFile(paths.svg, renderSvg(amortized.points), "utf8");
   await writeFile(
+    paths.hitRateSvg,
+    renderHitRateSvg(report.cache_hit_rate_points),
+    "utf8",
+  );
+  await writeFile(
     paths.html,
-    renderHtml(report, path.basename(paths.svg)),
+    renderHtml(report, path.basename(paths.svg), path.basename(paths.hitRateSvg)),
     "utf8",
   );
   return paths;
