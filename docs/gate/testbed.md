@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B1
 created: 2026-07-25
-updated: 2026-07-28
+updated: 2026-08-14
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -28,6 +28,35 @@ compiled trajectories survive *discrete, vendor-shipped* surface changes. It is
 Do not present matrix results as “we measured real production churn.” Present
 them as “we measured survival across known OSS console redesigns under
 accelerated upgrades.” Gate numbers derived here inherit this limitation.
+
+## Honesty second — hand-picked locators, not agent-picked
+
+A second asterisk sits alongside the one above, and it attaches to the *recorded trajectory*
+rather than to the matrix. `src/recorder/cli.ts` is a hand-written script: a developer reads the
+live DOM and types literal Playwright locators, one per step (`RECORDED_AGAINST = "9.5.21"`,
+[`docs/gate/recorder.md`](./recorder.md)). `contracts/trajectory.schema.json`'s own
+`provenance.agent_model` field anticipates the distinction — "Model id used for the driving
+agent, or 'human' for manual capture" — and every trajectory this repo has recorded carries
+`"agent_model": "human"` (`contracts/examples/trajectory.example.json`).
+
+That matters because a developer and an agent do not pick locators the same way. A developer
+reading the DOM can see which attributes are stable — `data-testid`, `aria-label`, structural
+position — before typing a single selector, and picks accordingly. An agent recording the same
+task at runtime sees only what is rendered in the moment; it has no equivalent look-ahead. A gate
+that measures whether *hand-picked* locators survive a version bump is therefore measuring a
+better-than-real case: the survival rate M2–M4 report is an upper bound on what an agent-recorded
+trajectory would achieve, not an estimate of it. This is not a defect in the harness — it is a
+property of who is recording, and it holds regardless of how the version-bump-churn proxy above
+resolves.
+
+There is no fix in this repo yet. An agent-driven recorder is scoped as
+[issue #127](https://github.com/DevToolie/Paragent/issues/127) and is not built; the checklist
+item that would close this asterisk is "an agent-recorded number exists to compare against the
+hand-recorded one." Until then, every gate number this harness produces carries **both**
+asterisks — proxy churn (above) and hand-picked locators (here) — and neither should be dropped
+when the number is quoted. See also [`docs/gate/recorder.md`](./recorder.md) for where the
+locators in the committed trajectory were chosen and why they are deliberately not
+version-tolerant.
 
 ## Choice
 

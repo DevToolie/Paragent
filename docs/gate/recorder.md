@@ -4,7 +4,7 @@ doc_type: runbook
 status: draft
 owner: B2
 created: 2026-07-25
-updated: 2026-08-12
+updated: 2026-08-14
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -231,6 +231,17 @@ Being robust inside a measured step would launder churn out of the gate: the tra
 it back. Version tolerance belongs in the preamble and nowhere else. Running the recorder
 against a later version is therefore expected to exit **4** (`STEP NOT RECORDABLE`) naming the
 step — and nothing is written, because a hand-patched trajectory invalidates the gate.
+
+**These locators are also hand-picked, and that is a second, separate asterisk on whatever
+survival number the matrix eventually reports.** The 12 selectors above were chosen by a
+developer reading the 9.5.21 DOM — picking `data-testid`/`aria-label` where one exists, falling
+back to structure only where neither does (step 7's note above) — not proposed by an agent acting
+at runtime with no such look-ahead. `provenance.agent_model` is `"human"` on this trajectory for
+exactly that reason. See
+[`docs/gate/testbed.md` § Honesty second](./testbed.md#honesty-second--hand-picked-locators-not-agent-picked)
+for why that makes the gate number an upper bound, not an estimate, and
+[issue #127](https://github.com/DevToolie/Paragent/issues/127) for the unbuilt agent-driven
+on-ramp that would close it.
 
 ### Two recordings, diffed
 

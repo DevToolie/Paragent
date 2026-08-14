@@ -1,6 +1,6 @@
 # Paragent
 
-**Record a browser agent once. Replay it deterministically, without the model. Repair it when the page changes.**
+**Record a browser task once. Replay it deterministically, without the model. Repair it when the page changes.**
 
 [![CI](https://github.com/DevToolie/Paragent/actions/workflows/ci.yml/badge.svg)](https://github.com/DevToolie/Paragent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
@@ -11,7 +11,7 @@ a dashboard, and it re-reads the DOM, re-plans, and re-infers every click — bu
 tokens and wall-clock to rediscover a path it already found yesterday, with a fresh
 chance of getting it wrong.
 
-Paragent takes the model out of the second run. It records an agent's **successful** trajectory
+Paragent takes the model out of the second run. It records a developer's **successful** trajectory
 through a web UI, compiles it into a deterministic replayable script with a
 **post-condition assertion on every step**, and replays it with no model in the loop.
 When an assertion fails — a button moved, a label changed — the model is called back
@@ -25,9 +25,12 @@ in to repair just that step, and the repaired script is what runs next time.
   <sub>
     Real run against the bundled fixture, driven by an illustrative script rather than the
     documented <code>npm run</code> commands. The <b>record</b> and <b>replay</b> beats are what
-    the repo ships. The <b>repair</b> beat is not: Paragent ships
-    <code>StubRepairModelClient</code>, which proposes nothing, so repair needs a model client
-    that is <a href="https://github.com/DevToolie/Paragent/issues/27">not yet wired (#27)</a>.
+    the repo ships — <b>record</b> today means a developer typing the trajectory by hand
+    (<code>src/recorder/cli.ts</code>), not an agent proposing it; that on-ramp is scoped but
+    <a href="https://github.com/DevToolie/Paragent/issues/127">not yet built (#127)</a>. The
+    <b>repair</b> beat is not: Paragent ships <code>StubRepairModelClient</code>, which proposes
+    nothing, so repair needs a model client that is
+    <a href="https://github.com/DevToolie/Paragent/issues/27">not yet wired (#27)</a>.
   </sub>
 </p>
 
@@ -37,7 +40,7 @@ in to repair just that step, and the repaired script is what runs next time.
 
 | Stage | What happens | Model involved? |
 | --- | --- | --- |
-| **Record** | An agent completes the task once. Every action and its post-condition is captured as a trajectory. | Yes |
+| **Record** | A developer completes the task once, by hand. Every action and its post-condition is captured as a trajectory. | No |
 | **Compile** | The trajectory becomes a bundle of cache rows — one per step, each with its assertion. Typed values become parameter slots. | No |
 | **Replay** | Steps execute in order. Each asserts its post-condition before the next runs. | No |
 | **Repair** | On assertion failure, the model is called to fix that step; the updated script is written back. | Only on failure |
@@ -100,9 +103,10 @@ persisted to disk. Full command list: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 ## Where this fits
 
 Most browser-agent frameworks optimise the *first* run — better planning, better DOM
-grounding, better recovery. Paragent assumes you already have one that works and
-optimises every run after it. It composes with them rather than replacing them: record
-whatever agent you already trust, then replay its output.
+grounding, better recovery. Paragent is meant to compose with them rather than replace them:
+record whatever agent you already trust, then replay its output. That's the target, not what
+ships today — the recorder captures a developer's hand-typed actions, not an arbitrary agent's,
+until [#127](https://github.com/DevToolie/Paragent/issues/127) lands.
 
 It's aimed at work that is **repeated**, in a **browser**, where **no clean API
 exists** — the cases where you'd write a script if the UI would just hold still.
