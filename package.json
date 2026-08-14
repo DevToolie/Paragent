@@ -63,6 +63,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "playwright": "^1.62.1"

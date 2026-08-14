@@ -26,6 +26,7 @@ import { MetricsEmitter } from "../../src/metrics/emitter.js";
 import type { ProgramSource } from "../../src/metrics/types.js";
 import { establishSession, LoginFailedError } from "../../src/recorder/preamble.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
+import type { RepairModelClient } from "../../src/runner/repair.js";
 import type {
   CompiledProgram,
   ParamBindings,
@@ -176,6 +177,12 @@ export interface LiveRunOptions {
   programSource?: ProgramSource;
   /** Advisory cache-health flag (ADR-0009). Never changes what is attempted. */
   cacheProgramInvalidated?: boolean;
+  /**
+   * Opt-in real repair model (#27). Absent means the stub, which proposes
+   * nothing and costs nothing — the default everywhere, so no run spends money
+   * or makes a network call unless it was asked to.
+   */
+  repairClient?: RepairModelClient;
   /** Repeats of the program against this version. Defaults to 1. */
   runs?: number;
   /**
@@ -409,6 +416,7 @@ export async function runVersionLive(
           ...(opts.cacheProgramInvalidated !== undefined
             ? { cacheProgramInvalidated: opts.cacheProgramInvalidated }
             : {}),
+          ...(opts.repairClient ? { repairClient: opts.repairClient } : {}),
         });
 
         const params: ParamBindings = {

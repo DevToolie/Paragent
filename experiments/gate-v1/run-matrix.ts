@@ -124,6 +124,13 @@ interface Args {
   taskKey?: string;
   /** Read only pool-eligible rows — the cross-tenant case (ADR-0014). */
   poolOnly: boolean;
+  /**
+   * Opt-in real repair model (#27). Unset means the stub: no network call, no
+   * spend. Passing it requires ANTHROPIC_API_KEY, and the client throws at
+   * construction if it is missing rather than silently reporting a self-heal
+   * rate of 0 that looks measured.
+   */
+  repairModel?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -146,6 +153,7 @@ function parseArgs(argv: string[]): Args {
     "--from-cache",
     "--site-key",
     "--task-key",
+    "--repair-model",
   ]);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? "";
@@ -214,6 +222,9 @@ function usage(): void {
   --task-key <k>     Cache lookup key. Only meaningful with --from-cache.
   --pool-only        Resolve from pool-eligible rows only: the cross-tenant
                      case, where a tenant-scoped row must be invisible.
+  --repair-model <m> Use a REAL repair model instead of the stub (#27).
+                     Costs money and needs ANTHROPIC_API_KEY. Omitted means the
+                     stub: no network call, no spend, self-heal structurally 0.
   --headed           Show the browser (live runs only).
   --keep-up          Leave each container running after its run, for inspection.
   --no-preamble      Skip the login preamble, for programs that log in as part
