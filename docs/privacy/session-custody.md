@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B5
 created: 2026-07-30
-updated: 2026-08-11
+updated: 2026-08-14
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -31,7 +31,7 @@ below); everything else is sized, not built, here.
 | SC-02 | Never written to trajectories | No trajectory ever produced by the recorder contains a cookie/storage-shaped field, on disk, regardless of call path |
 | SC-03 | Never written to logs | No console output, CI log, or persisted log artifact ever contains cookie/storage-shaped content |
 | SC-04 | Session material excluded from the compiler's input by construction | The compiler's input type has no field capable of carrying it, so there is nothing to exclude at runtime — it was never representable |
-| SC-05 | Explicit customer consent language | A user automating their own account is shown "you are authorizing automation of your own account" (or equivalent) before the session is used, and this is enforced somewhere checkable |
+| SC-05 | Explicit customer consent language | A user automating their own account is shown "you are authorizing automation of your own account" (or equivalent) before the session is used, and this is enforced somewhere checkable — **enforced by construction (gate) + enforced by test (refusal), copy drafted but not legally reviewed; see [ADR-0018](../decisions/ADR-0018-session-consent-gate.md)** |
 | SC-06 | Documented ToS position per anchor site | For each real (non-local) portal the agent authenticates against, a written position on authorized-user automation exists before any run against it |
 
 `SC-02` and `SC-03` split PRD's single "never written to logs or trajectories" clause into two
@@ -263,13 +263,57 @@ would arrive in whichever convention its author reached for.
 The live-browser case sets a real cookie on the context before capturing, so "no cookies present"
 is not the reason it passes.
 
-### SC-05 — explicit consent language — **not addressed**
+### SC-05 — explicit consent language — **enforced by construction (the gate) + enforced by test (the refusal); persistence, UI, and legal review still open**
 
-Repo-wide search for consent/authorization language found nothing except the PRD requirement
-sentence itself. No onboarding flow, CLI banner, or stored-consent record exists. This is product
-and legal copy, not an engineering gap this doc can close by itself — filed as
-[#102](https://github.com/DevToolie/Paragent/issues/102) to force the "where does this moment
-live" decision before Fork A ever runs against a real account.
+**Updated 2026-08-14 (#102).** The gap analysis below was written when nothing existed at all —
+no decision about where the consent moment lives, no copy, no code. [ADR-0018](../decisions/ADR-0018-session-consent-gate.md)
+decides the moment (a stored consent record, checked before every session-establishing run, and
+explicitly not an onboarding flow or a one-time first-run banner — both rejected in writing there)
+and ships the guard it implies. The status splits into three parts, none of which should be
+rounded up to cover the others:
+
+- **The gate: enforced by construction.** `establishSession` (`src/recorder/preamble.ts`) no
+  longer accepts a `baseUrl` string — `EstablishSessionOptions.target` requires a
+  `SessionAuthorization`, and `SessionAuthorization` has a private constructor plus a private
+  `#brand` field (mirroring `TenantKey`, `src/session/keys.ts`), so an object literal cannot forge
+  one. The only way to obtain one is `SessionAuthorization.authorize(baseUrl, consent?)`
+  (`src/session/consent.ts`). There is no second door into the login flow. Pinned by
+  `@ts-expect-error` cases in `tests/unit/session-consent.test.ts`, the same pattern
+  `tests/unit/session-store.test.ts` uses for `TenantKey`.
+- **The refusal: enforced by test, not by construction.** Whether a non-local target with no
+  `consent` argument actually gets refused is a runtime check inside `authorize` — TypeScript
+  cannot evaluate "is this hostname local" at compile time, so the bad call *type-checks* and the
+  refusal (`ConsentRequiredError`) is a throw, verified by
+  `tests/unit/session-consent.test.ts`'s refusal-path cases, not an unrepresentable state. ADR-0018
+  states this distinction explicitly rather than claiming the whole guard is "enforced by
+  construction."
+- **Local-target predicate, verified against what the test-bed actually does.** `isLocalTarget`
+  treats the IPv4 loopback block (127.0.0.0/8), `localhost`, and IPv6 loopback as needing no
+  consent — a deliberate superset of the one address the test-bed binds
+  (`DEFAULT_HOST_PORT` in `src/testbed/constants.ts`, `127.0.0.1`), not a pinned literal.
+  `tests/unit/session-consent.test.ts` also asserts a private-LAN address (`192.168.x.x`) is
+  **not** treated as local — loopback-only, not "looks internal."
+
+**Not built, and said plainly rather than implied by omission:**
+
+- **No persistence layer.** `ConsentAcknowledgment.record()` produces an in-memory acknowledgment;
+  nothing reads or writes one from disk. Nothing in this repo establishes a session against a
+  non-local target yet (re-verified: `SessionAuthorization.authorize` has exactly three callers,
+  `src/recorder/cli.ts`, `experiments/gate-v1/live-run.ts`, and the test suite, all targeting the
+  local test-bed), so there is no real caller to build storage for. This is the same "decide the
+  shape before real data exists, build persistence when a caller exists" ordering ADR-0016 used for
+  session-key custody.
+- **No UI.** Nobody sees a consent screen yet. `docs/privacy/session-consent-copy.md` is a draft of
+  the copy; no CLI prompt or banner displays it.
+- **The copy is drafted, not legally reviewed.** [`session-consent-copy.md`](./session-consent-copy.md)
+  states PRD §7's "you are authorizing automation of your own account" close to verbatim, but issue
+  #102 requires review "by whoever owns legal risk here (founder)," and that has not happened. The
+  document says so in its own frontmatter (`confidence: LOW`) and body — this line is not the only
+  place that caveat lives, and it should not need to be found here to be believed.
+
+**No change to Track 1.** All three real call sites target the local test-bed and pass no
+`consent` argument; `tests/unit/recorder-preamble.test.ts` (the real-browser login suite) passes
+unchanged, 8/8, against the new `establishSession` signature.
 
 ### SC-06 — documented ToS position per anchor site — **not addressed, and currently inapplicable**
 
@@ -338,7 +382,7 @@ finding under SC-03 shows at least one of them would not catch it if it were.
 | SC-02 residual | Unit test: `toTrajectory()`'s return value, serialized directly (not via `write()`), still matches none of `assertNoLiteralSecrets`'s patterns. Replace the hand-maintained `extraTrajectories` list with a glob | [#99](https://github.com/DevToolie/Paragent/issues/99) |
 | SC-03 | New `secret-scan.mjs` pattern(s) for the storageState shape; fixture proves a catch; every existing doc discussing cookies/storage in prose proves a non-catch | [#100](https://github.com/DevToolie/Paragent/issues/100) |
 | SC-04 | Tripwire: forbidden-key list never appears in serialized compiler `Trajectory`/`Fingerprint` or runner `PageStateSnapshot` output | [#101](https://github.com/DevToolie/Paragent/issues/101) |
-| SC-05 | Not a test until the product decision lands; then a guard-function refusal path with a unit test | [#102](https://github.com/DevToolie/Paragent/issues/102) |
+| SC-05 | ~~Not a test until the product decision lands; then a guard-function refusal path with a unit test~~ **Built** — `SessionAuthorization.authorize` (`src/session/consent.ts`), gating `establishSession`; refusal path pinned by `tests/unit/session-consent.test.ts`. Persistence, UI, and legal review of the copy remain open | [#102](https://github.com/DevToolie/Paragent/issues/102) |
 | SC-06 | Not a test; a counsel packet per pivot brief §5, gated on a vertical being locked | [#103](https://github.com/DevToolie/Paragent/issues/103) |
 
 ## One-line fix taken in this PR
@@ -366,3 +410,9 @@ no citation, since it reads as verified when it silently is not.
   Playwright's storageState format is the one this codebase would actually produce, but other
   session-material shapes (a raw `document.cookie` string dump, a JWT in a header log) were not
   separately fuzzed against the current patterns.
+- **SC-05's persistence layer, UI, and legal review are not built (#102, ADR-0018).** The gate and
+  its refusal path are real and tested; reading/writing a consent record from disk, showing anyone
+  the copy, and getting the copy reviewed by whoever owns legal risk (founder) are all still open,
+  and none of them has a caller to attach to yet because nothing in this repo establishes a session
+  against a non-local target. See [ADR-0018](../decisions/ADR-0018-session-consent-gate.md) and
+  [session-consent-copy.md](./session-consent-copy.md) for what each piece still needs.

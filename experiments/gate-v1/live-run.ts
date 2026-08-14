@@ -25,6 +25,7 @@ import { chromium, type Browser, type Page } from "playwright";
 import { MetricsEmitter } from "../../src/metrics/emitter.js";
 import type { ProgramSource } from "../../src/metrics/types.js";
 import { establishSession, LoginFailedError } from "../../src/recorder/preamble.js";
+import { SessionAuthorization } from "../../src/session/consent.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
 import type { RepairModelClient } from "../../src/runner/repair.js";
 import type {
@@ -378,8 +379,13 @@ export async function runVersionLive(
 
         if (opts.preamble) {
           try {
+            // SessionAuthorization.authorize (SC-05, #102): no `consent`
+            // argument — the gate matrix always targets the local test-bed
+            // with fixture credentials the project owns (ADR-0003), so
+            // there is no account holder to consent on behalf of. A
+            // non-local baseUrl here would refuse with ConsentRequiredError.
             const session = await establishSession(page, {
-              baseUrl,
+              target: SessionAuthorization.authorize(baseUrl),
               username: FIXTURE_ADMIN_USER,
               password: FIXTURE_ADMIN_PASS,
             });

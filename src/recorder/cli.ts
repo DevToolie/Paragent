@@ -22,6 +22,7 @@ import { establishSession, LoginFailedError } from "./preamble.js";
 import { resolveTaskKeyForRecording } from "./select-task.js";
 import { RECORDER_VERSION, TrajectoryRecorder } from "./session.js";
 import { buildLiveSiteKey } from "./site-identity.js";
+import { SessionAuthorization } from "../session/consent.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -385,8 +386,13 @@ async function main() {
       // measurement — see src/recorder/preamble.ts. Nothing here touches the
       // recorder, so no preamble action reaches trajectory.steps or a
       // step-validity denominator.
+      //
+      // SessionAuthorization.authorize (SC-05, #102): no `consent` argument
+      // here because --base-url in this recorder is always the local
+      // test-bed (ADR-0006's gate task) — a non-local target would refuse
+      // with ConsentRequiredError instead of silently logging in.
       const session = await establishSession(page, {
-        baseUrl,
+        target: SessionAuthorization.authorize(baseUrl),
         username,
         password: userPass,
       });

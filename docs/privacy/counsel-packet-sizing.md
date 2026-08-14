@@ -390,8 +390,13 @@ merely undocumented.
 - The specific portal's ToS text is in hand, verbatim, not summarized from memory.
 - SC-05 (explicit customer consent language, [issue
   #102](https://github.com/DevToolie/Paragent/issues/102)) has a product decision, since counsel
-  will reasonably ask what the account holder is told before their session is automated, and that
-  is currently "not addressed" per session-custody.md.
+  will reasonably ask what the account holder is told before their session is automated. **Updated
+  2026-08-14:** the moment now has a decision ([ADR-0018](../decisions/ADR-0018-session-consent-gate.md))
+  and an engineering gate (`src/session/consent.ts`) refusing a non-local session with no recorded
+  consent — but the copy the account holder would actually see is drafted, not legally reviewed
+  ([session-consent-copy.md](./session-consent-copy.md)), and nothing shows it to anyone yet
+  (no persistence layer, no UI caller). Bringing this precondition to counsel today means bringing
+  that copy as a draft for review, not as settled language.
 - Someone has decided whether §3.3's missing rate limiter is acceptable to bring to counsel as-is
   or needs to be built first — bringing an inaccurate architecture note to counsel is worse than
   bringing an honest gap.

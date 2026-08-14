@@ -22,6 +22,7 @@ import { type Browser } from "playwright";
 import { launchTestBrowser } from "../helpers/browser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { establishSession, LoginFailedError } from "../../src/recorder/preamble.js";
+import { SessionAuthorization } from "../../src/session/consent.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const FIXTURES = path.join(ROOT, "src/recorder/fixtures");
@@ -158,7 +159,7 @@ describe("login preamble (#60)", () => {
     async (variant, _versions) => {
       await withServer({ variant }, async (baseUrl, page) => {
         const session = await establishSession(page, {
-          baseUrl,
+          target: SessionAuthorization.authorize(baseUrl),
           username: USER,
           password: PASS,
         });
@@ -174,7 +175,7 @@ describe("login preamble (#60)", () => {
       { variant: "labelled", landingQuery: "?orgId=1&from=now-6h&to=now&timezone=browser" },
       async (baseUrl, page) => {
         const session = await establishSession(page, {
-          baseUrl,
+          target: SessionAuthorization.authorize(baseUrl),
           username: USER,
           password: PASS,
         });
@@ -189,7 +190,7 @@ describe("login preamble (#60)", () => {
       { variant: "labelled", firstRunModal: true },
       async (baseUrl, page) => {
         const session = await establishSession(page, {
-          baseUrl,
+          target: SessionAuthorization.authorize(baseUrl),
           username: USER,
           password: PASS,
         });
@@ -202,7 +203,7 @@ describe("login preamble (#60)", () => {
   it("fails at the login stage on a wrong password, naming the stage", async () => {
     await withServer({ variant: "labelled", rejectLogin: true }, async (baseUrl, page) => {
       const err = await establishSession(page, {
-        baseUrl,
+        target: SessionAuthorization.authorize(baseUrl),
         username: USER,
         password: "wrong-password-never-persisted",
         timeoutMs: 8_000,
@@ -220,7 +221,7 @@ describe("login preamble (#60)", () => {
       { variant: "labelled", sessionLogin: "somebody-else" },
       async (baseUrl, page) => {
         const err = await establishSession(page, {
-          baseUrl,
+          target: SessionAuthorization.authorize(baseUrl),
           username: USER,
           password: PASS,
           timeoutMs: 8_000,
@@ -236,7 +237,7 @@ describe("login preamble (#60)", () => {
     try {
       // Port 1 is reserved and refuses connections.
       const err = await establishSession(page, {
-        baseUrl: "http://127.0.0.1:1",
+        target: SessionAuthorization.authorize("http://127.0.0.1:1"),
         username: USER,
         password: PASS,
         timeoutMs: 5_000,
@@ -251,7 +252,7 @@ describe("login preamble (#60)", () => {
   it("never lets the password reach the returned session info", async () => {
     await withServer({ variant: "labelled", acceptAnyCredential: true }, async (baseUrl, page) => {
       const session = await establishSession(page, {
-        baseUrl,
+        target: SessionAuthorization.authorize(baseUrl),
         username: USER,
         password: "canary-secret-never-persist",
       });
