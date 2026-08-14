@@ -133,6 +133,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [boundary-spec.md](privacy/boundary-spec.md) | Write-time allowlist | review | 2026-07-24 | PRD §6; canary merge-blocking |
 | [session-custody.md](privacy/session-custody.md) | Session-custody checklist + gap analysis | draft | 2026-08-11 | PRD §7; distinct from §6's pooling allowlist — see doc. SC-01 closed by #98; SC-02/04 enforced; SC-03/05/06 open (#100, #102, #103) |
 | [session-state-encryption.md](privacy/session-state-encryption.md) | SC-01 mechanism: threat model per environment, the envelope, and what key custody v1 **defers** | accepted | 2026-08-12 | Issue #98. A capability with **no callers** — nothing persists session material yet, and this does not change that. Custody/rotation/erasure now **decided** in [ADR-0016](decisions/ADR-0016-session-key-custody.md), which also changes the derivation this doc describes |
+| [counsel-packet-sizing.md](privacy/counsel-packet-sizing.md) | Counsel-packet sizing (pivot brief §5): position outline, architecture note, storage decision, cost/preconditions | draft | 2026-08-14 | Issue #36. Not legal advice. Track 2 FAIL / no anchor locked (ADR-0004) — a template + trigger, not a position on an invented site. SC-06 remains "not addressed" pending #103's trigger |
 
 ---
 
