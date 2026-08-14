@@ -30,12 +30,31 @@
  * cache-write tokens would understate against that line. The fields are read and
  * surfaced anyway — if a future change enables caching, the numbers are already
  * being carried rather than discovered missing later.
+ *
+ * ## No server-side `fallbacks`
+ *
+ * Deliberate, not an omission. A fallback would let a different model serve the
+ * repair while `model_id` is doing reproducibility work for `cost_repair` — the
+ * recorded model would no longer be the one that was billed. A refusal is
+ * reported as a refusal instead.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import type { OutputConfig } from "@anthropic-ai/sdk/resources/messages/messages";
 import { serializeRepairContext } from "./repair-egress.js";
 import type { RepairModelClient } from "./repair.js";
 import type { CompiledAction, RepairContext, RepairProposal } from "./types.js";
+
+/**
+ * The SDK's own effort union, not `string`.
+ *
+ * Widening it to `string` is what forced a cast on the whole request object,
+ * which took `output_config`, `messages`, and `max_tokens` out of the checker
+ * along with it. Until a live call is observed, the compiler is the only thing
+ * standing between a malformed request and the first run that spends money — so
+ * a typo like `"maximum"` fails at build rather than at the API.
+ */
+type Effort = NonNullable<OutputConfig["effort"]>;
 
 /** Default model. Overridable so the gate can be re-run cheaper and compared. */
 export const DEFAULT_REPAIR_MODEL = "claude-opus-5";
@@ -46,16 +65,22 @@ export const DEFAULT_REPAIR_MODEL = "claude-opus-5";
  * A truncated proposal is indistinguishable from a refusal at the parse site
  * while still having cost input tokens, so the ceiling is set well above what a
  * single `CompiledAction` needs.
+ *
+ * This caps thinking **and** response text together: `claude-opus-5` runs
+ * adaptive thinking when `thinking` is omitted, and both draw on the same
+ * budget. The ceiling is therefore not just about output size — a truncation
+ * here is a paid call that yields nothing, surfacing as "no text block in
+ * response".
  */
 export const DEFAULT_MAX_TOKENS = 16_000;
 
 /** Recorded in the notes so a later reader can reproduce the run. */
-export const DEFAULT_EFFORT = "medium";
+export const DEFAULT_EFFORT: Effort = "medium";
 
 export interface AnthropicRepairClientOptions {
   model?: string;
   maxTokens?: number;
-  effort?: string;
+  effort?: Effort;
   apiKey?: string;
   /** Injected in tests. Never constructed with a real key by the suite. */
   client?: Pick<Anthropic, "messages">;
@@ -94,7 +119,12 @@ export const REPAIR_OUTPUT_SCHEMA = {
             },
             url_template: { type: "string" },
             key: { type: "string" },
-            wait_ms: { type: "integer", minimum: 0 },
+            // No `minimum`: numerical constraints are not supported by
+            // structured outputs, and the schema is compiled server-side on
+            // first use — so a rejection would land on the first paid call.
+            // Nothing is lost: `wait_ms` is optional and `sanitizeProposedAction`
+            // does not validate it either way.
+            wait_ms: { type: "integer" },
             param_refs: { type: "array", items: { type: "string" } },
             locator_fallback_chain: {
               type: "array",
@@ -208,7 +238,7 @@ export class MissingAnthropicKeyError extends Error {
 export class AnthropicRepairModelClient implements RepairModelClient {
   readonly model: string;
   readonly maxTokens: number;
-  readonly effort: string;
+  readonly effort: Effort;
   private readonly client: Pick<Anthropic, "messages">;
 
   constructor(options: AnthropicRepairClientOptions = {}) {
@@ -246,7 +276,7 @@ export class AnthropicRepairModelClient implements RepairModelClient {
           effort: this.effort,
           format: { type: "json_schema", schema: REPAIR_OUTPUT_SCHEMA },
         },
-      } as never);
+      });
     } catch (err) {
       // Refusal, rate limit, network. Tokens consumed are unknowable here, so
       // they are reported as zero rather than guessed — and the run records
