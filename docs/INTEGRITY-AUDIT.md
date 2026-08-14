@@ -4,7 +4,7 @@ doc_type: brief
 status: draft
 owner: D2
 created: 2026-07-25
-updated: 2026-07-29
+updated: 2026-08-14
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -18,12 +18,12 @@ D2 consolidator pass (2026-07-25), **after** C4 + C5 merges. **Surfaces conflict
 
 | Category | Count |
 | --- | --- |
-| A. Unsourced / under-sourced claims | 10 |
+| A. Unsourced / under-sourced claims | 11 |
 | B. Placeholder / unmeasured metrics | 8 |
 | C. LOW-confidence findings load-bearing in a decision | 6 |
 | D. Document disagreements (5 resolved) | 8 |
 | E. Documentation-standard violations (fixed or flagged) | 12 |
-| **Total** | **44** |
+| **Total** | **45** |
 
 ---
 
@@ -41,6 +41,7 @@ D2 consolidator pass (2026-07-25), **after** C4 + C5 merges. **Surfaces conflict
 | A-08 | Proof-points F10 | Solo self-kill as diligence asset | Interpretation ASSUMED |
 | A-09 | Pitch Ask | Financing ask | Founder TBD |
 | A-10 | Any spoken gate % outside measured artifact | Performance | Must cite Track-1 output; none yet |
+| A-11 | (was) Root README hero | "records an agent's successful trajectory" | **Resolved** — recorder is human-driven (`agent_model: "human"`), not agent-driven; README now says "developer's" plus a #127 annotation, and the locator-choice consequence is recorded in `docs/gate/testbed.md` / `recorder.md` |
 
 ---
 
