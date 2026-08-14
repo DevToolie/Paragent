@@ -8,7 +8,10 @@
  * them need a container to be wrong.
  */
 
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   bundleToProgram,
   isCompiledBundle,
@@ -23,7 +26,7 @@ import {
   runsToClearSection9,
   substituteRunIndex,
 } from "../../experiments/gate-v1/live-run.js";
-import { buildSection9Floor } from "../../experiments/gate-v1/run-matrix.js";
+import { buildSection9Floor, loadCostFreshBaseline } from "../../experiments/gate-v1/run-matrix.js";
 import {
   perVersionBreakdown,
   section9SampleFloor,
@@ -463,5 +466,78 @@ describe("substituteRunIndex", () => {
     const out = substituteRunIndex(original, 1);
     expect(original["title"]).toBe("Gate {run}");
     expect(out).not.toBe(original);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #39 — loading a measured fresh-baseline into gate:matrix's --cost-fresh.
+// Refuses rather than degrades: a caller who asked for a baseline to be wired
+// in gets a named error, never a silent fall-through to zeroCost() that would
+// look identical to never having asked (see docs/gate/fresh-baseline.md).
+// ---------------------------------------------------------------------------
+
+describe("loadCostFreshBaseline (#39)", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "paragent-cost-fresh-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function writeBaseline(overrides: Record<string, unknown>): string {
+    const file = path.join(dir, "baseline.json");
+    writeFileSync(
+      file,
+      JSON.stringify({
+        usable: true,
+        mean_cost_fresh: { tokens_in: 900, tokens_out: 150, wall_clock_ms: 12000, model_id: "claude-opus-5" },
+        ...overrides,
+      }),
+      "utf8",
+    );
+    return file;
+  }
+
+  it("returns mean_cost_fresh from a usable baseline", async () => {
+    const file = writeBaseline({});
+    const cost = await loadCostFreshBaseline(file);
+    expect(cost).toEqual({
+      tokens_in: 900,
+      tokens_out: 150,
+      wall_clock_ms: 12000,
+      model_id: "claude-opus-5",
+    });
+  });
+
+  it("refuses a baseline marked not usable, naming why, rather than falling back to zeroCost() silently", async () => {
+    const file = writeBaseline({ usable: false, not_a_measurement: "dry-run — tokens remain 0" });
+    await expect(loadCostFreshBaseline(file)).rejects.toThrow(/not usable/);
+    await expect(loadCostFreshBaseline(file)).rejects.toThrow(/dry-run/);
+  });
+
+  it("refuses a baseline with usable=false and no explanation, still naming the file", async () => {
+    const file = writeBaseline({ usable: false });
+    await expect(loadCostFreshBaseline(file)).rejects.toThrow(/measured_runs was 0/);
+  });
+
+  it("refuses a missing file, naming the flag and pointing at gate:baseline", async () => {
+    const missing = path.join(dir, "does-not-exist.json");
+    await expect(loadCostFreshBaseline(missing)).rejects.toThrow(/file not found/);
+    await expect(loadCostFreshBaseline(missing)).rejects.toThrow(/gate:baseline/);
+  });
+
+  it("refuses invalid JSON rather than crash with an unreadable stack trace", async () => {
+    const file = path.join(dir, "bad.json");
+    writeFileSync(file, "{ not json", "utf8");
+    await expect(loadCostFreshBaseline(file)).rejects.toThrow(/not valid JSON/);
+  });
+
+  it("refuses a usable=true baseline missing mean_cost_fresh", async () => {
+    const file = path.join(dir, "incomplete.json");
+    writeFileSync(file, JSON.stringify({ usable: true }), "utf8");
+    await expect(loadCostFreshBaseline(file)).rejects.toThrow(/missing mean_cost_fresh/);
   });
 });

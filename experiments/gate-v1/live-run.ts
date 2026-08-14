@@ -23,7 +23,7 @@
 
 import { chromium, type Browser, type Page } from "playwright";
 import { MetricsEmitter } from "../../src/metrics/emitter.js";
-import type { ProgramSource } from "../../src/metrics/types.js";
+import type { Cost, ProgramSource } from "../../src/metrics/types.js";
 import { establishSession, LoginFailedError } from "../../src/recorder/preamble.js";
 import { SessionAuthorization } from "../../src/session/consent.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
@@ -184,6 +184,15 @@ export interface LiveRunOptions {
    * or makes a network call unless it was asked to.
    */
   repairClient?: RepairModelClient;
+  /**
+   * Measured fresh-reasoning baseline (#39), loaded by the caller from
+   * `experiments/gate-v1/out/fresh-baseline/baseline.json` and broadcast onto
+   * every run row's `cost_fresh`. Absent means `ReplayRunner`'s own default —
+   * `zeroCost()`, which `repairCostVsFresh()` reads as `no_data`. This is the
+   * measured comparison baseline, never the amortization numerator; see
+   * `ReplayRunnerOptions.costFresh` and ADR-0010.
+   */
+  costFresh?: Cost;
   /** Repeats of the program against this version. Defaults to 1. */
   runs?: number;
   /**
@@ -423,6 +432,7 @@ export async function runVersionLive(
             ? { cacheProgramInvalidated: opts.cacheProgramInvalidated }
             : {}),
           ...(opts.repairClient ? { repairClient: opts.repairClient } : {}),
+          ...(opts.costFresh ? { costFresh: opts.costFresh } : {}),
         });
 
         const params: ParamBindings = {
