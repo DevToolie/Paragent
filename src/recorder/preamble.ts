@@ -64,6 +64,7 @@
  */
 
 import type { Page } from "playwright";
+import { SessionAuthorization } from "../session/consent.js";
 
 /** Login stage failed. Named so a caller can tell it from a step failure. */
 export class LoginFailedError extends Error {
@@ -77,8 +78,15 @@ export class LoginFailedError extends Error {
 }
 
 export interface EstablishSessionOptions {
-  /** Origin of the Grafana instance, e.g. `http://127.0.0.1:3000`. */
-  baseUrl: string;
+  /**
+   * Where to log in, plus proof the session-consent gate was cleared (SC-05,
+   * #102). Obtained from `SessionAuthorization.authorize(baseUrl, consent?)`
+   * (`src/session/consent.ts`) — not a raw string, so there is no way to
+   * reach the login flow below without going through that check. A local
+   * target (the test-bed) authorizes with no `consent` argument; a non-local
+   * target throws `ConsentRequiredError` without one.
+   */
+  target: SessionAuthorization;
   username: string;
   /** Never persisted — drives Playwright only, exactly as typed values do. */
   password: string;
@@ -126,7 +134,10 @@ export async function establishSession(
   page: Page,
   opts: EstablishSessionOptions,
 ): Promise<SessionInfo> {
-  const baseUrl = opts.baseUrl.replace(/\/$/, "");
+  // opts.target already cleared the SC-05 consent gate (or is local, which
+  // needs none) — see EstablishSessionOptions.target's doc. baseUrl is
+  // already normalized (no trailing slash) by SessionAuthorization.authorize.
+  const baseUrl = opts.target.baseUrl;
   const timeout = opts.timeoutMs ?? LOGIN_TIMEOUT_MS;
 
   try {
