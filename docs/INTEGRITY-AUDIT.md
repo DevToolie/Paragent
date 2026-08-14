@@ -41,7 +41,7 @@ D2 consolidator pass (2026-07-25), **after** C4 + C5 merges. **Surfaces conflict
 | A-08 | Proof-points F10 | Solo self-kill as diligence asset | Interpretation ASSUMED |
 | A-09 | Pitch Ask | Financing ask | Founder TBD |
 | A-10 | Any spoken gate % outside measured artifact | Performance | Must cite Track-1 output; none yet |
-| A-11 | (was) Root README hero | "records an agent's successful trajectory" | **Resolved** — recorder is human-driven (`agent_model: "human"`), not agent-driven; README now says "developer's" plus a #127 annotation, and the locator-choice consequence is recorded in `docs/gate/testbed.md` / `recorder.md` |
+| A-11 | (was) Root README tagline (L3), hero (L14), "How it works" table, "Where this fits" (L105-108) | "Record a browser agent once" / "records an agent's successful trajectory" / "record whatever agent you already trust" | **Resolved** — recorder is human-driven (`agent_model: "human"`), not agent-driven; all four spots now say so (tagline drops "agent," hero says "developer's," table says "A developer... by hand" / "No," positioning paragraph is marked target-not-shipped) with a #127 annotation, and the locator-choice consequence is recorded in `docs/gate/testbed.md` / `recorder.md` |
 
 ---
 

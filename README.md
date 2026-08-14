@@ -1,6 +1,6 @@
 # Paragent
 
-**Record a browser agent once. Replay it deterministically, without the model. Repair it when the page changes.**
+**Record a browser task once. Replay it deterministically, without the model. Repair it when the page changes.**
 
 [![CI](https://github.com/DevToolie/Paragent/actions/workflows/ci.yml/badge.svg)](https://github.com/DevToolie/Paragent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
@@ -103,9 +103,10 @@ persisted to disk. Full command list: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 ## Where this fits
 
 Most browser-agent frameworks optimise the *first* run — better planning, better DOM
-grounding, better recovery. Paragent assumes you already have one that works and
-optimises every run after it. It composes with them rather than replacing them: record
-whatever agent you already trust, then replay its output.
+grounding, better recovery. Paragent is meant to compose with them rather than replace them:
+record whatever agent you already trust, then replay its output. That's the target, not what
+ships today — the recorder captures a developer's hand-typed actions, not an arbitrary agent's,
+until [#127](https://github.com/DevToolie/Paragent/issues/127) lands.
 
 It's aimed at work that is **repeated**, in a **browser**, where **no clean API
 exists** — the cases where you'd write a script if the UI would just hold still.
