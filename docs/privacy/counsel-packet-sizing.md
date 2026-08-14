@@ -316,19 +316,36 @@ carrying into any future costing of that vertical.
 
 **A second, distinct boundary — not storage, but adjacent and worth flagging alongside it:**
 [ADR-0012](../decisions/ADR-0012-repair-context-budget.md) governs what a *repair* payload may
-send to a third-party model provider (Anthropic), which is a live network call once
-[#27](https://github.com/DevToolie/Paragent/issues/27) replaces the current
-`StubRepairModelClient` (`src/runner/repair.ts:17-27`, which always returns
-`corrected_action: null` and consumes no real tokens today — this egress is not live yet). The
-repair payload may carry a failed step's locators, the assertion's type, the page URL, title,
-landmarks, and the role + accessible name of visible interactive elements — never input values
-(`src/shared/page-context.ts`, `serializeRepairContext()`, merge-blocking
-`tests/canary/repair-egress.test.ts`). `boundary-spec.md` itself flags the open question this
-document inherits: *"an accessible name is page-authored... on a closed portal it may carry
-tenant strings this spec has not classified."* This is not resolved here, and it is not a storage
-question — it is a transmission-to-a-third-party question that will need its own answer before a
-real repair model runs against a locked counterparty portal, tracked by the same open item
-boundary-spec.md already records.
+send to a third-party model provider (Anthropic). This is a **real, implemented egress today**,
+not a future one: [#27](https://github.com/DevToolie/Paragent/issues/27) is closed, and
+`AnthropicRepairModelClient` (`src/runner/repair-anthropic.ts:238-353`) is a working client that
+makes an actual `messages.create()` call against the Anthropic API. What it is allowed to send is
+bounded to `serializeRepairContext()`'s output only — a failed step's locators, the assertion's
+type, the page URL, title, landmarks, and the role + accessible name of visible interactive
+elements, never input values (`src/shared/page-context.ts`, merge-blocking
+`tests/canary/repair-egress.test.ts`). The client "never touches `RepairContext` directly," per
+its own module docstring, specifically so a client trusted to pick safe fields itself is not the
+boundary — the serialization function is.
+
+**What keeps this egress from firing by default:** `ReplayRunner` still constructs
+`StubRepairModelClient` unless a caller explicitly supplies a different one
+(`options.repairClient ?? new StubRepairModelClient()`, `src/runner/replay.ts:193`) — the stub
+remains the default, and it proposes nothing and calls no network. `AnthropicRepairModelClient`
+is opt-in: a caller has to construct it deliberately, and doing so **fails loudly** —
+`MissingAnthropicKeyError` is thrown at construction if `ANTHROPIC_API_KEY` is unset
+(`src/runner/repair-anthropic.ts:226-236`), by design, so a misconfigured run cannot silently fall
+back to the stub and report a self-heal rate that looks measured but is not.
+
+So the accurate statement for counsel is: **the third-party repair egress exists, is real, and is
+governed by a merge-blocking canary — but it is off by default, and today nothing in this
+project's own gate tooling turns it on automatically.** The moment any run against a real
+counterparty portal opts into the real client, that run is sending role + accessible name of
+visible interactive elements on that portal's pages to Anthropic. `boundary-spec.md` itself flags
+the open question this document inherits: *"an accessible name is page-authored... on a closed
+portal it may carry tenant strings this spec has not classified."* That is not resolved here, and
+it is not a storage question — it is a transmission-to-a-third-party question that will need its
+own answer before the real repair client is turned on against a locked counterparty portal,
+tracked by the same open item boundary-spec.md already records.
 
 ## 5. Sizing — what this would cost, in time and decisions
 
