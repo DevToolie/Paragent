@@ -43,6 +43,15 @@
  * `ConsentAcknowledgment.record()` is the seam a future CLI banner or
  * onboarding step calls into once one exists; this module is the gate that
  * makes skipping it a refusal instead of a silent gap.
+ *
+ * **The sharpest limitation of what ships here:** `record()` takes no
+ * required arguments, so what this gate proves today is *"a caller asserted
+ * consent,"* not *"a human was shown the copy and agreed."* Nothing stops a
+ * future caller from calling `record()` without ever having displayed
+ * anything. That gap is harmless while nothing calls it against a real
+ * target, but it is exactly what persistence + UI landing together has to
+ * close — tracked as
+ * [#163](https://github.com/DevToolie/Paragent/issues/163).
  */
 
 /** Copy version acknowledged by {@link ConsentAcknowledgment.record}. See `docs/privacy/session-consent-copy.md`. */
@@ -59,11 +68,15 @@ export const CONSENT_COPY_VERSION = "sc05-v1" as const;
  * narrower match would be a trap for the next port or interface choice, and
  * a real customer account is never reachable on loopback in the first place.
  */
+/** A single 0-255 octet — used instead of `\d{1,3}` so `127.999.999.999` (no such host resolves, but is not a loopback address either) does not match. */
+const OCTET = "(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)";
+const LOOPBACK_V4 = new RegExp(`^127(?:\\.${OCTET}){3}$`);
+
 export function isLocalHostname(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (h === "localhost") return true;
   if (h === "::1" || h === "0:0:0:0:0:0:0:1") return true;
-  if (/^127(?:\.\d{1,3}){3}$/.test(h)) return true;
+  if (LOOPBACK_V4.test(h)) return true;
   return false;
 }
 

@@ -294,7 +294,9 @@ rounded up to cover the others:
   `tests/unit/session-consent.test.ts` also asserts a private-LAN address (`192.168.x.x`) is
   **not** treated as local — loopback-only, not "looks internal."
 
-**Not built, and said plainly rather than implied by omission:**
+**Not built, and said plainly rather than implied by omission — tracked as
+[#163](https://github.com/DevToolie/Paragent/issues/163), "the deferred half of SC-05," the same
+shape #146 gave SC-01's custody half:**
 
 - **No persistence layer.** `ConsentAcknowledgment.record()` produces an in-memory acknowledgment;
   nothing reads or writes one from disk. Nothing in this repo establishes a session against a

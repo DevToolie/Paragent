@@ -168,6 +168,13 @@ consent and have that call *not* throw, which is exactly the case the test suite
 - **It is not legal review.** The copy is explicitly marked unreviewed. See that document's own
   "Open questions" section.
 
+**All three of the above are tracked, not just implied by omission**: filed as
+[#163](https://github.com/DevToolie/Paragent/issues/163), "the deferred half of SC-05" — the same
+shape #146 gave SC-01's custody half after #98 landed the mechanism. That issue also names the
+sharpest limitation of what ships here: `ConsentAcknowledgment.record()` takes no required
+arguments, so what this guard proves today is "a caller asserted consent," not "a human was shown
+the copy and agreed" — a distinction that only closes once persistence and UI land.
+
 ## Consequences
 
 **`EstablishSessionOptions.baseUrl` is gone; every caller now supplies `target`.** This is a
@@ -197,6 +204,9 @@ exists" argument ADR-0016 made for session-key custody.
 
 ## Open questions / what I could not verify
 
+- **Tracked as [#163](https://github.com/DevToolie/Paragent/issues/163).** The next four bullets —
+  persistence, UI, expiry, and legal review — are exactly what that issue exists to resolve; it is
+  the place to look for whether any of them has since been answered, not just this list.
 - **The persistence and UI mechanism for the consent record are not designed here.** Decision 1
   commits to "a stored consent record, checked before every session-establishing run" as the
   *shape*; where it is stored (a local config file, an OS keychain entry, something else), and what

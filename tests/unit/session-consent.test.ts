@@ -44,6 +44,11 @@ describe("isLocalHostname / isLocalTarget (SC-05)", () => {
     expect(isLocalHostname("10.0.0.1")).toBe(false);
   });
 
+  it("does not treat an out-of-range octet as local — no such host resolves, but it is not loopback either", () => {
+    expect(isLocalHostname("127.999.999.999")).toBe(false);
+    expect(isLocalHostname("127.256.0.1")).toBe(false);
+  });
+
   it("derives from the URL's hostname, ignoring port/path/query", () => {
     expect(isLocalTarget("http://127.0.0.1:3000/login?orgId=1")).toBe(true);
     expect(isLocalTarget("https://grafana.example.com:3000/login")).toBe(false);
@@ -120,8 +125,8 @@ describe("SessionAuthorization.authorize — the refusal path (SC-05)", () => {
     const err = caught as ConsentRequiredError;
     expect(err.code).toBe("CONSENT_REQUIRED");
     expect(err.baseUrl).toBe("https://real-customer.example.com");
-    expect(err.message).toMatch(/real-customer\.example\.com/);
-    expect(err.message).toMatch(/SC-05/);
+    expect(err.message).toContain("real-customer.example.com");
+    expect(err.message).toContain("SC-05");
   });
 
   it("does not refuse a local target even with an absurd path — locality is host-only", () => {
