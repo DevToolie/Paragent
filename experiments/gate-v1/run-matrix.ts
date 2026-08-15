@@ -36,7 +36,7 @@ import type {
   ParamBindings,
   RunResult,
 } from "../../src/runner/types.js";
-import type { MetricRow, ProgramSource, StepOutcome } from "../../src/metrics/types.js";
+import type { Cost, MetricRow, ProgramSource, StepOutcome } from "../../src/metrics/types.js";
 import {
   SECTION9_MIN_RUNS,
   SECTION9_MIN_STEP_EXECUTIONS,
@@ -131,6 +131,15 @@ interface Args {
    * rate of 0 that looks measured.
    */
   repairModel?: string;
+  /**
+   * Path to a measured fresh-baseline summary (#39), written by
+   * `npm run gate:baseline` as `out/fresh-baseline/baseline.json`. When set,
+   * its `mean_cost_fresh` is broadcast onto every **live** run row's
+   * `cost_fresh` field, which is what moves `repairCostVsFresh()` off
+   * `no_data`. Ignored under `--dry-run`, whose rows must stay all-zero.
+   * Absent means the pre-#39 default: `zeroCost()`, unchanged.
+   */
+  costFresh?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -154,6 +163,7 @@ function parseArgs(argv: string[]): Args {
     "--site-key",
     "--task-key",
     "--repair-model",
+    "--cost-fresh",
   ]);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? "";
@@ -192,6 +202,8 @@ export function assignValue(args: Args, key: string, value: string): void {
     const n = Number.parseInt(value, 10);
     if (!Number.isFinite(n) || n <= 0) throw new Error(`invalid --port: ${value}`);
     args.port = n;
+  } else if (key === "cost-fresh") {
+    args.costFresh = value;
   }
 }
 
@@ -225,6 +237,13 @@ function usage(): void {
   --repair-model <m> Use a REAL repair model instead of the stub (#27).
                      Costs money and needs ANTHROPIC_API_KEY. Omitted means the
                      stub: no network call, no spend, self-heal structurally 0.
+  --cost-fresh <path> Measured fresh-baseline summary (#39), written by
+                     "npm run gate:baseline" as out/fresh-baseline/baseline.json.
+                     Its mean_cost_fresh is attached to every LIVE run row's
+                     cost_fresh, which is what moves "repair cost vs fresh"
+                     off no_data. Refuses (exit 2) if the file is missing or
+                     not usable=true — a dry-run baseline or a zero-measured
+                     one is never wired in silently. Ignored under --dry-run.
   --headed           Show the browser (live runs only).
   --keep-up          Leave each container running after its run, for inspection.
   --no-preamble      Skip the login preamble, for programs that log in as part
@@ -308,6 +327,56 @@ export async function loadProgram(file: string): Promise<CompiledProgram> {
   return program;
 }
 
+/**
+ * Load a fresh-baseline summary (#39) written by `npm run gate:baseline` and
+ * return the `Cost` it measured.
+ *
+ * Refuses rather than degrades, same posture as the cache MISS and unbound-param
+ * checks above: a caller who passed `--cost-fresh` asked for a measured value to
+ * be wired in, so a missing file, an unparsable one, or one whose `usable` flag
+ * is `false` (dry-run, or zero runs measured) is an error naming why — never a
+ * silent fall-through to `zeroCost()`, which would look identical to a baseline
+ * that was never asked for at all.
+ */
+export async function loadCostFreshBaseline(filePath: string): Promise<Cost> {
+  let text: string;
+  try {
+    text = await readFile(filePath, "utf8");
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    throw new Error(
+      `--cost-fresh ${filePath}: ${e.code === "ENOENT" ? "file not found" : errMessage(err)}. ` +
+        "Run `npm run gate:baseline` first.",
+      { cause: err },
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`--cost-fresh ${filePath}: not valid JSON`);
+  }
+  const doc = parsed as {
+    usable?: boolean;
+    not_a_measurement?: string;
+    mean_cost_fresh?: Cost;
+  };
+  if (doc.usable !== true) {
+    throw new Error(
+      `--cost-fresh ${filePath}: not usable (${doc.not_a_measurement ?? "measured_runs was 0"}). ` +
+        "A dry-run or zero-measured baseline cannot be wired into a gate run — see docs/gate/fresh-baseline.md.",
+    );
+  }
+  if (!doc.mean_cost_fresh) {
+    throw new Error(`--cost-fresh ${filePath}: missing mean_cost_fresh`);
+  }
+  return doc.mean_cost_fresh;
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 interface WalkOptions {
   walked: MatrixVersion[];
   program: CompiledProgram;
@@ -322,6 +391,8 @@ interface WalkOptions {
   /** Append buffered metric rows to the NDJSON. Called after every run. */
   persist: () => Promise<void>;
   shouldStop: () => boolean;
+  /** Measured fresh-baseline (#39), attached to every LIVE run row's cost_fresh. */
+  costFresh?: Cost;
 }
 
 /**
@@ -383,6 +454,7 @@ async function walkVersions(
       },
       shouldStop: opts.shouldStop,
       ...(baseline ? { baseline } : {}),
+      ...(opts.costFresh ? { costFresh: opts.costFresh } : {}),
     });
 
     // A skip can now arrive *with* completed runs (interrupted partway, or the
@@ -598,6 +670,33 @@ async function main(): Promise<void> {
     return;
   }
 
+  // #39: a measured fresh-baseline, broadcast onto every LIVE run row's
+  // cost_fresh. Loaded (and validated) before anything boots, same posture as
+  // the unbound-param check above — a caller who asked for this explicitly
+  // gets a named refusal, not a silent zeroCost() that looks identical to
+  // never having asked.
+  let costFresh: Cost | undefined;
+  if (args.costFresh !== undefined) {
+    if (args.dryRun) {
+      console.log(
+        `  note: --cost-fresh is ignored under --dry-run — dry-run rows stay all-zero.`,
+      );
+    } else {
+      try {
+        costFresh = await loadCostFreshBaseline(args.costFresh);
+        console.log(
+          `  cost-fresh: ${args.costFresh} — tokens_in=${costFresh.tokens_in} ` +
+            `tokens_out=${costFresh.tokens_out} wall_clock_ms=${costFresh.wall_clock_ms}` +
+            `${costFresh.model_id ? ` model_id=${costFresh.model_id}` : ""}`,
+        );
+      } catch (err) {
+        console.error(`gate:matrix: ${errMessage(err)}`);
+        process.exit(2);
+        return;
+      }
+    }
+  }
+
   const mode = args.dryRun ? "dry-run" : "live";
   const plannedRuns = walked.length * args.runs;
   const plannedSteps = plannedRuns * program.steps.length;
@@ -655,6 +754,7 @@ async function main(): Promise<void> {
     skipped,
     persist,
     shouldStop: () => stopRequested,
+    ...(costFresh ? { costFresh } : {}),
   });
 
   await persist();
@@ -696,6 +796,11 @@ async function main(): Promise<void> {
         program_path: programOrigin,
         program_source: programSource,
         ...(baseline ? { state_baseline_version: baseline.id } : {}),
+        // #39: which measured fresh-baseline (if any) run rows' cost_fresh
+        // came from. Absent means the pre-#39 default, zeroCost() — a reader
+        // must not have to diff run rows against a source file to tell the
+        // two apart.
+        ...(costFresh ? { cost_fresh_source: args.costFresh, cost_fresh: costFresh } : {}),
         runs,
       },
       null,

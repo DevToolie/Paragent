@@ -120,6 +120,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [recorder.md](gate/recorder.md) | Recorder | draft | 2026-07-24 | — |
 | [compiler.md](gate/compiler.md) | Compiler | draft | 2026-08-12 | Its own `1/12` pre-check number annotated against ADR-0017's `7/12` authoritative recount |
 | [runner.md](gate/runner.md) | Replay / repair | draft | 2026-07-24 | Measured gate number pending |
+| [fresh-baseline.md](gate/fresh-baseline.md) | Fresh-reasoning baseline (§9 denominator) | draft | 2026-08-14 | Issue #39; harness only, no live measurement yet — `cost_fresh` stays `no_data` |
 | [cache.md](gate/cache.md) | Persistence, confidence, repair rewrite | draft | 2026-08-12 | ADR-0009; confidence **never gates** the measurement |
 | [assertion-audit.md](gate/assertion-audit.md) | Assertion-strength audit of the live bundle | draft | 2026-07-30 | Issue #61; found a strong assertion that is not load-bearing live (locator staleness, #24) |
 | [pool-vocabulary.md](gate/pool-vocabulary.md) | Pool yield on the live bundle: compiler pre-check vs authoritative write path, vocabulary rule's measured (zero) marginal effect | draft | 2026-08-12 | Issue #126; [ADR-0017](decisions/ADR-0017-pool-vocabulary-rule.md); multi-version matrix is `no_data` |
