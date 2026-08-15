@@ -109,6 +109,22 @@ directly: the same `--dry-run` / live split, the same bring-up-seed-browser-tear
 not a re-implementation), the same "a skip is not a failure" posture, and the same append-as-you-go
 NDJSON write.
 
+### Pointing this harness at a non-local target requires recorded consent
+
+`establishSession` (`src/recorder/preamble.ts`) takes a `SessionAuthorization`
+(`src/session/consent.ts`, SC-05 / [ADR-0018](../decisions/ADR-0018-session-consent-gate.md)), not
+a raw `baseUrl` — there is no path into the login flow that skips the check. The fresh-baseline
+runner calls `SessionAuthorization.authorize(baseUrl)` with no `consent` argument, same as
+`gate:matrix`'s own preamble call: today it only ever targets the local test-bed with fixture
+credentials the project owns, and a local target is always authorized (`isLocalTarget`). **That
+stops being true the moment `--program`/`--version` point this harness at a non-local target** —
+authorization would then require a `ConsentAcknowledgment`, and the run would refuse with
+`ConsentRequiredError` rather than silently logging in. This is correct behaviour, not a bug to
+route around: PRD §7 requires explicit consent before automating a session that belongs to a real
+account, and a fresh-reasoning baseline is exactly the kind of run that could end up pointed at one.
+A future caller who wants that needs to obtain an acknowledgment via `ConsentAcknowledgment.record()`
+and thread it through — not build a second door into `establishSession`.
+
 ### Why the split earns its keep here specifically
 
 The alternative — one file — was considered and rejected for the same reason `repair.ts` /

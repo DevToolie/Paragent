@@ -54,6 +54,7 @@ import {
   DEFAULT_MAX_TURNS,
 } from "../../src/runner/fresh-baseline-anthropic.js";
 import { establishSession, LoginFailedError } from "../../src/recorder/preamble.js";
+import { SessionAuthorization } from "../../src/session/consent.js";
 import {
   DEFAULT_HOST_PORT,
   FIXTURE_ADMIN_PASS,
@@ -414,8 +415,13 @@ async function runLive(
         const page = await runContext.newPage();
         if (args.preamble) {
           try {
+            // SessionAuthorization.authorize (SC-05, #102): no `consent`
+            // argument — the fresh-baseline runner always targets the local
+            // test-bed with fixture credentials the project owns (ADR-0003),
+            // so there is no account holder to consent on behalf of. A
+            // non-local baseUrl here would refuse with ConsentRequiredError.
             await establishSession(page, {
-              baseUrl,
+              target: SessionAuthorization.authorize(baseUrl),
               username: FIXTURE_ADMIN_USER,
               password: FIXTURE_ADMIN_PASS,
             });
