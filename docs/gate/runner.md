@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B4
 created: 2026-07-24
-updated: 2026-08-11
+updated: 2026-08-16
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -331,6 +331,19 @@ npm run gate:report
   network call unless asked. **Still unmeasured:** no live repair has been observed. The client
   is covered by 21 mocked-SDK tests; a self-heal rate remains structurally 0 until someone runs
   it with a real key, which is the exit criterion #27 names and this repo will not fabricate.
+
+  **That opt-in did not actually work until
+  [#165](https://github.com/DevToolie/Paragent/issues/165).** `--repair-model` was accepted by
+  the parser, documented in `usage()`, and dropped twice over: `assignValue` had no branch for
+  it, and nothing in `run-matrix.ts` read `args.repairModel` to build a client. So a run asking
+  for the real model got `StubRepairModelClient` — a null proposal and zero tokens — and
+  reported a self-heal rate of 0 and a `cost_repair` of zero that both look measured. The client
+  refuses to degrade silently (it throws when `ANTHROPIC_API_KEY` is unset); the CLI in front of
+  it degraded anyway and never reached that constructor. Both halves are wired now, and the
+  construction happens before anything boots, so a missing key is a named refusal rather than a
+  stub run. **Any pre-#165 artifact produced with `--repair-model` reported stub numbers** — a
+  stub run has `cost_repair` all-zero on every row and no `repair_context_level`, so check the
+  rows rather than the command that was typed.
 - Whether `compiled_trajectory` bundle `$id` becomes a first-class contract (B3 packaging convention today).
 - Fresh-reasoning cost capture for `cost_fresh` — measured separately; defaults to zeros when
   unwired. Since [#123](https://github.com/DevToolie/Paragent/issues/123) this field means the

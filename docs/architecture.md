@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B0
 created: 2026-07-25
-updated: 2026-08-12
+updated: 2026-08-16
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -33,6 +33,8 @@ than resolved here.
 
 Solid edges are wired in code. **Dashed red edges are hops that do not exist yet** — the
 artifact on the left is never handed to the box on the right by any code path outside tests.
+There are none left: the last one, bundle → cache, was drawn solid by
+[#166](https://github.com/DevToolie/Paragent/issues/166).
 
 ```mermaid
 flowchart LR
@@ -59,7 +61,7 @@ flowchart LR
   TRAJ -->|"trajectory.schema.json"| COMP
   COMP -->|"cache-row.schema.json + assertion.schema.json<br/>wrapper has no $id"| BUNDLE
 
-  BUNDLE -.->|"NOT WIRED — see break 1"| CACHE
+  BUNDLE -->|"paragent compile --to-cache<br/>src/cache/ingest.ts → writeCacheRow (#166)"| CACHE
   CACHE -->|"cache-row.schema.json"| POOL
   CACHE -->|"cache-row.schema.json"| TEN
 
@@ -72,8 +74,6 @@ flowchart LR
   NDJSON -->|"PRD §9 aggregates, no_data-safe"| REPORT
 
   INTENT -->|"resolveTaskIntent() → task_key or MISS<br/>src/recorder/select-task.ts (#124)"| REC
-
-  linkStyle 4 stroke:#c00,stroke-width:2px
 ```
 
 ### Reading the diagram
@@ -87,12 +87,24 @@ synthesized assertion and writes a `compiled_trajectory` bundle to `artifacts/co
 
 **The two breaks.** Two hops the prose elsewhere implies are wired are not:
 
-1. **The bundle never reaches the cache.** Nothing outside `src/cache/` and `tests/` imports
-   the cache package — verified by grepping every import in `src/` and `experiments/`. The
-   `pool_eligible` flag on a bundle row comes from the compiler's own pre-check
-   (`src/compiler/pool.ts`, `decidePoolEligibility`), *not* from the authoritative write-time
-   boundary (`src/cache/write.ts`, `writeCacheRow`). Both fail closed, and the compiler's own
-   doc calls itself a pre-check — but today nothing calls the authority.
+1. ~~**The bundle never reaches the cache.**~~ **Closed by
+   [#166](https://github.com/DevToolie/Paragent/issues/166).** `writeCacheRow` had no caller
+   outside `tests/`: the read half landed with [#118](https://github.com/DevToolie/Paragent/issues/118)
+   (`gate:matrix --from-cache`), and the write half did not, so the flag reaching disk came from
+   the compiler's pre-check (`src/compiler/pool.ts`, `decidePoolEligibility`) while the authority
+   (`src/cache/write.ts`, `writeCacheRow`) was defended by the canary suite and called by nothing.
+   `paragent compile --to-cache <dir>` now routes every row through the authority via
+   `src/cache/ingest.ts`, which is the directory `--from-cache` reads.
+
+   **The two implementations disagree, and the pre-check is the stricter one.** On the committed
+   12-step live bundle the compiler marks 1 row poolable and the authority marks 7: where a row's
+   whole locator chain is tainted but it carries `flow_topology`, `buildPoolRow` degrades it to a
+   `topology_only` pool row — carrying no locator at all — while `decidePoolEligibility` refuses
+   it outright as `topology_only_degraded`. That direction is legal (a pre-check may be stricter,
+   never looser) and the dangerous direction is pinned by
+   `tests/integration/live-bundle-pool.test.ts`. The pre-check is deliberately left as-is here:
+   changing it changes what every committed bundle artifact claims about pool eligibility, which
+   is a privacy-adjacent decision that wants its own ADR rather than a rider on a wiring fix.
 2. ~~**The bundle never reaches the runner.**~~ **Closed by
    [#62](https://github.com/DevToolie/Paragent/issues/62).** The runner consumes
    `CompiledProgram` (`src/runner/types.ts`), a different shape from
@@ -101,8 +113,9 @@ synthesized assertion and writes a `compiled_trajectory` bundle to `artifacts/co
    hand-written `experiments/gate-v1/fixtures/compiled-program.json` remains the default, because
    it is the only program that runs without a recording.
 
-Issue [#52](https://github.com/DevToolie/Paragent/issues/52) (end-to-end integration test:
-record → compile → cache-write → replay) is the issue that closes both.
+Both are now closed, and the end-to-end path they blocked —
+record → compile → cache-write → resolve → replay — is covered by
+`tests/integration/cache-ingest-bundle.test.ts` and `tests/integration/cache-resolve-program.test.ts`.
 
 **A new entry point, ahead of the recorder.** `src/intent/` ([#124](https://github.com/DevToolie/Paragent/issues/124),
 [ADR-0015](./decisions/ADR-0015-task-identity-and-intent-resolution.md)) resolves a
@@ -113,7 +126,7 @@ one a human had typed. `src/recorder/cli.ts` calls it through
 `--task-key`. **Not shown as an edge into `CACHE`:** the more obviously cache-shaped call site —
 resolving intent in front of `gate:matrix --from-cache`, which already looks up a program by
 `(site_key, task_key)` — is not wired yet (ADR-0015 Open Questions); drawing that edge now would
-claim a hop that does not exist, the same reason break 1 above is dashed rather than solid.
+claim a hop that does not exist — the standard break 1 above had to meet before it could be drawn solid.
 
 ---
 
@@ -124,8 +137,8 @@ claim a hop that does not exist, the same reason break 1 above is dashed rather 
 | `src/intent/` | Resolve a natural-language goal to a `task_key`, or a typed MISS — normalized exact match against a known-task catalog, behind a swappable `IntentMatcher` (#124) | `src/intent/index.ts` (library only — called from `src/recorder/select-task.ts`) | none | none — `task_key` is an opaque string handed to a caller, not a contract field this package owns | [decisions/ADR-0015](./decisions/ADR-0015-task-identity-and-intent-resolution.md) |
 | `src/testbed/` | Boot + seed Grafana OSS at a pinned tag: compose project, provisioning overlay, HTTP seed | `src/testbed/index.ts`; CLI `src/testbed/cli.ts` (`npm run testbed`) | `scripts/testbed/matrix.json` (not a JSON Schema) | none | [gate/testbed.md](./gate/testbed.md) |
 | `src/recorder/` | Capture a Playwright run as parameterised steps with ranked locator candidates; refuse literal secrets | `src/recorder/index.ts`; CLI `src/recorder/cli.ts` (`npm run recorder`) | none | `trajectory.schema.json` | [gate/recorder.md](./gate/recorder.md) |
-| `src/compiler/` | One cache row per step: locator fallback chain, synthesized assertion, fail-closed `pool_eligible` pre-check | `src/compiler/index.ts`; CLI `src/compiler/cli.ts` (`npm run compile`) | `trajectory.schema.json` | `cache-row.schema.json`, `assertion.schema.json` | [gate/compiler.md](./gate/compiler.md) |
-| `src/cache/` | Write-time privacy boundary: allowlist, locator taint, pool/tenant row split, canary pipeline; append-only JSONL store (#63) | `src/cache/index.ts` (library only — no CLI) | `cache-row.schema.json`, `assertion.schema.json` (inspected for pool safety) | `cache-row.schema.json` | [privacy/boundary-spec.md](./privacy/boundary-spec.md) |
+| `src/compiler/` | One cache row per step: locator fallback chain, synthesized assertion, fail-closed `pool_eligible` pre-check | `src/compiler/index.ts`; CLI `src/compiler/cli.ts` (`npm run compile`, `--to-cache` to populate a cache) | `trajectory.schema.json` | `cache-row.schema.json`, `assertion.schema.json` | [gate/compiler.md](./gate/compiler.md) |
+| `src/cache/` | Write-time privacy boundary: allowlist, locator taint, pool/tenant row split, canary pipeline; append-only JSONL store (#63); bundle ingest through the authority (#166) | `src/cache/index.ts` (library only — no CLI of its own; `paragent compile --to-cache` calls `ingestBundle`) | `cache-row.schema.json`, `assertion.schema.json` (inspected for pool safety) | `cache-row.schema.json` | [privacy/boundary-spec.md](./privacy/boundary-spec.md) |
 | `src/runner/` | Replay a compiled program in Playwright; repair actions only on failure; emit measured metrics | `src/runner/index.ts` (library only — driven by `experiments/gate-v1/run-matrix.ts`) | `cache-row.schema.json`, `assertion.schema.json` shapes (via `CompiledProgram`) | none directly — emits through `src/metrics/` | [gate/runner.md](./gate/runner.md) |
 | `src/metrics/` | Cost arithmetic, NDJSON emitter, PRD §9 aggregates that report `no_data` on an empty denominator | `src/metrics/index.ts` (library only) | `metrics.schema.json` (`readMetricNdjson`) | `metrics.schema.json` | §9 sections in [prd/PRD-trajectory-cache-v0.2.md](./prd/PRD-trajectory-cache-v0.2.md) |
 | `src/shared/` | **Not a pipeline stage.** In-page JS source strings two capture sites must run identically — today the `visible_landmarks` enumeration | `src/shared/index.ts` (library only) | none | none — feeds the `trajectory.schema.json` `visible_landmarks` field written by the recorder | see below |

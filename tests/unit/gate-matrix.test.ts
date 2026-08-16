@@ -26,7 +26,13 @@ import {
   runsToClearSection9,
   substituteRunIndex,
 } from "../../experiments/gate-v1/live-run.js";
-import { buildSection9Floor, loadCostFreshBaseline } from "../../experiments/gate-v1/run-matrix.js";
+import {
+  assignValue,
+  buildSection9Floor,
+  loadCostFreshBaseline,
+  VALUED_FLAG_NAMES,
+  type Args as MatrixArgs,
+} from "../../experiments/gate-v1/run-matrix.js";
 import {
   perVersionBreakdown,
   section9SampleFloor,
@@ -539,5 +545,89 @@ describe("loadCostFreshBaseline (#39)", () => {
     const file = path.join(dir, "incomplete.json");
     writeFileSync(file, JSON.stringify({ usable: true }), "utf8");
     await expect(loadCostFreshBaseline(file)).rejects.toThrow(/missing mean_cost_fresh/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #165 — every value-taking flag must land somewhere in `Args`.
+//
+// The bug was structural, not four typos: `parseArgs` held a `valued` set and
+// `assignValue` held an `else if` chain, and the two disagreed. A flag in the
+// first but not the second was consumed, dropped, and never complained about —
+// it did not even trip `unknown argument`, because the parser had accepted it.
+//
+// So this walks the flag table rather than naming the four that were broken. A
+// new flag that reaches the parser without an assigner fails here, and one
+// added without a sample below fails the coverage check.
+// ---------------------------------------------------------------------------
+
+describe("gate:matrix valued flags (#165)", () => {
+  /** A representative value per flag, and what it must produce in `Args`. */
+  const SAMPLES: Record<
+    (typeof VALUED_FLAG_NAMES)[number],
+    { value: string; expect: (args: MatrixArgs) => unknown; want: unknown }
+  > = {
+    versions: { value: "11.0.0", expect: (a) => a.versions, want: "11.0.0" },
+    program: { value: "/tmp/p.json", expect: (a) => a.program, want: "/tmp/p.json" },
+    param: { value: "resource_label=widget", expect: (a) => a.params, want: { resource_label: "widget" } },
+    runs: { value: "7", expect: (a) => a.runs, want: 7 },
+    port: { value: "3100", expect: (a) => a.port, want: 3100 },
+    "from-cache": { value: "/tmp/cache", expect: (a) => a.fromCache, want: "/tmp/cache" },
+    "site-key": { value: "grafana-oss@example", expect: (a) => a.siteKey, want: "grafana-oss@example" },
+    "task-key": { value: "open-dashboards-list", expect: (a) => a.taskKey, want: "open-dashboards-list" },
+    "repair-model": { value: "claude-opus-5", expect: (a) => a.repairModel, want: "claude-opus-5" },
+    "cost-fresh": { value: "/tmp/baseline.json", expect: (a) => a.costFresh, want: "/tmp/baseline.json" },
+  };
+
+  const emptyArgs = (): MatrixArgs => ({
+    dryRun: false,
+    help: false,
+    headed: false,
+    keepUp: false,
+    preamble: true,
+    params: {},
+    runs: 3,
+    poolOnly: false,
+  });
+
+  it("has a sample for every flag the parser accepts", () => {
+    // Guards the guard: without this, adding a flag and forgetting its sample
+    // would leave the table-driven test below silently not covering it.
+    expect(Object.keys(SAMPLES).sort()).toEqual([...VALUED_FLAG_NAMES].sort());
+  });
+
+  it.each(VALUED_FLAG_NAMES)("--%s is assigned, not silently dropped", (flag) => {
+    const sample = SAMPLES[flag];
+    const args = emptyArgs();
+    assignValue(args, flag, sample.value);
+    expect(sample.expect(args)).toEqual(sample.want);
+  });
+
+  it("leaves the four flags #165 dropped actually reaching Args", () => {
+    // The regression in its original terms. `--repair-model` is the one that
+    // mattered: dropped, the run used StubRepairModelClient and reported a
+    // self-heal rate of 0 and zero repair cost that both looked measured.
+    const args = emptyArgs();
+    for (const flag of ["from-cache", "site-key", "task-key", "repair-model"] as const) {
+      assignValue(args, flag, SAMPLES[flag].value);
+    }
+    expect(args.fromCache).toBe("/tmp/cache");
+    expect(args.siteKey).toBe("grafana-oss@example");
+    expect(args.taskKey).toBe("open-dashboards-list");
+    expect(args.repairModel).toBe("claude-opus-5");
+  });
+
+  it("throws on a valued flag with no assigner instead of dropping it", () => {
+    // The structural half: silence here is what made the original bug
+    // invisible, and the parser already throws for `unknown argument`.
+    expect(() => assignValue(emptyArgs(), "not-a-flag", "x")).toThrow(
+      /unhandled valued flag: --not-a-flag/,
+    );
+  });
+
+  it("still validates values it does assign", () => {
+    expect(() => assignValue(emptyArgs(), "runs", "0")).toThrow(/--runs must be >= 1/);
+    expect(() => assignValue(emptyArgs(), "port", "-1")).toThrow(/invalid --port/);
+    expect(() => assignValue(emptyArgs(), "param", "novalue")).toThrow(/expects key=value/);
   });
 });

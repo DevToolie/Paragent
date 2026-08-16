@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B3
 created: 2026-07-25
-updated: 2026-08-12
+updated: 2026-08-16
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -260,14 +260,39 @@ Loosening a privacy rule is B5's call and does not belong in a compiler PR — f
 here, not fixed. Note the direction: B5 refusing too much is safe; the compiler claiming too
 much was not.
 
+**Measured, once the authority actually ran (#166).** `paragent compile --to-cache` puts every
+row through `writeCacheRow`, so the two implementations can now be compared on real data instead
+of in principle. On the committed 12-step live bundle the compiler marks **1** row poolable and
+B5 marks **7**. The gap is one rule, in the safe direction: when a row's whole locator chain is
+tainted but the row carries `flow_topology`, `buildPoolRow` degrades it to a `topology_only`
+pool row — a row carrying no locator at all, only "a click happened here, in `main`, between a
+click and a fill" — whereas `decidePoolEligibility` refuses it outright as
+`topology_only_degraded`. Nothing tenant-derived escapes either way; the pre-check simply
+declines to pool a row B5 is willing to strip and pool.
+
+That divergence is **not** reconciled here, for the reason the paragraph above gives about the
+URL path: it changes what every committed bundle artifact claims about pool eligibility, and the
+`pool_eligible` flag in a bundle file is no longer what reaches disk anyway. The number to watch
+is the one `--to-cache` prints (`authority pooled N step(s) the compiler pre-check did not`).
+
 ## CLI
 
 ```bash
 npm run compile -- --in contracts/examples/trajectory.example.json
 # writes artifacts/compiled/<trajectory_id>.bundle.json
+
+# ...and populate the cache gate:matrix --from-cache reads (#166)
+npm run compile -- --in <trajectory.json> --to-cache .cache/paragent
 ```
 
-Options: `--out <path>`, `--no-validate`, `--help`.
+Options: `--out <path>`, `--to-cache <dir>`, `--no-validate`, `--help`.
+
+`--to-cache` writes every row through `writeCacheRow` — the authority, not this package's
+pre-check — into `<dir>`, which is what `gate:matrix --from-cache <dir> --site-key <k>
+--task-key <k>` resolves a program out of. It is all-or-nothing: a bundle carrying a claim the
+boundary refuses is rejected whole, so a rejected step cannot leave a resolvable-looking prefix
+on disk. See [`src/cache/ingest.ts`](../../src/cache/ingest.ts) for why the compiler CLI owns
+this write rather than `gate:matrix` or a separate `cache write` command.
 
 ## Known blind spots (cannot yet assert)
 

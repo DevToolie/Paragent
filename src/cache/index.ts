@@ -43,6 +43,12 @@ export {
   type StepOutcomeReport,
 } from "./update.js";
 export {
+  ingestBundle,
+  type IngestableBundle,
+  type IngestOptions,
+  type IngestSummary,
+} from "./ingest.js";
+export {
   resolveProgram,
   type ProgramKey,
   type ProgramMissReason,
