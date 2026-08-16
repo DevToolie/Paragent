@@ -27,6 +27,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { MetricsEmitter, readMetricNdjson } from "../../src/metrics/emitter.js";
 import { ReplayRunner } from "../../src/runner/replay.js";
+import type { RepairModelClient } from "../../src/runner/repair.js";
+import { AnthropicRepairModelClient } from "../../src/runner/repair-anthropic.js";
 import { bundleToProgram, isCompiledBundle, rowsToProgram } from "../../src/runner/program.js";
 import { JsonlCacheStore } from "../../src/cache/store.js";
 import { resolveProgram } from "../../src/cache/resolve.js";
@@ -92,7 +94,7 @@ export const DRY_RUN_PARAMS: ParamBindings = {
   resource_label: "widget",
 };
 
-interface Args {
+export interface Args {
   dryRun: boolean;
   help: boolean;
   headed: boolean;
@@ -142,6 +144,69 @@ interface Args {
   costFresh?: string;
 }
 
+/**
+ * Every value-taking flag, and the one place each is assigned (#165).
+ *
+ * This used to be two lists that had to agree and did not: a `valued` set here
+ * in the parser, and an `else if` chain in `assignValue`. The parser consumed a
+ * flag's value, handed it over, and the chain fell off its end without matching
+ * — so `--from-cache`, `--site-key`, `--task-key` and `--repair-model` were
+ * accepted, documented in `usage()`, and **silently dropped**. `--repair-model`
+ * was the dangerous one: a run asking for the real repair client got
+ * `StubRepairModelClient`, which returns a null action and zero tokens, so the
+ * run reported a self-heal rate of 0 and a `cost_repair` of zero that both look
+ * like measurements. `AnthropicRepairModelClient` throws at construction rather
+ * than degrade to a no-op for exactly this reason; the CLI in front of it
+ * degraded anyway and never reached that constructor.
+ *
+ * One table closes the class rather than the four instances. A flag exists here
+ * or it does not exist at all: the parser derives its accepted set from these
+ * keys, so an entry cannot be accepted-but-unassigned, and an assigner cannot be
+ * unreachable. `tests/unit/gate-matrix.test.ts` walks the table and asserts each
+ * key lands in `Args`.
+ */
+const VALUED_FLAGS = {
+  versions: (args, value) => {
+    args.versions = value;
+  },
+  program: (args, value) => {
+    args.program = value;
+  },
+  param: (args, value) => {
+    const eq = value.indexOf("=");
+    if (eq <= 0) throw new Error(`--param expects key=value, got: ${value}`);
+    args.params[value.slice(0, eq)] = value.slice(eq + 1);
+  },
+  runs: (args, value) => {
+    const n = Number.parseInt(value, 10);
+    if (!Number.isFinite(n) || n < 1) throw new Error(`--runs must be >= 1, got: ${value}`);
+    args.runs = n;
+  },
+  port: (args, value) => {
+    const n = Number.parseInt(value, 10);
+    if (!Number.isFinite(n) || n <= 0) throw new Error(`invalid --port: ${value}`);
+    args.port = n;
+  },
+  "from-cache": (args, value) => {
+    args.fromCache = value;
+  },
+  "site-key": (args, value) => {
+    args.siteKey = value;
+  },
+  "task-key": (args, value) => {
+    args.taskKey = value;
+  },
+  "repair-model": (args, value) => {
+    args.repairModel = value;
+  },
+  "cost-fresh": (args, value) => {
+    args.costFresh = value;
+  },
+} satisfies Record<string, (args: Args, value: string) => void>;
+
+/** Flag names without the leading `--`, in declaration order. */
+export const VALUED_FLAG_NAMES = Object.keys(VALUED_FLAGS) as (keyof typeof VALUED_FLAGS)[];
+
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     dryRun: false,
@@ -153,18 +218,7 @@ function parseArgs(argv: string[]): Args {
     runs: DEFAULT_RUNS_PER_VERSION,
     poolOnly: false,
   };
-  const valued = new Set([
-    "--versions",
-    "--program",
-    "--port",
-    "--param",
-    "--runs",
-    "--from-cache",
-    "--site-key",
-    "--task-key",
-    "--repair-model",
-    "--cost-fresh",
-  ]);
+  const valued = new Set(VALUED_FLAG_NAMES.map((name) => `--${name}`));
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? "";
     if (a === "--dry-run") args.dryRun = true;
@@ -188,23 +242,15 @@ function parseArgs(argv: string[]): Args {
 }
 
 export function assignValue(args: Args, key: string, value: string): void {
-  if (key === "versions") args.versions = value;
-  else if (key === "program") args.program = value;
-  else if (key === "param") {
-    const eq = value.indexOf("=");
-    if (eq <= 0) throw new Error(`--param expects key=value, got: ${value}`);
-    args.params[value.slice(0, eq)] = value.slice(eq + 1);
-  } else if (key === "runs") {
-    const n = Number.parseInt(value, 10);
-    if (!Number.isFinite(n) || n < 1) throw new Error(`--runs must be >= 1, got: ${value}`);
-    args.runs = n;
-  } else if (key === "port") {
-    const n = Number.parseInt(value, 10);
-    if (!Number.isFinite(n) || n <= 0) throw new Error(`invalid --port: ${value}`);
-    args.port = n;
-  } else if (key === "cost-fresh") {
-    args.costFresh = value;
-  }
+  const assign = Object.prototype.hasOwnProperty.call(VALUED_FLAGS, key)
+    ? VALUED_FLAGS[key as keyof typeof VALUED_FLAGS]
+    : undefined;
+  // Throwing rather than returning matches the parser's own posture two lines
+  // up — it throws on `unknown argument`. A flag the parser accepted and nobody
+  // consumed is the same caller error one layer in, and silence there is what
+  // made #165 invisible for four flags.
+  if (!assign) throw new Error(`unhandled valued flag: --${key}`);
+  assign(args, value);
 }
 
 function usage(): void {
@@ -393,6 +439,11 @@ interface WalkOptions {
   shouldStop: () => boolean;
   /** Measured fresh-baseline (#39), attached to every LIVE run row's cost_fresh. */
   costFresh?: Cost;
+  /**
+   * Real repair client (#27), built from `--repair-model`. Absent means the
+   * stub — `ReplayRunner`'s default, and what every run got before #165.
+   */
+  repairClient?: RepairModelClient;
 }
 
 /**
@@ -453,6 +504,7 @@ async function walkVersions(
         await opts.persist();
       },
       shouldStop: opts.shouldStop,
+      ...(opts.repairClient ? { repairClient: opts.repairClient } : {}),
       ...(baseline ? { baseline } : {}),
       ...(opts.costFresh ? { costFresh: opts.costFresh } : {}),
     });
@@ -697,6 +749,41 @@ async function main(): Promise<void> {
     }
   }
 
+  // #165: `--repair-model` reached `Args` and stopped there — nothing built a
+  // client from it, so `ReplayRunner` fell back to `StubRepairModelClient` and
+  // the run reported a self-heal rate of 0 and zero repair cost that both look
+  // measured. Assigning the flag was only half the bug; this is the half that
+  // makes the flag mean what `usage()` says it means.
+  //
+  // Constructed here, before anything boots, for the same reason --cost-fresh
+  // is loaded here: the client throws when ANTHROPIC_API_KEY is unset rather
+  // than degrading to a no-op, and a caller who asked for a real model should
+  // learn that from a named refusal on line one, not after the first container
+  // is up.
+  let repairClient: RepairModelClient | undefined;
+  if (args.repairModel !== undefined) {
+    if (args.dryRun) {
+      // A dry run hard-codes every outcome, so no step ever fails and the
+      // repair loop is never entered. Silently accepting the flag would let a
+      // caller believe they had priced a real repair.
+      console.error(
+        "gate:matrix: --repair-model is meaningless under --dry-run — no step " +
+          "fails, so the repair loop never runs and no token is ever spent. " +
+          "Drop one of the two flags.",
+      );
+      process.exit(2);
+      return;
+    }
+    try {
+      repairClient = new AnthropicRepairModelClient({ model: args.repairModel });
+      console.log(`  repair-model: ${args.repairModel} (REAL client — this run spends tokens)`);
+    } catch (err) {
+      console.error(`gate:matrix: ${errMessage(err)}`);
+      process.exit(2);
+      return;
+    }
+  }
+
   const mode = args.dryRun ? "dry-run" : "live";
   const plannedRuns = walked.length * args.runs;
   const plannedSteps = plannedRuns * program.steps.length;
@@ -755,6 +842,7 @@ async function main(): Promise<void> {
     persist,
     shouldStop: () => stopRequested,
     ...(costFresh ? { costFresh } : {}),
+    ...(repairClient ? { repairClient } : {}),
   });
 
   await persist();
