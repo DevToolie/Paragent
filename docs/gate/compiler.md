@@ -274,6 +274,8 @@ That divergence is **not** reconciled here, for the reason the paragraph above g
 URL path: it changes what every committed bundle artifact claims about pool eligibility, and the
 `pool_eligible` flag in a bundle file is no longer what reaches disk anyway. The number to watch
 is the one `--to-cache` prints (`authority pooled N step(s) the compiler pre-check did not`).
+Filed as [#170](https://github.com/DevToolie/Paragent/issues/170), which lays out the three ways
+it could go and why each is a decision rather than a repair.
 
 ## CLI
 

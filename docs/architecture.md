@@ -104,7 +104,8 @@ synthesized assertion and writes a `compiled_trajectory` bundle to `artifacts/co
    never looser) and the dangerous direction is pinned by
    `tests/integration/live-bundle-pool.test.ts`. The pre-check is deliberately left as-is here:
    changing it changes what every committed bundle artifact claims about pool eligibility, which
-   is a privacy-adjacent decision that wants its own ADR rather than a rider on a wiring fix.
+   is a privacy-adjacent decision that wants its own ADR rather than a rider on a wiring fix —
+   tracked in [#170](https://github.com/DevToolie/Paragent/issues/170).
 2. ~~**The bundle never reaches the runner.**~~ **Closed by
    [#62](https://github.com/DevToolie/Paragent/issues/62).** The runner consumes
    `CompiledProgram` (`src/runner/types.ts`), a different shape from
