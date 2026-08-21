@@ -117,6 +117,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | Doc | What it is | Status | Last true | Notes |
 | --- | --- | --- | --- | --- |
 | [testbed.md](gate/testbed.md) | Grafana OSS matrix | draft | 2026-07-25 | ADR-0003 |
+| [churn-notes.md](gate/churn-notes.md) | Qualitative DOM churn notes per version transition | draft | 2026-08-21 | Issue #30; predictions vs observed; §9 rates still `no_data` |
 | [recorder.md](gate/recorder.md) | Recorder | draft | 2026-07-24 | — |
 | [compiler.md](gate/compiler.md) | Compiler | draft | 2026-08-12 | Its own `1/12` pre-check number annotated against ADR-0017's `7/12` authoritative recount |
 | [runner.md](gate/runner.md) | Replay / repair | draft | 2026-07-24 | Measured gate number pending |
