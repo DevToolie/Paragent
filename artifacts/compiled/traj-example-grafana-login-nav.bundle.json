@@ -382,8 +382,8 @@
       "success_count": 0,
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
-      "pool_eligible": true,
-      "pool_ineligible_reason": null,
+      "pool_eligible": false,
+      "pool_ineligible_reason": "literal_in_assertion",
       "flow_topology": {
         "prev_action_type": "click",
         "landmark": "main"

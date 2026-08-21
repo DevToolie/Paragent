@@ -259,13 +259,22 @@ Loosening a privacy rule is B5's call and does not belong in a compiler PR — f
 here, not fixed. Note the direction: B5 refusing too much is safe; the compiler claiming too
 much was not.
 
-**Aligned with the authority on locator stripping (#170 / [ADR-0019](../decisions/ADR-0019-pool-precheck-topology.md)).**
+**Aligned with the authority (#170 / [ADR-0019](../decisions/ADR-0019-pool-precheck-topology.md)).**
 The pre-check used to refuse any chain that *contained* a `tenant_scoped` locator, even when a
 pool-safe `structural` sibling survived. `buildPoolRow` strips the tainted entries and pools the
-rest — so the bundle said `1/12` poolable while `--to-cache` wrote `7/12`. The pre-check now
-filters the same way (and agrees on the `topology_only` degradation when every locator is
-stripped). `live-bundle-pool.test.ts` still pins the direction invariant; the observation it
-records is now `7` poolable, matching the authority.
+rest — so the bundle said `1/12` poolable while `--to-cache` wrote `7/12`.
+
+The pre-check now **calls the authority's own `checkLocatorTaint`** (`src/cache/taint.ts`)
+instead of re-deriving the vocabulary, and mirrors `buildPoolRow`'s branch order — assertion
+first (including the assertion's own `target.locator`), then the chain, then the
+`flow_topology` degradation. Re-deriving it was the defect, not just the specific rule that
+was wrong: a strategy-based filter cannot see a *vocabulary* violation, so a `testid` like
+`dismiss-notice` passed the compiler and failed `isPoolSafeTestId` at the boundary, throwing
+`CacheWriteRejectedError` on `record -> compile -> cache`.
+
+`live-bundle-pool.test.ts` still pins the direction invariant — now over **both** committed
+bundles, since scoping it to the live one is what let a fixture-only divergence through. The
+live observation is `7/12`, matching the authority; the fixture bundle is `3/6`.
 
 ## CLI
 
