@@ -1,0 +1,44 @@
+# Publish to npm when a version tag is pushed (v0.1.0, v1.2.3, …).
+# Requires repository secret NPM_TOKEN with publish rights to the `paragent` package.
+# Does not invent a release — someone must cut the tag after CI is green on main.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: npm-publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify pack contents
+        run: |
+          npm pack --dry-run 2>&1 | tee /tmp/pack.txt
+          grep -E 'dist/src/|contracts/|README\.md|LICENSE' /tmp/pack.txt
+          # Refuse if the tarball would include secrets-shaped paths
+          if grep -E '\.env|tenant\.jsonl|storage-state' /tmp/pack.txt; then
+            echo "pack includes a forbidden path" >&2
+            exit 1
+          fi
+
+      - name: Publish
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
