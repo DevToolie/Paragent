@@ -4,7 +4,7 @@ doc_type: brief
 status: review
 owner: D2
 created: 2026-07-24
-updated: 2026-08-12
+updated: 2026-08-21
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -150,6 +150,14 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [deck-outline.md](pitch/deck-outline.md) | Deck outline | draft | 2026-07-25 | Residual slides may lag C5 — INTEGRITY-AUDIT D-01 / E-12 |
 | [objections.md](pitch/objections.md) | Objection handling | draft | 2026-07-25 | Two FAILs present tense (D-07); residual prose flagged E-12 |
 | [proof-points.md](pitch/proof-points.md) | Claim register | draft | 2026-07-25 | Diligence map |
+
+---
+
+## Outreach (Track 3)
+
+| Doc | What it is | Status | Last true | Notes |
+| --- | --- | --- | --- | --- |
+| [outreach/awesome-lists.md](outreach/awesome-lists.md) | Draft entries + preconditions for awesome-browser-automation and awesome-ai-agents | draft | 2026-08-21 | Issue #138. **Blocked** until #167 (honest Quick Start) or real npm publish; no external PRs from agents |
 
 ---
 
