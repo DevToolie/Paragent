@@ -4,7 +4,7 @@ doc_type: brief
 status: review
 owner: D2
 created: 2026-07-24
-updated: 2026-08-12
+updated: 2026-08-21
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -36,7 +36,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | --- | --- | --- | --- | --- |
 | [ROADMAP.md](./ROADMAP.md) | Current state, what is stubbed, milestones M0–M7 in order | accepted | 2026-07-25 | **Read before picking up an issue** |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Commands, layout, data flow, invariants, pre-PR checklist | accepted | 2026-07-25 | Contributor runbook |
-| [architecture.md](./architecture.md) | How the `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-07-25 | Owns the **chain** between packages; `gate/*.md` own one hop each. Records two unwired hops (issue #52) |
+| [architecture.md](./architecture.md) | How the `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-08-21 | Owns the **chain** between packages; `gate/*.md` own one hop each. Derived from `e4ab318` — pipes wired, measurements still `no_data` (#168) |
 | [README-narrative.md](./README-narrative.md) | Story: thesis → census kill → pivot → two tracks → evidence now | draft | 2026-07-25 | Includes C5 FAIL |
 | [INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md) | Unsourced claims, placeholders, LOW load-bearing, contradictions | draft | 2026-07-25 | Surfaces conflicts; does not pick winners |
 | [README-internal.md](./README-internal.md) | Internal entry point: status table, tracks, public-repo rules, layout, stack | accepted | 2026-08-10 (moved from repo root, content unchanged) | Was `../README.md` until the root became visitor-facing. Track 2 **FAIL** / Track 3 Wave-1 draft match C5 + ADR-0004; INTEGRITY-AUDIT D-04 resolved |
@@ -118,6 +118,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | Doc | What it is | Status | Last true | Notes |
 | --- | --- | --- | --- | --- |
 | [testbed.md](gate/testbed.md) | Grafana OSS matrix | draft | 2026-07-25 | ADR-0003 |
+| [churn-notes.md](gate/churn-notes.md) | Qualitative DOM churn notes per version transition | draft | 2026-08-21 | Issue #30; predictions vs observed; §9 rates still `no_data` |
 | [recorder.md](gate/recorder.md) | Recorder | draft | 2026-07-24 | — |
 | [compiler.md](gate/compiler.md) | Compiler | draft | 2026-08-12 | Its own `1/12` pre-check number annotated against ADR-0017's `7/12` authoritative recount |
 | [runner.md](gate/runner.md) | Replay / repair | draft | 2026-07-24 | Measured gate number pending |
@@ -151,6 +152,14 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | [deck-outline.md](pitch/deck-outline.md) | Deck outline | draft | 2026-07-25 | Residual slides may lag C5 — INTEGRITY-AUDIT D-01 / E-12 |
 | [objections.md](pitch/objections.md) | Objection handling | draft | 2026-07-25 | Two FAILs present tense (D-07); residual prose flagged E-12 |
 | [proof-points.md](pitch/proof-points.md) | Claim register | draft | 2026-07-25 | Diligence map |
+
+---
+
+## Outreach (Track 3)
+
+| Doc | What it is | Status | Last true | Notes |
+| --- | --- | --- | --- | --- |
+| [outreach/awesome-lists.md](outreach/awesome-lists.md) | Draft entries + preconditions for awesome-browser-automation and awesome-ai-agents | draft | 2026-08-21 | Issue #138. **Blocked** until #167 (honest Quick Start) or real npm publish; no external PRs from agents |
 
 ---
 
