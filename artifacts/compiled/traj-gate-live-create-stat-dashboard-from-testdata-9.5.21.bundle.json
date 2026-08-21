@@ -124,7 +124,7 @@
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
       "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_ineligible_reason": "literal_in_assertion",
       "flow_topology": {
         "prev_action_type": "navigate",
         "next_action_type": "click",
@@ -190,8 +190,8 @@
       "success_count": 0,
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
-      "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_eligible": true,
+      "pool_ineligible_reason": null,
       "flow_topology": {
         "prev_action_type": "click",
         "next_action_type": "click",
@@ -251,8 +251,8 @@
       "success_count": 0,
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
-      "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_eligible": true,
+      "pool_ineligible_reason": null,
       "flow_topology": {
         "prev_action_type": "click",
         "next_action_type": "fill",
@@ -321,8 +321,8 @@
       "success_count": 0,
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
-      "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_eligible": true,
+      "pool_ineligible_reason": null,
       "flow_topology": {
         "prev_action_type": "click",
         "next_action_type": "fill",
@@ -385,8 +385,8 @@
       "success_count": 0,
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
-      "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_eligible": true,
+      "pool_ineligible_reason": null,
       "flow_topology": {
         "prev_action_type": "fill",
         "next_action_type": "fill",
@@ -504,7 +504,7 @@
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
       "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_ineligible_reason": "literal_in_assertion",
       "flow_topology": {
         "prev_action_type": "fill",
         "next_action_type": "click",
@@ -565,8 +565,8 @@
       "success_count": 0,
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
-      "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_eligible": true,
+      "pool_ineligible_reason": null,
       "flow_topology": {
         "prev_action_type": "click",
         "next_action_type": "fill",
@@ -630,8 +630,8 @@
       "success_count": 0,
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
-      "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_eligible": true,
+      "pool_ineligible_reason": null,
       "flow_topology": {
         "prev_action_type": "click",
         "next_action_type": "click",
@@ -702,7 +702,7 @@
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
       "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_ineligible_reason": "literal_in_assertion",
       "flow_topology": {
         "prev_action_type": "fill",
         "next_action_type": "click",
@@ -766,7 +766,7 @@
       "failure_count": 0,
       "last_verified_at": "2026-07-25T00:00:00.000Z",
       "pool_eligible": false,
-      "pool_ineligible_reason": "tenant_locator_text",
+      "pool_ineligible_reason": "literal_in_assertion",
       "flow_topology": {
         "prev_action_type": "click",
         "landmark": "main"

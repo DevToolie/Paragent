@@ -17,6 +17,22 @@ export interface PoolDecision {
 }
 
 /**
+ * Locators the write-time authority would keep on a pool row.
+ * Mirrors `classifyLocators` + `buildPoolRow` in `src/cache/write.ts`:
+ * tenant_scoped and free-text strategies are stripped, not a reason to refuse
+ * a chain that still has a pool-safe entry (#170).
+ */
+function poolSafeLocators(chain: CompiledLocator[]): CompiledLocator[] {
+  return chain.filter(
+    (l) =>
+      l.tenant_scoped !== true &&
+      l.strategy !== "text" &&
+      l.strategy !== "placeholder" &&
+      l.strategy !== "topology_only",
+  );
+}
+
+/**
  * Fail-closed pool eligibility. Scans locator chain + assertion target/expected
  * only (not notes / ids). B5 is authoritative; this is the compiler pre-check.
  */
@@ -27,32 +43,32 @@ export function decidePoolEligibility(args: {
 }): PoolDecision {
   const { chain, assertion, topologyOnly } = args;
 
-  if (topologyOnly) {
-    return {
-      pool_eligible: false,
-      pool_ineligible_reason: "topology_only_degraded",
-    };
-  }
+  const poolChain = poolSafeLocators(chain);
 
-  if (chain.some((l) => l.tenant_scoped === true)) {
+  // No pool-safe locator survived filtering.
+  if (poolChain.length === 0 && chain.length > 0) {
+    // Had locators, all stripped. The authority still pools when it can
+    // degrade to a locator-less `topology_only` row (`buildPoolRow` +
+    // `flow_topology`). The compiler signals that case as `topologyOnly`
+    // (and appends a `topology_only` sentinel). Agree with the authority —
+    // claiming ineligible here understated shareable rows by 6/12 on the live
+    // gate task (#170 / ADR-0019).
+    if (
+      topologyOnly ||
+      chain.some((l) => l.strategy === "topology_only")
+    ) {
+      return {
+        pool_eligible: true,
+        pool_ineligible_reason: null,
+      };
+    }
     return {
       pool_eligible: false,
       pool_ineligible_reason: "tenant_locator_text",
     };
   }
-
-  if (
-    chain.some(
-      (l) =>
-        (l.strategy === "text" || l.strategy === "placeholder") &&
-        (l.text !== undefined || l.name !== undefined),
-    )
-  ) {
-    return {
-      pool_eligible: false,
-      pool_ineligible_reason: "tenant_locator_text",
-    };
-  }
+  // chain.length === 0 (navigate/wait): nothing to strip and nothing to leak.
+  // Fall through to assertion checks — same as before #170.
 
   // Mirror of B5's `assertionHasTenantLiteral` (src/cache/write.ts): anything
   // left in `expected.template` after the holes are removed is treated as a
@@ -125,7 +141,7 @@ export function decidePoolEligibility(args: {
     "alert",
     "status",
   ]);
-  for (const loc of chain) {
+  for (const loc of poolChain) {
     if (loc.strategy === "role_name" && loc.role && !KNOWN_ROLES.has(loc.role)) {
       return {
         pool_eligible: false,

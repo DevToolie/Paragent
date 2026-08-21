@@ -225,12 +225,11 @@ Default posture: ineligible until checks pass.
 
 | Condition | `pool_eligible` | `pool_ineligible_reason` |
 | --- | --- | --- |
-| Topology-only degradation | `false` | `topology_only_degraded` |
-| Any `tenant_scoped` locator | `false` | `tenant_locator_text` |
-| `text` / `placeholder` free-text strategies | `false` | `tenant_locator_text` |
+| All locators stripped, no `topology_only` fallback | `false` | `tenant_locator_text` |
+| Surviving free-text strategies only (`text` / `placeholder`) | `false` | `tenant_locator_text` |
 | Tenant-looking literal in assertion target/expected | `false` | `literal_in_assertion` |
-| Unknown ARIA role (provisional vocab) | `false` | `non_vocab_role` |
-| Otherwise clean chrome / templates | `true` | `null` |
+| Unknown ARIA role on a surviving locator (provisional vocab) | `false` | `non_vocab_role` |
+| Otherwise clean chrome / templates, **or** topology-only degradation | `true` | `null` |
 
 Notes and assertion ids are compiler metadata and are **not** scanned for pooling.
 B5 remains authoritative for write-time allowlist (CONFIDENCE: MED on role
@@ -260,22 +259,13 @@ Loosening a privacy rule is B5's call and does not belong in a compiler PR — f
 here, not fixed. Note the direction: B5 refusing too much is safe; the compiler claiming too
 much was not.
 
-**Measured, once the authority actually ran (#166).** `paragent compile --to-cache` puts every
-row through `writeCacheRow`, so the two implementations can now be compared on real data instead
-of in principle. On the committed 12-step live bundle the compiler marks **1** row poolable and
-B5 marks **7**. The gap is one rule, in the safe direction: when a row's whole locator chain is
-tainted but the row carries `flow_topology`, `buildPoolRow` degrades it to a `topology_only`
-pool row — a row carrying no locator at all, only "a click happened here, in `main`, between a
-click and a fill" — whereas `decidePoolEligibility` refuses it outright as
-`topology_only_degraded`. Nothing tenant-derived escapes either way; the pre-check simply
-declines to pool a row B5 is willing to strip and pool.
-
-That divergence is **not** reconciled here, for the reason the paragraph above gives about the
-URL path: it changes what every committed bundle artifact claims about pool eligibility, and the
-`pool_eligible` flag in a bundle file is no longer what reaches disk anyway. The number to watch
-is the one `--to-cache` prints (`authority pooled N step(s) the compiler pre-check did not`).
-Filed as [#170](https://github.com/DevToolie/Paragent/issues/170), which lays out the three ways
-it could go and why each is a decision rather than a repair.
+**Aligned with the authority on locator stripping (#170 / [ADR-0019](../decisions/ADR-0019-pool-precheck-topology.md)).**
+The pre-check used to refuse any chain that *contained* a `tenant_scoped` locator, even when a
+pool-safe `structural` sibling survived. `buildPoolRow` strips the tainted entries and pools the
+rest — so the bundle said `1/12` poolable while `--to-cache` wrote `7/12`. The pre-check now
+filters the same way (and agrees on the `topology_only` degradation when every locator is
+stripped). `live-bundle-pool.test.ts` still pins the direction invariant; the observation it
+records is now `7` poolable, matching the authority.
 
 ## CLI
 

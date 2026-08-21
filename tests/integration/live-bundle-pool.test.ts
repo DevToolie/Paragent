@@ -105,7 +105,7 @@ describe("live compiled bundle through the B5 write path", () => {
     const poolable = bundle.rows.filter((r) => r.pool_eligible);
 
     expect(strong).toHaveLength(6);
-    expect(poolable).toHaveLength(1);
+    expect(poolable).toHaveLength(7);
     expect(
       bundle.rows.every((r) => r.assertion.notes && r.assertion.notes.length > 0),
     ).toBe(true);

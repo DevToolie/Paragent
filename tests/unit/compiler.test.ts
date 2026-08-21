@@ -198,6 +198,66 @@ describe("pool pre-check never outruns the B5 authority", () => {
     });
     expect(decision.pool_eligible).toBe(true);
   });
+
+  it("agrees with B5 on topology_only degradation (#170)", () => {
+    // buildPoolRow pools a locator-less topology row when the chain is all
+    // tainted but flow_topology exists. The pre-check used to refuse those
+    // as topology_only_degraded, understating pool_eligible on every bundle.
+    const decision = decidePoolEligibility({
+      chain: [
+        {
+          strategy: "role_name",
+          role: "button",
+          name: "Save dashboard",
+          tenant_scoped: true,
+        },
+        { strategy: "topology_only", tenant_scoped: false },
+      ],
+      topologyOnly: true,
+      assertion: {
+        schema_version: "1.0.0",
+        assertion_id: "a",
+        type: "element-visible",
+        strength: "weak",
+        timeout_ms: 5000,
+        failure_classification: "assertion_failed",
+      },
+    });
+    expect(decision.pool_eligible).toBe(true);
+    expect(decision.pool_ineligible_reason).toBeNull();
+  });
+
+  it("strips tenant_scoped siblings and pools the surviving structural (#170)", () => {
+    // The live gate gap was this shape: a mixed chain where some candidates are
+    // tenant_scoped and a structural survives. buildPoolRow keeps structural;
+    // the old pre-check refused the whole row on `.some(tenant_scoped)`.
+    const decision = decidePoolEligibility({
+      chain: [
+        {
+          strategy: "role_name",
+          role: "button",
+          name: "Save dashboard",
+          tenant_scoped: true,
+        },
+        {
+          strategy: "structural",
+          structural_path: "main > button",
+          tenant_scoped: false,
+        },
+      ],
+      topologyOnly: false,
+      assertion: {
+        schema_version: "1.0.0",
+        assertion_id: "a",
+        type: "element-visible",
+        strength: "weak",
+        timeout_ms: 5000,
+        failure_classification: "assertion_failed",
+      },
+    });
+    expect(decision.pool_eligible).toBe(true);
+    expect(decision.pool_ineligible_reason).toBeNull();
+  });
 });
 
 describe("click assertion target", () => {

@@ -96,16 +96,14 @@ synthesized assertion and writes a `compiled_trajectory` bundle to `artifacts/co
    `paragent compile --to-cache <dir>` now routes every row through the authority via
    `src/cache/ingest.ts`, which is the directory `--from-cache` reads.
 
-   **The two implementations disagree, and the pre-check is the stricter one.** On the committed
-   12-step live bundle the compiler marks 1 row poolable and the authority marks 7: where a row's
-   whole locator chain is tainted but it carries `flow_topology`, `buildPoolRow` degrades it to a
-   `topology_only` pool row — carrying no locator at all — while `decidePoolEligibility` refuses
-   it outright as `topology_only_degraded`. That direction is legal (a pre-check may be stricter,
-   never looser) and the dangerous direction is pinned by
-   `tests/integration/live-bundle-pool.test.ts`. The pre-check is deliberately left as-is here:
-   changing it changes what every committed bundle artifact claims about pool eligibility, which
-   is a privacy-adjacent decision that wants its own ADR rather than a rider on a wiring fix —
-   tracked in [#170](https://github.com/DevToolie/Paragent/issues/170).
+   **Pre-check and authority now agree on locator stripping
+   ([#170](https://github.com/DevToolie/Paragent/issues/170) /
+   [ADR-0019](./decisions/ADR-0019-pool-precheck-topology.md)).** The pre-check used to refuse
+   any chain containing a `tenant_scoped` locator even when a pool-safe `structural` sibling
+   survived; `buildPoolRow` strips and pools the rest. On the live bundle that understated
+   shareable rows as 1/12 vs the authority's 7/12. Both now stamp **7/12**. The direction
+   invariant (pre-check never looser) remains pinned by
+   `tests/integration/live-bundle-pool.test.ts`.
 2. ~~**The bundle never reaches the runner.**~~ **Closed by
    [#62](https://github.com/DevToolie/Paragent/issues/62).** The runner consumes
    `CompiledProgram` (`src/runner/types.ts`), a different shape from
