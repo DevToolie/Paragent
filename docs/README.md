@@ -36,7 +36,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 | --- | --- | --- | --- | --- |
 | [ROADMAP.md](./ROADMAP.md) | Current state, what is stubbed, milestones M0–M7 in order | accepted | 2026-07-25 | **Read before picking up an issue** |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Commands, layout, data flow, invariants, pre-PR checklist | accepted | 2026-07-25 | Contributor runbook |
-| [architecture.md](./architecture.md) | How the `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-07-25 | Owns the **chain** between packages; `gate/*.md` own one hop each. Records two unwired hops (issue #52) |
+| [architecture.md](./architecture.md) | How the `src/` packages connect: loop diagram, package/artifact tables, real vs stubbed, invariants | draft | 2026-08-21 | Owns the **chain** between packages; `gate/*.md` own one hop each. Derived from `e4ab318` — pipes wired, measurements still `no_data` (#168) |
 | [README-narrative.md](./README-narrative.md) | Story: thesis → census kill → pivot → two tracks → evidence now | draft | 2026-07-25 | Includes C5 FAIL |
 | [INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md) | Unsourced claims, placeholders, LOW load-bearing, contradictions | draft | 2026-07-25 | Surfaces conflicts; does not pick winners |
 | [README-internal.md](./README-internal.md) | Internal entry point: status table, tracks, public-repo rules, layout, stack | accepted | 2026-08-10 (moved from repo root, content unchanged) | Was `../README.md` until the root became visitor-facing. Track 2 **FAIL** / Track 3 Wave-1 draft match C5 + ADR-0004; INTEGRITY-AUDIT D-04 resolved |
