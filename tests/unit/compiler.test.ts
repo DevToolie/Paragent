@@ -198,6 +198,120 @@ describe("pool pre-check never outruns the B5 authority", () => {
     });
     expect(decision.pool_eligible).toBe(true);
   });
+
+  it("agrees with B5 on topology_only degradation (#170)", () => {
+    // buildPoolRow pools a locator-less topology row when the chain is all
+    // tainted but flow_topology exists. The pre-check used to refuse those
+    // as topology_only_degraded, understating pool_eligible on every bundle.
+    const decision = decidePoolEligibility({
+      chain: [
+        {
+          strategy: "role_name",
+          role: "button",
+          name: "Save dashboard",
+          tenant_scoped: true,
+        },
+        { strategy: "topology_only", tenant_scoped: false },
+      ],
+      topologyOnly: true,
+      assertion: {
+        schema_version: "1.0.0",
+        assertion_id: "a",
+        type: "element-visible",
+        strength: "weak",
+        timeout_ms: 5000,
+        failure_classification: "assertion_failed",
+      },
+    });
+    expect(decision.pool_eligible).toBe(true);
+    expect(decision.pool_ineligible_reason).toBeNull();
+  });
+
+  it("strips tenant_scoped siblings and pools the surviving structural (#170)", () => {
+    // The live gate gap was this shape: a mixed chain where some candidates are
+    // tenant_scoped and a structural survives. buildPoolRow keeps structural;
+    // the old pre-check refused the whole row on `.some(tenant_scoped)`.
+    const decision = decidePoolEligibility({
+      chain: [
+        {
+          strategy: "role_name",
+          role: "button",
+          name: "Save dashboard",
+          tenant_scoped: true,
+        },
+        {
+          strategy: "structural",
+          structural_path: "main > button",
+          tenant_scoped: false,
+        },
+      ],
+      topologyOnly: false,
+      assertion: {
+        schema_version: "1.0.0",
+        assertion_id: "a",
+        type: "element-visible",
+        strength: "weak",
+        timeout_ms: 5000,
+        failure_classification: "assertion_failed",
+      },
+    });
+    expect(decision.pool_eligible).toBe(true);
+    expect(decision.pool_ineligible_reason).toBeNull();
+  });
+
+  it("refuses a non-vocabulary testid in the assertion target (#170)", () => {
+    // The shape that crashed record -> compile -> cache. B5's
+    // assertionHasTenantLiteral runs checkLocatorTaint over
+    // assertion.target.locator, and `dismiss-notice` is not in the testid
+    // vocabulary — but it is a plain kebab string that no prose heuristic
+    // flags. Stripping the tenant_scoped role_name (correct, #170) made this
+    // row reachable, and the pre-check called it poolable while B5 refused it.
+    const decision = decidePoolEligibility({
+      chain: [
+        { strategy: "role_name", role: "button", name: "Dismiss", tenant_scoped: true },
+        { strategy: "testid", testid: "dismiss-notice", tenant_scoped: false },
+        { strategy: "structural", structural_path: "main > button", tenant_scoped: false },
+      ],
+      topologyOnly: false,
+      hasFlowTopology: true,
+      assertion: {
+        schema_version: "1.0.0",
+        assertion_id: "a",
+        type: "element-visible",
+        strength: "strong",
+        target: { locator: { strategy: "testid", testid: "dismiss-notice" } },
+        expected: { visible: false },
+        timeout_ms: 5000,
+        failure_classification: "assertion_failed",
+      },
+    });
+    expect(decision.pool_eligible).toBe(false);
+    expect(decision.pool_ineligible_reason).toBe("literal_in_assertion");
+  });
+
+  it("does not pool an all-tainted chain when the row has no flow_topology (#170)", () => {
+    // buildPoolRow degrades to a locator-less topology row only when
+    // candidate.flow_topology is present; without it the authority refuses.
+    const chainAllTainted = [
+      { strategy: "role_name" as const, role: "button", name: "Save dashboard", tenant_scoped: true },
+    ];
+    const assertion = {
+      schema_version: "1.0.0",
+      assertion_id: "a",
+      type: "element-visible",
+      strength: "weak",
+      timeout_ms: 5000,
+      failure_classification: "assertion_failed",
+    } as const;
+    expect(
+      decidePoolEligibility({ chain: chainAllTainted, assertion, topologyOnly: true, hasFlowTopology: false })
+        .pool_eligible,
+    ).toBe(false);
+    expect(
+      decidePoolEligibility({ chain: chainAllTainted, assertion, topologyOnly: true, hasFlowTopology: true })
+        .pool_eligible,
+    ).toBe(true);
+  });
 });
 
 describe("click assertion target", () => {

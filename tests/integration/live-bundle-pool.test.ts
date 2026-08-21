@@ -27,6 +27,25 @@ const BUNDLE = path.join(
   "artifacts/compiled/traj-gate-live-create-stat-dashboard-from-testdata-9.5.21.bundle.json",
 );
 
+/**
+ * The fixture bundle is checked by the same invariants (#170).
+ *
+ * It used to be exempt, and that is how the pre-check went looser than B5
+ * without this file noticing: the divergent row — a non-vocabulary `testid` in
+ * the assertion target — does not occur in the live gate task, so the live
+ * bundle stayed green while `pipeline.test.ts` crashed on the fixture. An
+ * invariant that only runs against one corpus is an invariant with a hole.
+ */
+const EXAMPLE_BUNDLE = path.join(
+  process.cwd(),
+  "artifacts/compiled/traj-example-grafana-login-nav.bundle.json",
+);
+
+const ALL_BUNDLES: readonly [string, string][] = [
+  ["live gate task", BUNDLE],
+  ["fixture login/nav", EXAMPLE_BUNDLE],
+];
+
 interface Bundle {
   rows: (CacheRow & { pool_eligible: boolean })[];
 }
@@ -46,42 +65,53 @@ function toCandidate(row: Bundle["rows"][number]): CacheRowCandidate {
 }
 
 describe("live compiled bundle through the B5 write path", () => {
-  it("never claims pool eligibility the cache would refuse", async () => {
-    const bundle = JSON.parse(await readFile(BUNDLE, "utf8")) as Bundle;
-    expect(bundle.rows).toHaveLength(12);
+  it.each(ALL_BUNDLES)(
+    "never claims pool eligibility the cache would refuse (%s)",
+    async (_label, bundlePath) => {
+      const bundle = JSON.parse(await readFile(bundlePath, "utf8")) as Bundle;
+      expect(bundle.rows.length).toBeGreaterThan(0);
 
-    for (const row of bundle.rows) {
-      // Throws CacheWriteRejectedError on a claim B5 will not honour.
-      const { pool } = writeCacheRowPair(toCandidate(row));
-      if (row.pool_eligible) {
-        expect(
-          pool.pool_eligible,
-          `row ${row.step_index}: compiler said poolable, B5 said ${pool.pool_ineligible_reason}`,
-        ).toBe(true);
-      }
-    }
-  });
-
-  it("lets no tenant-scoped or free-text locator into a pool row", async () => {
-    const bundle = JSON.parse(await readFile(BUNDLE, "utf8")) as Bundle;
-
-    for (const row of bundle.rows) {
-      const { pool, tenant } = writeCacheRowPair(toCandidate(row));
-      if (pool.pool_eligible) {
-        for (const loc of pool.compiled_action.locator_fallback_chain) {
-          expect(loc.tenant_scoped).not.toBe(true);
-          expect(["text", "placeholder"]).not.toContain(loc.strategy);
+      for (const row of bundle.rows) {
+        // Throws CacheWriteRejectedError on a claim B5 will not honour.
+        const { pool } = writeCacheRowPair(toCandidate(row));
+        if (row.pool_eligible) {
+          expect(
+            pool.pool_eligible,
+            `row ${row.step_index}: compiler said poolable, B5 said ${pool.pool_ineligible_reason}`,
+          ).toBe(true);
         }
       }
-      // The tenant row keeps everything: the split is what makes the pool row
-      // safe to share, and a tenant row that lost candidates would replay worse
-      // than the trajectory it came from.
-      expect(
-        tenant.compiled_action.locator_fallback_chain.length,
-      ).toBeGreaterThanOrEqual(
-        row.compiled_action.locator_fallback_chain.length,
-      );
-    }
+    },
+  );
+
+  it.each(ALL_BUNDLES)(
+    "lets no tenant-scoped or free-text locator into a pool row (%s)",
+    async (_label, bundlePath) => {
+      const bundle = JSON.parse(await readFile(bundlePath, "utf8")) as Bundle;
+
+      for (const row of bundle.rows) {
+        const { pool, tenant } = writeCacheRowPair(toCandidate(row));
+        if (pool.pool_eligible) {
+          for (const loc of pool.compiled_action.locator_fallback_chain) {
+            expect(loc.tenant_scoped).not.toBe(true);
+            expect(["text", "placeholder"]).not.toContain(loc.strategy);
+          }
+        }
+        // The tenant row keeps everything: the split is what makes the pool row
+        // safe to share, and a tenant row that lost candidates would replay worse
+        // than the trajectory it came from.
+        expect(
+          tenant.compiled_action.locator_fallback_chain.length,
+        ).toBeGreaterThanOrEqual(
+          row.compiled_action.locator_fallback_chain.length,
+        );
+      }
+    },
+  );
+
+  it("holds the live bundle at 12 rows", async () => {
+    const bundle = JSON.parse(await readFile(BUNDLE, "utf8")) as Bundle;
+    expect(bundle.rows).toHaveLength(12);
   });
 
   it("keeps the committed bundle schema-valid", async () => {
@@ -105,7 +135,7 @@ describe("live compiled bundle through the B5 write path", () => {
     const poolable = bundle.rows.filter((r) => r.pool_eligible);
 
     expect(strong).toHaveLength(6);
-    expect(poolable).toHaveLength(1);
+    expect(poolable).toHaveLength(7);
     expect(
       bundle.rows.every((r) => r.assertion.notes && r.assertion.notes.length > 0),
     ).toBe(true);

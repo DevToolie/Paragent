@@ -59,16 +59,20 @@ artifact was committed) by re-running the compiler against its source trajectory
 
 ```bash
 npm run compile -- --in experiments/gate-v1/trajectories/grafana-create-stat-dashboard-from-testdata-9.5.21.json --out <scratch>
-# → rows=12 pool_eligible=1
+# → rows=12 pool_eligible=7   (was 1 before #170 / ADR-0019)
 ```
 
 | Outcome | Count |
 | --- | --- |
-| `pool_eligible: true` | **1 / 12** (8.3%) |
-| `tenant_locator_text` | 10 |
+| `pool_eligible: true` | **7 / 12** (58.3%) |
+| `tenant_locator_text` | 4 |
 | `literal_in_assertion` | 1 |
 
-This matches issue #126's quoted numbers exactly. **Verified, not just retyped.**
+**Updated 2026-08-21 by [#170](https://github.com/DevToolie/Paragent/issues/170) /
+[ADR-0019](../decisions/ADR-0019-pool-precheck-topology.md):** the pre-check now strips
+`tenant_scoped` siblings the same way `buildPoolRow` does, so the stamped field matches the
+authoritative write path. The historical `1 / 12` figure below is retained only as the
+pre-alignment baseline.
 
 ### 2. As the authoritative write path (`src/cache/write.ts`) decides today
 
@@ -82,13 +86,12 @@ the pre-PR `src/cache/taint.ts`) and **after**:
 | `pool_eligible: true` | **7 / 12** (58.3%) | **7 / 12** (58.3%) — unchanged |
 | `literal_in_assertion` | 5 | 5 — unchanged |
 
-The authoritative number is **7/12, not 1/12**, on the same bundle, before this PR ever touched
-anything. The gap between "1" and "7" is not this issue's vocabulary gap — it is the compiler's
-pre-check disagreeing with its own authority in the conservative direction (safe, per
-`docs/gate/compiler.md`, but currently misleading anyone who reads the artifact's stamped field as
-the real number). Six rows (steps 2, 3, 4, 5, 8, 9) already pool today via the existing
-`isPoolSafeStructuralPath` allowance (boundary-spec.md rule 2: structural position without quoted
-attrs / free text) — none of them needed a name-vocabulary rule.
+The authoritative number is **7/12**. Before #170 the compiler pre-check stamped **1/12** on the
+same bundle — a conservative disagreement, safe per `docs/gate/compiler.md`, but misleading
+anyone who read the artifact's stamped field as the real number. Six rows (steps 2, 3, 4, 5, 8, 9)
+pool via the existing `isPoolSafeStructuralPath` allowance (boundary-spec.md rule 2: structural
+position without quoted attrs / free text) — none of them needed a name-vocabulary rule. Since
+ADR-0019 the stamped field and the write path agree at 7/12.
 
 **This PR's vocabulary rule changes the row-level count on this bundle by exactly zero**, and
 that is reported here rather than hidden. Two independent, already-out-of-scope reasons:
