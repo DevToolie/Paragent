@@ -28,6 +28,22 @@ jobs:
       - name: Install
         run: npm ci
 
+      # The tag decides *when* to publish; package.json decides *what* version
+      # is published. Nothing tied the two together, so `git tag v0.2.0` on a
+      # tree still saying 0.1.0 would publish 0.1.0 — or fail as "already
+      # published" — with the tag claiming otherwise. Fail before the registry
+      # call instead, while it is still free to fix.
+      - name: Tag must match package.json version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "tag ${GITHUB_REF_NAME} implies version ${tag_version}," >&2
+            echo "but package.json says ${pkg_version}. Bump package.json or retag." >&2
+            exit 1
+          fi
+          echo "publishing ${pkg_version} from tag ${GITHUB_REF_NAME}"
+
       - name: Verify pack contents
         run: |
           npm pack --dry-run 2>&1 | tee /tmp/pack.txt
