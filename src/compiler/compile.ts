@@ -68,12 +68,6 @@ export function compileStep(
     },
     assertionOptions,
   );
-  const pool = decidePoolEligibility({
-    chain: action.locator_fallback_chain,
-    assertion,
-    topologyOnly,
-  });
-
   const steps = trajectory.steps;
   const idx = step.step_index;
   const prev = steps.find((s) => s.step_index === idx - 1);
@@ -84,6 +78,17 @@ export function compileStep(
   if (next) flow_topology.next_action_type = next.action.type;
   const landmark = landmarkHint(step);
   if (landmark) flow_topology.landmark = landmark;
+  // Computed before the pool decision, not after: `buildPoolRow` degrades an
+  // all-tainted chain to a `topology_only` pool row *only* when the row carries
+  // `flow_topology`, so the pre-check has to know whether this row will (#170).
+  const hasFlowTopology = Object.keys(flow_topology).length > 0;
+
+  const pool = decidePoolEligibility({
+    chain: action.locator_fallback_chain,
+    assertion,
+    topologyOnly,
+    hasFlowTopology,
+  });
 
   const row: CacheRow = {
     schema_version: SCHEMA_VERSION,
@@ -110,7 +115,7 @@ export function compileStep(
     pool_ineligible_reason: pool.pool_ineligible_reason,
   };
 
-  if (Object.keys(flow_topology).length > 0) {
+  if (hasFlowTopology) {
     row.flow_topology = flow_topology;
   }
 
