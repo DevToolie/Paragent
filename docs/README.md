@@ -159,7 +159,7 @@ Integrity surface: **[INTEGRITY-AUDIT.md](./INTEGRITY-AUDIT.md)**.
 
 | Doc | What it is | Status | Last true | Notes |
 | --- | --- | --- | --- | --- |
-| [outreach/awesome-lists.md](outreach/awesome-lists.md) | Draft entries + preconditions for awesome-browser-automation and awesome-ai-agents | draft | 2026-08-21 | Issue #138. **Blocked** until #167 (honest Quick Start) or real npm publish; no external PRs from agents |
+| [outreach/awesome-lists.md](outreach/awesome-lists.md) | Draft entries + preconditions for awesome-browser-automation and awesome-ai-agents | draft | 2026-08-28 | Issue #138. Preconditions **met** (`paragent@0.1.1` published, `npx` Quick Start verified); submission is still the founder's call, no external PRs from agents |
 
 ---
 

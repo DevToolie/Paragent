@@ -4,7 +4,7 @@ doc_type: brief
 status: draft
 owner: D2
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-28
 confidence: HIGH
 supersedes: null
 sources_verified: true
@@ -13,12 +13,13 @@ sources_verified: true
 # Awesome-lists submission packet
 
 In-repo draft for [GitHub issue #138](https://github.com/DevToolie/Paragent/issues/138).
-**Do not open external PRs from this packet** until a founder confirms the visitor
-README is honest (see [#167](https://github.com/DevToolie/Paragent/issues/167)).
-Awesome-list maintainers click through; a broken Quick Start is worse than no entry.
+**Do not open external PRs from this packet** without explicit founder sign-off.
+The honesty precondition that used to block this ([#167](https://github.com/DevToolie/Paragent/issues/167))
+is closed — the Quick Start now works — but awesome-list maintainers click through, and
+submitting is a judgment call about scope and timing, not a checklist outcome.
 
-Verified against this branch (`docs/138-awesome-lists`, based on `origin/main`) on
-2026-08-21.
+Preconditions re-verified against `origin/main` and the published `paragent@0.1.1`
+tarball on 2026-08-28.
 
 ---
 
@@ -27,34 +28,36 @@ Verified against this branch (`docs/138-awesome-lists`, based on `origin/main`) 
 | Precondition | Issue status | Verified in repo | Status |
 | --- | --- | --- | --- |
 | Visitor README | **#133 MERGED** ([#133](https://github.com/DevToolie/Paragent/pull/133)) | Root `README.md` is a visitor landing page; internal map lives in [`docs/README-internal.md`](../README-internal.md) | **Done** |
-| Install path / npm | **#134 CLOSED** (publishable work landed; see also [#155](https://github.com/DevToolie/Paragent/pull/155)) | `package.json` has `bin` / `files` / no `private: true`, but **`npm view paragent` → 404** — package is **not** on the registry. Root README Quick Start still documents `npx paragent …` | **Issue closed; publish missing.** Honest path waits on [#167](https://github.com/DevToolie/Paragent/issues/167) (clone Quick Start) and/or an actual publish |
+| Install path / npm | **#134 CLOSED**; published by [#183](https://github.com/DevToolie/Paragent/pull/183) | `paragent@0.1.1` is on the registry with SLSA provenance. `npx paragent record --fixture` and `npx paragent compile` were run from a clean directory against the published tarball — both exit 0 and write their artifacts | **Done** |
 | Demo GIF | **#137 CLOSED** ([#140](https://github.com/DevToolie/Paragent/pull/140)) | [`docs/assets/demo.gif`](../assets/demo.gif) exists (~924 KB, 720×428) and is embedded in the root README | **Done** |
 
 The original #138 gate treated “#134 landed” as “visitor can install without cloning.”
-That is **not** true today: publishable ≠ published. Treating the closed issue as green
-would send list maintainers to a 404.
+That gap — publishable ≠ published — is now closed: the package is on the registry and
+the README documents the path that actually runs.
 
 ---
 
 ## Ready to submit?
 
-**Verdict: blocked** until [#167](https://github.com/DevToolie/Paragent/issues/167) merges
-(and this packet is re-checked), **or** until `paragent` is actually on npm and the
-README `npx` path works from a clean machine.
+**Verdict: the mechanical preconditions are met.** All three checklist rows are Done,
+and the Quick Start a list maintainer would click through now works from a clean
+machine — verified against the published tarball, not the working tree.
 
-Rationale on this branch:
+Rationale:
 
-- Root README still instructs `npx paragent record …` / `npx paragent compile …`.
-- `npm view paragent` returns 404.
-- Submitting now advertises a Quick Start that fails for every stranger who tries it.
+- `npm view paragent` returns `0.1.1` (was 404).
+- Root README instructs `npx paragent record …` / `npx paragent compile …`, and both
+  commands run from the published package.
+- The tarball carries an SLSA provenance attestation tying it to a GitHub Actions
+  build of this repo.
 
-After #167 lands with a **clone-based** Quick Start that works, re-run this checklist.
-A clone-only entry may then be acceptable to the founder even without npm; #138’s
-original note that clone-only “reads as unfinished” remains a judgment call — do not
-treat this packet as authorization to submit.
+**This is still not authorization to submit.** #138 reserves the submission itself for
+the founder, and two judgment calls remain open: whether a pre-gate project with no
+Track-1 number belongs on a curated list at all, and whether the entry text below
+clears the no-performance-claims constraint. Re-read both before opening anything.
 
 **Not in scope for agents on this task:** opening PRs to `angrykoala/awesome-browser-automation`
-or `e2b-dev/awesome-ai-agents`. Founder submits after the README/#167 honesty gate.
+or `e2b-dev/awesome-ai-agents`. The founder submits, and only they decide when.
 
 ---
 
@@ -146,5 +149,7 @@ conventions at submit time. Description bullets carry **no metrics**.
 - Whether `e2b-dev/awesome-ai-agents` prefers the Google form over PRs in practice.
 - Whether awesome-browser-automation’s “Related tools” section would be a better home than
   AI if the maintainer reads Paragent as infrastructure rather than an AI tool.
-- After #167 merges: confirm the Quick Start is clone-based (or that npm publish is real),
-  then flip the verdict above and let the founder submit.
+- ~~After #167 merges: confirm the Quick Start is clone-based (or that npm publish is
+  real), then flip the verdict above.~~ **Retired** — `paragent@0.1.1` is published and
+  the `npx` Quick Start is verified against the published tarball. The verdict above is
+  flipped; the submission itself is still the founder's call.
