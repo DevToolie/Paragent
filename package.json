@@ -1,6 +1,6 @@
 {
   "name": "paragent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Stateful execution layer for browser agents \u2014 record, compile with assertions, replay, repair. Pre-seed; thesis unproven; gate number pending.",
   "license": "MIT",
   "repository": {
