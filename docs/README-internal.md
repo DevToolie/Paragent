@@ -4,16 +4,17 @@ doc_type: brief
 status: accepted
 owner: B0
 created: 2026-07-25
-updated: 2026-08-10
+updated: 2026-08-31
 confidence: HIGH
 supersedes: null
 sources_verified: true
 ---
 
 > Moved here from the repository root so the root `README.md` can serve first-time
-> visitors. **Content is unchanged** — only link depth was adjusted and this
-> frontmatter added. This remains the canonical internal entry point for agents,
-> contributors, candidates, and investors.
+> visitors. The move itself changed no content — only link depth and this frontmatter.
+> Corrections since the move are listed under [Open questions](#open-questions--what-i-could-not-verify).
+> This remains the canonical internal entry point for agents, contributors, candidates,
+> and investors.
 
 # Paragent
 
@@ -83,7 +84,9 @@ against each other.
 
 ```
 contracts/           # JSON Schema — build against these
-src/testbed|recorder|compiler|runner|cache|metrics/
+src/cli.ts           # the `paragent` binary: record / compile / testbed
+src/intent|testbed|recorder|compiler|cache|runner|metrics/   # pipeline, in order
+src/shared|session/  # leaves, not pipeline stages
 experiments/gate-v1/ # throwaway gate harness
 scripts/             # secret-scan, contract validation, branch protection, testbed compose
 tests/unit|canary|integration/
@@ -118,3 +121,8 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md). Branch as `track1/<agent>-<topic>` (o
   hardcode `README.md` will now land on the visitor-facing page and must follow the
   link here. If that proves disruptive, an `AGENTS.md` pointer at the root is the fix.
 - No factual claim, number, or verdict in this document was changed in the move.
+- **Correction (2026-08-31):** the Layout block listed six `src/` packages when there
+  are nine plus the `paragent` binary — `intent/` (#124), `session/` (#98 / SC-05), and
+  `shared/` (#74) all landed after the block was written, and `src/cli.ts` after that.
+  Corrected against `ls src/`; the pipeline order now matches
+  [architecture.md](./architecture.md). No status, track, or verdict was touched.
