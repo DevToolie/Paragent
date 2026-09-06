@@ -149,7 +149,17 @@ describe("a failed fresh run emits zeros with an explicit note, never partial ga
     const runner = new FreshBaselineRunner({ client: new StubFreshBaselineClient(), metrics: emitter });
     const result = await runner.run(baseContext());
     expect(result.task_success).toBe(false);
-    expect(result.cost_fresh).toEqual({ tokens_in: 0, tokens_out: 0, wall_clock_ms: 0 });
+    // Tokens must be zero — the stub proposes nothing, and that is the claim
+    // this test defends. wall_clock_ms is deliberately NOT asserted to be 0:
+    // the stub returns normally rather than throwing, so it takes the measured
+    // path (`measureWallClock`), not the forced-`zeroCost()` catch above. On a
+    // contended runner that measurement rounds to 1ms and the run is real, so
+    // pinning it to 0 asserts that the machine was fast, not that the code was
+    // honest. Assert the shape and the sign instead.
+    expect(result.cost_fresh.tokens_in).toBe(0);
+    expect(result.cost_fresh.tokens_out).toBe(0);
+    expect(result.cost_fresh.wall_clock_ms).toBeGreaterThanOrEqual(0);
+    expect(Number.isFinite(result.cost_fresh.wall_clock_ms)).toBe(true);
     expect(result.notes).toContain("no model wired");
   });
 
