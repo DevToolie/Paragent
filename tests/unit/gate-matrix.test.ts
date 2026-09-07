@@ -30,6 +30,8 @@ import {
   assignValue,
   buildSection9Floor,
   loadCostFreshBaseline,
+  loadCostProgramBuild,
+  programBuildPaymentLatch,
   VALUED_FLAG_NAMES,
   type Args as MatrixArgs,
 } from "../../experiments/gate-v1/run-matrix.js";
@@ -577,6 +579,11 @@ describe("gate:matrix valued flags (#165)", () => {
     "task-key": { value: "open-dashboards-list", expect: (a) => a.taskKey, want: "open-dashboards-list" },
     "repair-model": { value: "claude-opus-5", expect: (a) => a.repairModel, want: "claude-opus-5" },
     "cost-fresh": { value: "/tmp/baseline.json", expect: (a) => a.costFresh, want: "/tmp/baseline.json" },
+    "cost-program-build": {
+      value: "/tmp/build.json",
+      expect: (a) => a.costProgramBuild,
+      want: "/tmp/build.json",
+    },
   };
 
   const emptyArgs = (): MatrixArgs => ({
@@ -629,5 +636,122 @@ describe("gate:matrix valued flags (#165)", () => {
     expect(() => assignValue(emptyArgs(), "runs", "0")).toThrow(/--runs must be >= 1/);
     expect(() => assignValue(emptyArgs(), "port", "-1")).toThrow(/invalid --port/);
     expect(() => assignValue(emptyArgs(), "param", "novalue")).toThrow(/expects key=value/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #39 step 4 (second half) — the ONE-TIME program-build payment.
+//
+// ADR-0010 split `cost_program_build` from `cost_fresh` because the two were
+// one field read as two quantities. The driver then wired only the per-run
+// half: `--cost-fresh` broadcast a baseline onto every row, and nothing could
+// attach a build payment at all — so `amortizedTokensOverN()`, the PRD §12
+// demo curve, returned `no_data` no matter what was measured.
+//
+// Two things have to hold, and the second is the one that silently breaks:
+// the loader must refuse anything unmeasured, and exactly ONE run in the whole
+// matrix may carry the payment.
+// ---------------------------------------------------------------------------
+
+describe("loadCostProgramBuild (#39 step 4 / ADR-0010)", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "paragent-cost-build-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function writeDoc(overrides: Record<string, unknown>): string {
+    const file = path.join(dir, "build.json");
+    writeFileSync(
+      file,
+      JSON.stringify({
+        usable: true,
+        program_build_id: "grafana-create-stat-dashboard@2026-08-14",
+        cost_program_build: {
+          tokens_in: 41_200,
+          tokens_out: 3_100,
+          wall_clock_ms: 612_000,
+          model_id: "claude-opus-5",
+        },
+        ...overrides,
+      }),
+      "utf8",
+    );
+    return file;
+  }
+
+  it("returns the measured payment and the build it paid for", async () => {
+    const payment = await loadCostProgramBuild(writeDoc({}));
+    expect(payment.cost.tokens_in).toBe(41_200);
+    expect(payment.cost.model_id).toBe("claude-opus-5");
+    expect(payment.program_build_id).toBe("grafana-create-stat-dashboard@2026-08-14");
+  });
+
+  it("names the missing producer instead of falling through", async () => {
+    // Nothing in the repo writes this document — the program is still
+    // hand-written (#127). The error says so rather than reading as a typo.
+    await expect(loadCostProgramBuild(path.join(dir, "absent.json"))).rejects.toThrow(
+      /file not found/,
+    );
+  });
+
+  it("refuses invalid JSON", async () => {
+    const file = path.join(dir, "bad.json");
+    writeFileSync(file, "{not json", "utf8");
+    await expect(loadCostProgramBuild(file)).rejects.toThrow(/not valid JSON/);
+  });
+
+  it("refuses a document that does not claim to be a measurement", async () => {
+    await expect(
+      loadCostProgramBuild(writeDoc({ usable: false, not_a_measurement: "dry run" })),
+    ).rejects.toThrow(/not usable \(dry run\)/);
+  });
+
+  it("refuses a payment with no build id", async () => {
+    // ReplayRunner throws on the pair anyway; failing here names why.
+    await expect(
+      loadCostProgramBuild(writeDoc({ program_build_id: "" })),
+    ).rejects.toThrow(/missing program_build_id/);
+  });
+
+  it("refuses a zero-token build cost — it plots a curve, not no_data", async () => {
+    // The dangerous case, and the reason this check exists beyond `usable`. A
+    // zero `cost_fresh` reports no_data; a zero `cost_program_build` reports a
+    // curve declining to nothing, which publishes the strongest form of the
+    // claim on a number nobody measured (#123).
+    await expect(
+      loadCostProgramBuild(
+        writeDoc({
+          cost_program_build: { tokens_in: 0, tokens_out: 0, wall_clock_ms: 900 },
+        }),
+      ),
+    ).rejects.toThrow(/measures zero tokens/);
+  });
+});
+
+describe("programBuildPaymentLatch (#39 step 4 / ADR-0010)", () => {
+  const payment = {
+    cost: { tokens_in: 41_200, tokens_out: 3_100, wall_clock_ms: 612_000 },
+    program_build_id: "build-1",
+  };
+
+  it("hands the payment to the first caller and to nobody else", () => {
+    // The whole §12 curve depends on this. Attach the payment to every run and
+    // the numerator grows linearly with N, the mean goes flat, and the demo
+    // plot shows nothing — ADR-0010's arithmetic, reintroduced at the driver.
+    const claim = programBuildPaymentLatch(payment);
+    expect(claim()).toEqual(payment);
+    expect(claim()).toBeUndefined();
+    expect(claim()).toBeUndefined();
+  });
+
+  it("answers undefined forever when no payment was passed", () => {
+    const claim = programBuildPaymentLatch();
+    expect(claim()).toBeUndefined();
+    expect(claim()).toBeUndefined();
   });
 });

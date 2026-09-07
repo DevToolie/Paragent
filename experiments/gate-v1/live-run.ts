@@ -193,6 +193,17 @@ export interface LiveRunOptions {
    * `ReplayRunnerOptions.costFresh` and ADR-0010.
    */
   costFresh?: Cost;
+  /**
+   * Claim the matrix's ONE-TIME program-build payment (#39 step 4, ADR-0010).
+   *
+   * Called once per run. It answers with the payment for the **first** run that
+   * asks and `undefined` for every run after, across the whole matrix — which
+   * is the entire point: §12's numerator sums `cost_program_build`, so a
+   * payment repeated per run grows it linearly with N, flattens the curve, and
+   * shows nothing. A callback rather than a `Cost` because "was this the first
+   * run?" is not a question this function can answer — it sees one version.
+   */
+  claimProgramBuildPayment?: () => { cost: Cost; program_build_id: string } | undefined;
   /** Repeats of the program against this version. Defaults to 1. */
   runs?: number;
   /**
@@ -422,6 +433,11 @@ export async function runVersionLive(
           }
         }
 
+        // Claimed here, immediately before the runner that will carry it, so a
+        // run that never starts cannot consume the payment and leave the curve
+        // with no first point.
+        const payment = opts.claimProgramBuildPayment?.();
+
         const runner = new ReplayRunner({
           dryRun: false,
           page,
@@ -433,6 +449,13 @@ export async function runVersionLive(
             : {}),
           ...(opts.repairClient ? { repairClient: opts.repairClient } : {}),
           ...(opts.costFresh ? { costFresh: opts.costFresh } : {}),
+          // Both or neither: ReplayRunner throws on a cost without an id.
+          ...(payment
+            ? {
+                costProgramBuild: payment.cost,
+                programBuildId: payment.program_build_id,
+              }
+            : {}),
         });
 
         const params: ParamBindings = {

@@ -142,6 +142,18 @@ export interface Args {
    * Absent means the pre-#39 default: `zeroCost()`, unchanged.
    */
   costFresh?: string;
+  /**
+   * Path to a measured **one-time** program-build cost (#39 step 4, ADR-0010).
+   * Attached to exactly ONE run row in the whole matrix as
+   * `cost_program_build` + `program_build_id`, which is what moves
+   * `amortizedTokensOverN()` — the PRD §12 demo curve — off `no_data`.
+   *
+   * Not the same quantity as `--cost-fresh` and not interchangeable with it:
+   * `cost_fresh` is a per-run comparison baseline that belongs on every row,
+   * this is a capital cost that belongs on one. ADR-0010 exists because they
+   * were one field.
+   */
+  costProgramBuild?: string;
 }
 
 /**
@@ -201,6 +213,9 @@ const VALUED_FLAGS = {
   },
   "cost-fresh": (args, value) => {
     args.costFresh = value;
+  },
+  "cost-program-build": (args, value) => {
+    args.costProgramBuild = value;
   },
 } satisfies Record<string, (args: Args, value: string) => void>;
 
@@ -290,6 +305,15 @@ function usage(): void {
                      off no_data. Refuses (exit 2) if the file is missing or
                      not usable=true — a dry-run baseline or a zero-measured
                      one is never wired in silently. Ignored under --dry-run.
+  --cost-program-build <path>
+                     Measured ONE-TIME cost of producing the compiled program
+                     (#39 step 4, ADR-0010). Attached to exactly ONE run row as
+                     cost_program_build + program_build_id, which is what moves
+                     the §12 amortization curve off no_data. NOT a substitute
+                     for --cost-fresh: that is a per-run baseline on every row,
+                     this is a capital cost on one. Refuses (exit 2) if the file
+                     is missing, not usable=true, has no program_build_id, or
+                     measures zero tokens. Ignored under --dry-run.
   --headed           Show the browser (live runs only).
   --keep-up          Leave each container running after its run, for inspection.
   --no-preamble      Skip the login preamble, for programs that log in as part
@@ -419,6 +443,142 @@ export async function loadCostFreshBaseline(filePath: string): Promise<Cost> {
   return doc.mean_cost_fresh;
 }
 
+/**
+ * A measured one-time program-build payment, and the build it paid for.
+ *
+ * The two travel together because `ReplayRunner` refuses the cost without the
+ * id at construction (ADR-0010): an unattributed payment cannot be told apart
+ * from a double payment when a recompile shows up as a second step in the
+ * curve.
+ */
+export interface ProgramBuildPayment {
+  cost: Cost;
+  program_build_id: string;
+}
+
+/**
+ * Load a measured one-time program-build cost (#39 step 4, ADR-0010).
+ *
+ * ## Nothing writes this file yet, and that is the point
+ *
+ * `cost_program_build` is what it cost to *produce* the compiled program. Today
+ * that is a developer typing `src/recorder/cli.ts` by hand, which costs a
+ * developer-day and zero tokens
+ * ([#127](https://github.com/DevToolie/Paragent/issues/127)). So there is no
+ * producer for this document in the repo, and this loader will refuse every
+ * attempt to fake one.
+ *
+ * That is deliberate. Until #39 step 4 was wired, the §12 curve PRD calls *the
+ * demo* could not be produced by anything in the tree even if a number existed
+ * — `ReplayRunner` accepted `costProgramBuild`, `amortizedTokensOverN()`
+ * consumed it, and no path in between passed one. This closes that gap so the
+ * curve computes the moment a measurement exists, rather than needing a code
+ * change at the same time.
+ *
+ * ## Expected document
+ *
+ * ```json
+ * {
+ *   "usable": true,
+ *   "program_build_id": "<id>",
+ *   "cost_program_build": {
+ *     "tokens_in": 0, "tokens_out": 0, "wall_clock_ms": 0, "model_id": "<m>"
+ *   }
+ * }
+ * ```
+ *
+ * ## Refuses rather than degrades
+ *
+ * Same posture as `loadCostFreshBaseline`, and one rule beyond it: **a
+ * zero-token build cost is rejected.** For `cost_fresh` a zero is caught by
+ * `usable`; here it is worth its own check, because a zero build cost does not
+ * produce `no_data` — it produces a *curve*, one that declines to nothing and
+ * reads as the strongest possible version of the claim. That is the exact
+ * failure #123 was filed about, arriving from the other direction.
+ */
+export async function loadCostProgramBuild(
+  filePath: string,
+): Promise<ProgramBuildPayment> {
+  let text: string;
+  try {
+    text = await readFile(filePath, "utf8");
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    throw new Error(
+      `--cost-program-build ${filePath}: ` +
+        `${e.code === "ENOENT" ? "file not found" : errMessage(err)}. ` +
+        "Nothing in the repo writes this document yet — the compiled program is " +
+        "still hand-written (#127), so run 1 costs zero tokens. See " +
+        "docs/gate/fresh-baseline.md.",
+      { cause: err },
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`--cost-program-build ${filePath}: not valid JSON`);
+  }
+  const doc = parsed as {
+    usable?: boolean;
+    not_a_measurement?: string;
+    program_build_id?: string;
+    cost_program_build?: Cost;
+  };
+  if (doc.usable !== true) {
+    throw new Error(
+      `--cost-program-build ${filePath}: not usable ` +
+        `(${doc.not_a_measurement ?? "usable is not true"}). ` +
+        "A dry-run or unmeasured build cost cannot be wired into a gate run.",
+    );
+  }
+  const cost = doc.cost_program_build;
+  if (!cost) {
+    throw new Error(`--cost-program-build ${filePath}: missing cost_program_build`);
+  }
+  if (typeof doc.program_build_id !== "string" || doc.program_build_id.length === 0) {
+    throw new Error(
+      `--cost-program-build ${filePath}: missing program_build_id. ` +
+        "ADR-0010 requires the id alongside the payment — an unattributed " +
+        "payment is indistinguishable from a double payment in the curve.",
+    );
+  }
+  if ((cost.tokens_in ?? 0) + (cost.tokens_out ?? 0) <= 0) {
+    throw new Error(
+      `--cost-program-build ${filePath}: cost_program_build measures zero tokens. ` +
+        "Unlike cost_fresh, a zero here does not report no_data — it plots a " +
+        "curve declining to nothing, which publishes the strongest form of the " +
+        "claim on a number nobody measured (#123). Omit the flag instead.",
+    );
+  }
+  return { cost, program_build_id: doc.program_build_id };
+}
+
+/**
+ * Hand out the one-time payment to the first run that asks, and to no other.
+ *
+ * §12's curve is `(sum(cost_program_build where present + repair + replay)) / N`.
+ * Attach the payment to every run and the numerator grows linearly with N, the
+ * mean goes flat, and the plot shows nothing — the same arithmetic ADR-0010
+ * separated the two fields to prevent, reintroduced at the driver instead of in
+ * the schema.
+ *
+ * Made a latch rather than an index check because the driver has three places a
+ * run can start (dry, live, per-version repeats) and "is this the first one?"
+ * would have to be right in all of them. Here, correctness is a property of the
+ * closure: it can only answer once.
+ */
+export function programBuildPaymentLatch(
+  payment?: ProgramBuildPayment,
+): () => ProgramBuildPayment | undefined {
+  let remaining = payment;
+  return () => {
+    const claim = remaining;
+    remaining = undefined;
+    return claim;
+  };
+}
+
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -439,6 +599,12 @@ interface WalkOptions {
   shouldStop: () => boolean;
   /** Measured fresh-baseline (#39), attached to every LIVE run row's cost_fresh. */
   costFresh?: Cost;
+  /**
+   * Claims the matrix's one-time program-build payment (#39 step 4, ADR-0010).
+   * Threaded through rather than resolved here so "exactly one run pays" holds
+   * across versions, not just within one.
+   */
+  claimProgramBuildPayment?: () => ProgramBuildPayment | undefined;
   /**
    * Real repair client (#27), built from `--repair-model`. Absent means the
    * stub — `ReplayRunner`'s default, and what every run got before #165.
@@ -507,6 +673,9 @@ async function walkVersions(
       ...(opts.repairClient ? { repairClient: opts.repairClient } : {}),
       ...(baseline ? { baseline } : {}),
       ...(opts.costFresh ? { costFresh: opts.costFresh } : {}),
+      ...(opts.claimProgramBuildPayment
+        ? { claimProgramBuildPayment: opts.claimProgramBuildPayment }
+        : {}),
     });
 
     // A skip can now arrive *with* completed runs (interrupted partway, or the
@@ -749,6 +918,38 @@ async function main(): Promise<void> {
     }
   }
 
+  // #39 step 4, second half: the ONE-TIME program-build payment. Loaded beside
+  // --cost-fresh and validated the same way, but attached to exactly one run
+  // rather than broadcast — ADR-0010 splits the two because summing a per-run
+  // baseline over N flattens the §12 curve.
+  let programBuildPayment: ProgramBuildPayment | undefined;
+  if (args.costProgramBuild !== undefined) {
+    if (args.dryRun) {
+      console.log(
+        `  note: --cost-program-build is ignored under --dry-run — dry-run rows stay all-zero.`,
+      );
+    } else {
+      try {
+        programBuildPayment = await loadCostProgramBuild(args.costProgramBuild);
+        const c = programBuildPayment.cost;
+        console.log(
+          `  cost-program-build: ${args.costProgramBuild} — ` +
+            `build=${programBuildPayment.program_build_id} tokens_in=${c.tokens_in} ` +
+            `tokens_out=${c.tokens_out} wall_clock_ms=${c.wall_clock_ms}` +
+            `${c.model_id ? ` model_id=${c.model_id}` : ""}`,
+        );
+        console.log(
+          "  (attached to the FIRST completed live run only — §12 amortizes one payment)",
+        );
+      } catch (err) {
+        console.error(`gate:matrix: ${errMessage(err)}`);
+        process.exit(2);
+        return;
+      }
+    }
+  }
+  const claimProgramBuildPayment = programBuildPaymentLatch(programBuildPayment);
+
   // #165: `--repair-model` reached `Args` and stopped there — nothing built a
   // client from it, so `ReplayRunner` fell back to `StubRepairModelClient` and
   // the run reported a self-heal rate of 0 and zero repair cost that both look
@@ -829,6 +1030,12 @@ async function main(): Promise<void> {
   process.on("SIGTERM", onSignal);
 
   const port = args.port ?? DEFAULT_HOST_PORT;
+  // Claiming after the walk answers "did a run take it?": the latch is empty
+  // iff some run already claimed it. Consuming it here is safe — the matrix is
+  // over — and it is the only way to know without threading a flag back up.
+  const buildPaymentClaimedByRun = (): boolean =>
+    programBuildPayment !== undefined && claimProgramBuildPayment() === undefined;
+
   const { runs, baseline } = await walkVersions({
     walked,
     program,
@@ -842,6 +1049,7 @@ async function main(): Promise<void> {
     persist,
     shouldStop: () => stopRequested,
     ...(costFresh ? { costFresh } : {}),
+    ...(programBuildPayment ? { claimProgramBuildPayment } : {}),
     ...(repairClient ? { repairClient } : {}),
   });
 
@@ -889,6 +1097,19 @@ async function main(): Promise<void> {
         // must not have to diff run rows against a source file to tell the
         // two apart.
         ...(costFresh ? { cost_fresh_source: args.costFresh, cost_fresh: costFresh } : {}),
+        // #39 step 4: the one-time payment, and — separately — whether a run
+        // actually took it. A matrix that skipped every version leaves the
+        // payment unclaimed, and a reader must be able to tell "the curve has
+        // no first point" from "the flag was never passed" without diffing
+        // NDJSON rows against this file.
+        ...(programBuildPayment
+          ? {
+              cost_program_build_source: args.costProgramBuild,
+              cost_program_build: programBuildPayment.cost,
+              program_build_id: programBuildPayment.program_build_id,
+              program_build_paid: buildPaymentClaimedByRun(),
+            }
+          : {}),
         runs,
       },
       null,
