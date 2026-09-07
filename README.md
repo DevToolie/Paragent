@@ -29,9 +29,11 @@ in to repair just that step, and the repaired script is what runs next time.
     (<code>src/recorder/cli.ts</code>), not an agent proposing it; that on-ramp is scoped but
     <a href="https://github.com/DevToolie/Paragent/issues/127">not yet built (#127)</a>. The
     <b>repair</b> beat defaults to <code>StubRepairModelClient</code>, which proposes
-    nothing; an opt-in <code>AnthropicRepairModelClient</code> exists
-    (<a href="https://github.com/DevToolie/Paragent/issues/27">#27</a>) but a live
-    self-heal has not been measured yet.
+    nothing; two opt-in clients exist — <code>AnthropicRepairModelClient</code>
+    (<a href="https://github.com/DevToolie/Paragent/issues/27">#27</a>, needs a key) and
+    <code>DelegatedRepairModelClient</code>
+    (<a href="https://github.com/DevToolie/Paragent/issues/189">#189</a>, needs none) — but a
+    live self-heal has not been measured yet.
   </sub>
 </p>
 
@@ -48,6 +50,37 @@ in to repair just that step, and the repaired script is what runs next time.
 
 The assertion-per-step design is the load-bearing part: a replay that drifts fails
 loudly at the step that broke, instead of silently completing the wrong task.
+
+### Repair without an API key
+
+If you are already an agent with model access, Paragent does not need its own. Pass a callback
+and do the repair on your own budget — no `ANTHROPIC_API_KEY`, no second bill:
+
+```ts
+// The package ships a CLI (`bin`) and no root entry point yet, so library
+// consumers deep-import. See ADR-0020's open questions.
+import { DelegatedRepairModelClient } from "paragent/dist/src/runner/repair-delegated.js";
+import { ReplayRunner } from "paragent/dist/src/runner/replay.js";
+
+const runner = new ReplayRunner({
+  repairClient: new DelegatedRepairModelClient({
+    // `request` is the authorized repair view — the failed step, the assertion's
+    // type and strength, and the page's interactive elements. Never parameter
+    // values, never page text (ADR-0012).
+    handler: async (request) => {
+      const action = await yourAgent.proposeCorrectedAction(request);
+      return { corrected_action: action, model_id: "your-model" };
+    },
+  }),
+});
+```
+
+Return `null` to decline; the step records `REPAIR_EXHAUSTED` like any other failed proposal.
+
+Because your agent pays, Paragent cannot see what the repair cost. Those runs are marked
+`repair_cost_measured: false` and are **excluded** from the §9 cost metrics rather than counted as
+zero — see [ADR-0020](docs/decisions/ADR-0020-delegated-repair-cost-provenance.md). A gate
+measurement run still needs `AnthropicRepairModelClient`.
 
 ## Try it in 60 seconds
 

@@ -5,6 +5,7 @@ import {
   taskSuccessLe2Repairs,
   amortizedTokensOverN,
   repairCostVsFresh,
+  repairCostProvenance,
   selfHealRate,
 } from "../../src/metrics/aggregate.js";
 import { zeroCost } from "../../src/metrics/cost.js";
@@ -228,5 +229,117 @@ describe("amortization cost model (#123 / ADR-0010)", () => {
     expect(section.numerator).toBe(17);
     expect(section.denominator).toBe(1);
     expect(section.value).toBe(17);
+  });
+});
+
+/**
+ * ADR-0020 / #189 — a delegated repair's zeros must never reach a cost mean.
+ *
+ * The failure this guards is the worst one available to this project: the host
+ * agent pays for the repair, Paragent cannot see the usage, and the row records
+ * `cost_repair` zeros. Averaged in, they push `mean(cost_repair)` down, and
+ * *down* is the direction that reads as "repair is cheap, the thesis passed".
+ * A fabricated pass is more damaging than a fabricated fail, because nobody
+ * goes looking for the bug behind good news.
+ */
+describe("delegated repair cost is excluded, not zero-filled (#189 / ADR-0020)", () => {
+  const REPAIR: Cost = { tokens_in: 9000, tokens_out: 600, wall_clock_ms: 30000 };
+
+  const run = (i: number, extra: Partial<RunMetric> = {}): RunMetric => ({
+    schema_version: METRICS_SCHEMA_VERSION,
+    metric_kind: "run",
+    run_id: `r${i}`,
+    site_key: "local-demo",
+    task_key: "t",
+    testbed_version: "pending-b1@placeholder",
+    task_success: true,
+    repair_count: 1,
+    success_with_le_2_repairs: true,
+    steps_total: 2,
+    steps_replay_valid: 1,
+    self_healed: true,
+    cost_fresh: { tokens_in: 12000, tokens_out: 800, wall_clock_ms: 45000 },
+    cost_replay: { tokens_in: 0, tokens_out: 0, wall_clock_ms: 180 },
+    cost_repair: REPAIR,
+    wall_clock_total_ms: 180,
+    recorded_at: `2026-07-24T00:${String(i).padStart(2, "0")}:00.000Z`,
+    ...extra,
+  });
+
+  /** What a delegated run actually emits: zeros, flagged. */
+  const delegated = (i: number): RunMetric =>
+    run(i, { cost_repair: zeroCost(), repair_cost_measured: false });
+
+  it("does not let unmeasured zeros deflate the kill-line ratio", () => {
+    const measuredOnly = repairCostVsFresh([run(0), run(1)]);
+    const withDelegated = repairCostVsFresh([run(0), run(1), delegated(2), delegated(3)]);
+
+    // Folded in, four rows averaging two real repairs would halve the ratio and
+    // turn a 0.75 fail into a 0.37 pass.
+    expect(withDelegated.tokens.value).toBe(measuredOnly.tokens.value);
+    expect(withDelegated.tokens.denominator).toBe(measuredOnly.tokens.denominator);
+    expect(withDelegated.wall_clock.value).toBe(measuredOnly.wall_clock.value);
+  });
+
+  it("guards the guard: the excluded rows would have moved the number", () => {
+    // If the flag stopped being read, this is what the ratio would become.
+    const asIfIncluded = repairCostVsFresh([
+      run(0),
+      run(1),
+      run(2, { cost_repair: zeroCost() }),
+      run(3, { cost_repair: zeroCost() }),
+    ]);
+    expect(asIfIncluded.tokens.value).not.toBe(repairCostVsFresh([run(0), run(1)]).tokens.value);
+  });
+
+  it("reports no_data when every run was delegated — never a zero ratio", () => {
+    const section = repairCostVsFresh([delegated(0), delegated(1)]).tokens;
+    expect(section.status).toBe("no_data");
+    expect(section.value).toBeNull();
+  });
+
+  it("keeps delegated rows in the outcome aggregates", () => {
+    // Whether the repair worked is observed by the runner regardless of who
+    // paid. Excluding these from self-heal rate would throw away real data.
+    const section = selfHealRate([delegated(0), delegated(1)]);
+    expect(section.status).toBe("computed");
+    expect(section.value).toBe(1);
+  });
+
+  it("treats an absent flag as measured, so existing rows are unaffected", () => {
+    expect(repairCostProvenance([run(0), run(1)])).toEqual({
+      runs_total: 2,
+      runs_cost_measured: 2,
+      runs_cost_unmeasured: 0,
+    });
+  });
+
+  it("publishes how many rows the cost metrics skipped", () => {
+    // A no_data has to be explainable from the report itself.
+    const report = buildGateReport([run(0), delegated(1), delegated(2)]);
+    expect(report.cost_provenance).toEqual({
+      runs_total: 3,
+      runs_cost_measured: 1,
+      runs_cost_unmeasured: 2,
+    });
+  });
+
+  it("reports no_data for amortization when the window holds a delegated run", () => {
+    // The numerator is a sum, so one missing repair cost understates every
+    // point after it — a decline for the wrong reason is #123's failure again.
+    const build: Cost = { tokens_in: 12000, tokens_out: 800, wall_clock_ms: 45000 };
+    const rows: MetricRow[] = [
+      run(0, { cost_program_build: build, program_build_id: "build-1" }),
+      run(1),
+      delegated(2),
+    ];
+    const { section, points } = amortizedTokensOverN(rows);
+    expect(section.status).toBe("no_data");
+    expect(points).toEqual([]);
+
+    // ...and still computes when the delegated run is outside the window.
+    const windowed = amortizedTokensOverN(rows, 2);
+    expect(windowed.section.status).toBe("computed");
+    expect(windowed.points).toHaveLength(2);
   });
 });

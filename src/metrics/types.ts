@@ -110,6 +110,19 @@ export interface RunMetric {
   program_build_id?: string;
   cost_replay: Cost;
   cost_repair: Cost;
+  /**
+   * `false` when this run's repair path could not report what it spent
+   * (ADR-0020, #189): a delegated client, where the host agent paid for the
+   * inference and no `usage` block ever reaches Paragent.
+   *
+   * Absent means measured — every existing emitter runs inference it can count,
+   * and a stub's zeros are honest zeros. Rows marked `false` are **excluded**
+   * from the §9 cost aggregates rather than folded in, because zeros in
+   * `mean(cost_repair)` move the kill-line ratio toward a false pass. Outcome
+   * aggregates (self-heal rate, task success) still count them: whether the
+   * repair worked is measured regardless of who paid.
+   */
+  repair_cost_measured?: boolean;
   wall_clock_total_ms: number;
   /** Per-run ceiling in force for this run. `<= 0` means the guard was off (#84). */
   wall_clock_budget_ms?: number;

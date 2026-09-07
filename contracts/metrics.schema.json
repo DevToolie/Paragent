@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://paragent.dev/contracts/metrics.schema.json",
   "title": "Metrics",
-  "description": "Instrumentation for PRD §9 gate metrics. Supports exact computation of: step-level replay-validity; task-level success with <=2 repairs; repair cost vs fresh-reasoning cost (tokens AND wall-clock); self-heal rate; time-to-repair; amortized tokens/task over N runs. Two distinct cost meanings are named separately and must not be conflated: cost_fresh is a PER-RUN comparison baseline, cost_program_build is the ONE-TIME cost of producing the compiled program (ADR-0010). NEVER invent values — emit measured fields only.",
+  "description": "Instrumentation for PRD §9 gate metrics. Supports exact computation of: step-level replay-validity; task-level success with <=2 repairs; repair cost vs fresh-reasoning cost (tokens AND wall-clock); self-heal rate; time-to-repair; amortized tokens/task over N runs. Two distinct cost meanings are named separately and must not be conflated: cost_fresh is a PER-RUN comparison baseline, cost_program_build is the ONE-TIME cost of producing the compiled program (ADR-0010). repair_cost_measured=false marks a run whose repair cost is unobservable (delegated repair, ADR-0020) and excludes it from cost aggregates. NEVER invent values — emit measured fields only.",
   "oneOf": [
     {
       "$ref": "#/$defs/stepMetric"
@@ -247,6 +247,10 @@
         },
         "cost_repair": {
           "$ref": "#/$defs/cost"
+        },
+        "repair_cost_measured": {
+          "type": "boolean",
+          "description": "False when this run's repair path could not observe what it spent (ADR-0020, #189): a DELEGATED repair client, where the calling agent does the reasoning on its own budget and no usage block ever reaches Paragent. ABSENT MEANS MEASURED — every emitter that runs inference counts real tokens, and a stub's zeros are honest zeros. Rows marked false are EXCLUDED from the §9 cost aggregates (repair-cost-vs-fresh, amortization), never folded in with zeros: an unmeasured zero deflates mean(cost_repair) and moves the kill-line ratio toward a false pass. Outcome aggregates (self-heal rate, task success) still count these rows — whether the repair worked is measured regardless of who paid."
         },
         "wall_clock_total_ms": {
           "type": "integer",
