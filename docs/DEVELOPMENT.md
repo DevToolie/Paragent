@@ -27,8 +27,12 @@ npx playwright install --with-deps chromium   # the recorder test needs a browse
 npm run ci                                    # must be green before you change anything
 ```
 
-Node 20+ is required (`engines` in `package.json`). Docker Desktop or a Docker daemon is
-required only for the testbed; everything else runs without it.
+Node 22+ is required **to develop**: `vitest` 5 supports `^22.12 || ^24 || >=26`, and CI runs
+Node 22. The **published package** still supports Node 20+ (`engines` in `package.json`) — that is
+the floor for people who install Paragent, not for people who build it, and the two are
+deliberately different numbers. Note that nothing in CI currently exercises the product on Node 20,
+so that promise rests on `engines` alone. Docker Desktop or a Docker daemon is required only for
+the testbed; everything else runs without it.
 
 ---
 
