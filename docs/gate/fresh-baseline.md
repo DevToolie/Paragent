@@ -4,7 +4,7 @@ doc_type: spec
 status: draft
 owner: B4
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-09-06
 confidence: MED
 supersedes: null
 sources_verified: true
@@ -186,7 +186,49 @@ ADR-0010 split one overloaded field into two:
 This harness follows the code at `HEAD`, not the issue's original point 4: `cost_fresh` feeds
 `repairCostVsFresh()` only. `amortizedTokensOverN()` stays `no_data` until a `cost_program_build`
 is separately measured and attached via `ReplayRunnerOptions.costProgramBuild` /
-`programBuildId` — a different measurement than this one, not yet built.
+`programBuildId` — a different measurement than this one.
+
+### `--cost-program-build`: the wiring for the other half
+
+The driver can now carry that payment. **The wiring exists; the measurement does not** — those are
+different claims and this section is careful to keep them apart.
+
+Before this, `ReplayRunner` accepted `costProgramBuild`/`programBuildId` and
+`amortizedTokensOverN()` consumed them, but no path in between could pass one: `gate:matrix` had
+`--cost-fresh` and nothing else. The §12 curve was therefore unreachable from the harness *even if
+a number existed*. `gate:matrix --cost-program-build <path>` closes that, reading:
+
+```json
+{
+  "usable": true,
+  "program_build_id": "<id>",
+  "cost_program_build": {
+    "tokens_in": 0, "tokens_out": 0, "wall_clock_ms": 0, "model_id": "<model>"
+  }
+}
+```
+
+It refuses (exit 2) on a missing file, invalid JSON, `usable != true`, a missing
+`program_build_id`, or a **zero-token cost**. That last rule is stricter than `--cost-fresh`'s and
+deliberately so: a zero `cost_fresh` makes §9 report `no_data`, but a zero `cost_program_build`
+makes §12 report a *curve* — one declining to nothing, which publishes the strongest possible form
+of the claim on a number nobody measured.
+
+The payment is attached to **exactly one** run in the whole matrix — the first live run to start —
+through a latch (`programBuildPaymentLatch`) rather than an index check, because the driver has
+several places a run can begin and "is this the first one?" would have to be right in all of them.
+Attaching it to every run is precisely the arithmetic ADR-0010 exists to prevent: §12's numerator
+sums the payment, so repeating it grows the numerator linearly with N and flattens the curve.
+`out/matrix-run.json` records `cost_program_build_source`, the payment, the build id, and
+`program_build_paid` — whether a run actually took it, since a matrix that skipped every version
+leaves it unclaimed.
+
+**Nothing in this repo writes that document.** `cost_program_build` is what it cost to *produce*
+the compiled program, and today that is a developer typing `src/recorder/cli.ts` by hand — a
+developer-day and zero tokens ([#127](https://github.com/DevToolie/Paragent/issues/127)). Until an
+agent records the trajectory, there is no token count to put in the file, and the loader will
+refuse every attempt to fabricate one. The §12 curve stays `no_data`; what changed is that it will
+compute the moment a real measurement exists, with no further code change.
 
 ## Status: harness only
 
@@ -194,7 +236,9 @@ This PR ships the measurement **mechanism** — the client, the runner, the entr
 wiring into `gate:matrix`, and this definition. It does **not** ship a measured number, because:
 
 - No live model call has been made against this code. `cost_fresh` stays zeros; `repair cost vs
-  fresh` and `amortized tokens/task` stay `no_data` in `gate:report`'s output.
+  fresh` and `amortized tokens/task` stay `no_data` in `gate:report`'s output. The
+  `--cost-program-build` wiring added later for #39 step 4 does not change that: it transports a
+  measurement, it does not make one, and no producer for its input exists (#127).
 - A live baseline run costs real money and needs `ANTHROPIC_API_KEY`. Per CONTRIBUTING rule 3,
   *never invent a metric* — there is no number here to invent, and none is.
 - The issue's own checklist wants **at least 3 fresh runs, mean and spread both reported**, and
@@ -248,6 +292,15 @@ table below is what a human reads out of it once a live run has actually happene
 
 ## Open questions / what I could not verify
 
+- **The `--cost-program-build` document has no producer and therefore no validated example.**
+  Every test writes the file by hand. The shape is asserted against the loader, not against
+  anything that emits it, so the first real producer (#127) may find the fields named wrong.
+- **"First live run pays" is a choice, not a derivation.** ADR-0010 says one run carries the
+  payment and that a recompile is a visible second payment; it does not say *which* run. The first
+  is the only one that makes the curve start at full price, but a matrix whose first version is
+  skipped mid-run could leave the payment on a run that is not the earliest recorded — the latch
+  hands it to the first run that *starts*, and `program_build_paid` is the only signal a reader
+  gets.
 - **No live measurement exists.** Every number this harness could produce is `[PENDING TRACK-1]`
   — see "Status" above. This doc defines the measurement; it does not report one.
 - **Whether the model's self-reported `success` is trustworthy enough to publish.** See "What
