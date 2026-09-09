@@ -261,6 +261,10 @@ export class ReplayRunner {
     let timeToRepairTotal = 0;
     let costReplay = zeroCost();
     let costRepair = zeroCost();
+    // ADR-0020 (#189): sticky for the whole run. One delegated proposal is
+    // enough to make this run's `cost_repair` an undercount, and an
+    // undercount folded into mean(cost_repair) moves the §9 verdict.
+    let repairCostMeasured = true;
     let budgetExhausted = false;
     const budgetSpent = (): boolean =>
       Number.isFinite(this.runBudgetMs) &&
@@ -388,6 +392,8 @@ export class ReplayRunner {
 
           assertAssertionUnchanged(frozenAssertion, step.assertion);
           assertAssertionUnchanged(frozenAssertion, ctx.assertion);
+
+          if (proposal.cost_measured === false) repairCostMeasured = false;
 
           const proposeCost: Cost = {
             tokens_in: proposal.tokens_in,
@@ -554,6 +560,12 @@ export class ReplayRunner {
       cost_replay: costReplay,
       cost_repair: costRepair,
     };
+    // Only when it is false, and only when a repair actually ran: `true` on a
+    // run that never asked anybody anything would assert a measurement that
+    // did not happen, and absent already means measured.
+    if (!repairCostMeasured) {
+      runResult.repair_cost_measured = false;
+    }
     if (this.costProgramBuild !== undefined) {
       runResult.cost_program_build = this.costProgramBuild;
     }
@@ -768,6 +780,9 @@ export class ReplayRunner {
     // Omitted rather than zero-filled: absent means "never measured", and the
     // amortization aggregate reports no_data on that rather than curve-fitting
     // a zero first point (#123).
+    if (result.repair_cost_measured === false) {
+      row.repair_cost_measured = false;
+    }
     if (result.cost_program_build !== undefined) {
       row.cost_program_build = result.cost_program_build;
     }

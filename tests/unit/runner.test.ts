@@ -177,3 +177,82 @@ describe("runner package", () => {
     expect(() => assertAssertionUnchanged(original, program.steps[0]!.assertion)).not.toThrow();
   });
 });
+
+/**
+ * ADR-0020 / #189 — the flag has to survive the whole trip.
+ *
+ * The unit tests for `DelegatedRepairModelClient` prove it sets
+ * `cost_measured: false` on every proposal, and the aggregate tests prove a row
+ * carrying `repair_cost_measured: false` is excluded. This is the join: if the
+ * runner dropped the flag between them, both suites would still pass and the
+ * zeros would reach the §9 mean anyway.
+ */
+describe("delegated repair marks the run row unmeasured (#189)", () => {
+  const delegatedClient = (action: CompiledAction | null): RepairModelClient => ({
+    async propose(_ctx: RepairContext): Promise<RepairProposal> {
+      return {
+        corrected_action: action,
+        tokens_in: 0,
+        tokens_out: 0,
+        cost_measured: false,
+        notes: "delegated",
+      };
+    },
+  });
+
+  const corrected: CompiledAction = {
+    type: "navigate",
+    url_template: "{base_url}",
+    param_refs: ["base_url"],
+    locator_fallback_chain: [],
+  };
+
+  it("emits repair_cost_measured:false when a delegated proposal repaired the step", async () => {
+    const metrics = new MetricsEmitter();
+    const runner = new ReplayRunner({
+      dryRun: true,
+      dryRunOutcomes: ["ASSERTION_FAILED", "PASS"],
+      repairClient: delegatedClient(corrected),
+      maxRepairsPerRun: 2,
+      metrics,
+    });
+    const result = await runner.run(sampleProgram(), { base_url: "about:blank" });
+
+    expect(result.step_results[0]?.outcome).toBe("REPAIRED_PASS");
+    expect(result.repair_cost_measured).toBe(false);
+    const runRow = metrics.getRows().find((r) => r.metric_kind === "run");
+    expect(runRow).toBeDefined();
+    expect((runRow as { repair_cost_measured?: boolean }).repair_cost_measured).toBe(false);
+  });
+
+  it("marks the row even when the delegated repair failed", async () => {
+    // A host that declines still consumed a repair attempt, and the run's
+    // cost_repair is still an unobservable zero.
+    const metrics = new MetricsEmitter();
+    const runner = new ReplayRunner({
+      dryRun: true,
+      dryRunOutcomes: ["ASSERTION_FAILED", "PASS"],
+      repairClient: delegatedClient(null),
+      maxRepairsPerRun: 2,
+      metrics,
+    });
+    const result = await runner.run(sampleProgram(), { base_url: "about:blank" });
+
+    expect(result.step_results[0]?.outcome).toBe("REPAIR_EXHAUSTED");
+    expect(result.repair_cost_measured).toBe(false);
+  });
+
+  it("leaves the field absent for a measuring client — absent means measured", async () => {
+    const metrics = new MetricsEmitter();
+    const runner = new ReplayRunner({
+      dryRun: true,
+      dryRunOutcomes: ["PASS", "PASS"],
+      metrics,
+    });
+    const result = await runner.run(sampleProgram(), { base_url: "about:blank" });
+
+    expect(result.repair_cost_measured).toBeUndefined();
+    const runRow = metrics.getRows().find((r) => r.metric_kind === "run");
+    expect(runRow).not.toHaveProperty("repair_cost_measured");
+  });
+});

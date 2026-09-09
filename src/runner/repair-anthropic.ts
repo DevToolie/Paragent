@@ -42,8 +42,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { OutputConfig } from "@anthropic-ai/sdk/resources/messages/messages";
 import { serializeRepairContext } from "./repair-egress.js";
-import type { RepairModelClient } from "./repair.js";
-import type { CompiledAction, RepairContext, RepairProposal } from "./types.js";
+import { sanitizeProposedAction, type RepairModelClient } from "./repair.js";
+import type { RepairContext, RepairProposal } from "./types.js";
 
 /**
  * The SDK's own effort union, not `string`.
@@ -190,37 +190,6 @@ export function billedInputTokens(usage: UsageLike | undefined): number {
     (usage.cache_read_input_tokens ?? 0) +
     (usage.cache_creation_input_tokens ?? 0)
   );
-}
-
-/**
- * Strip anything that is not a corrected action.
- *
- * A proposal that carries an `assertion` key is not merged and not
- * partially honoured — it is dropped whole. `assertAssertionUnchanged` would
- * catch a mutation after the fact; this refuses to carry one forward at all,
- * which is the difference between detecting a violation and not committing one.
- */
-export function sanitizeProposedAction(raw: unknown): {
-  action: CompiledAction | null;
-  rejected?: string;
-} {
-  if (raw === null || raw === undefined) return { action: null };
-  if (typeof raw !== "object") return { action: null, rejected: "not an object" };
-
-  const obj = raw as Record<string, unknown>;
-  if ("assertion" in obj || "expected" in obj || "timeout_ms" in obj) {
-    return {
-      action: null,
-      rejected: "proposal attempted to modify the assertion; dropped whole",
-    };
-  }
-  if (typeof obj["type"] !== "string") {
-    return { action: null, rejected: "no action type" };
-  }
-  if (!Array.isArray(obj["locator_fallback_chain"])) {
-    return { action: null, rejected: "no locator_fallback_chain" };
-  }
-  return { action: obj as unknown as CompiledAction };
 }
 
 export class MissingAnthropicKeyError extends Error {

@@ -27,6 +27,28 @@ export function filterSteps(rows: readonly MetricRow[]): StepMetric[] {
   return rows.filter(isStep);
 }
 
+/**
+ * Runs whose `cost_repair` is a real measurement (ADR-0020, #189).
+ *
+ * A delegated repair client hands the reasoning to the calling agent, which
+ * pays for it and never reports usage back. Those rows carry
+ * `repair_cost_measured: false` and zeros — and a zero that means "unmeasured"
+ * is arithmetically identical to a zero that means "no inference ran". Folded
+ * into `mean(cost_repair)` they drag the §9 ratio *down*, and down is the
+ * direction that reads as "the thesis passed".
+ *
+ * Excluded here, not zero-filled and not silently dropped: an all-excluded
+ * pool reports `no_data`, never `0`. Absent means measured — every emitter
+ * predating the field counted real tokens.
+ *
+ * **Cost aggregates only.** `selfHealRate`, `taskSuccessLe2Repairs` and
+ * step-validity keep these rows: whether a repair worked is observed by the
+ * runner regardless of whose budget paid for it.
+ */
+export function filterCostMeasuredRuns(rows: readonly MetricRow[]): RunMetric[] {
+  return filterRuns(rows).filter((r) => r.repair_cost_measured !== false);
+}
+
 function dedupeLatestSteps(steps: StepMetric[]): StepMetric[] {
   const map = new Map<string, StepMetric>();
   for (const s of steps) map.set(`${s.run_id}::${s.step_index}`, s);
@@ -273,7 +295,11 @@ export function repairCostVsFresh(rows: readonly MetricRow[]): {
   tokens: GateReportSection;
   wall_clock: GateReportSection;
 } {
-  const runs = filterRuns(rows);
+  // Unmeasured-repair rows are excluded, not zero-filled (ADR-0020, #189).
+  // Wall-clock goes with tokens: a delegated repair's elapsed time is the
+  // host's whole turn — its own tool loop, its queueing, possibly a human — so
+  // it is not the same quantity as an API call's latency either.
+  const runs = filterCostMeasuredRuns(rows);
   const empty = (name: string, formula: string): GateReportSection => ({
     name,
     formula,
@@ -415,7 +441,8 @@ export interface AmortizationPoint {
  */
 const AMORTIZED_FORMULA =
   "(sum(cost_program_build where present + cost_repair + cost_replay) over first N runs) / N " +
-  "— no_data unless some run in the window carries a measured cost_program_build";
+  "— no_data unless some run in the window carries a measured cost_program_build, " +
+  "and no_data if any run in the window has repair_cost_measured=false";
 
 /**
  * The §12 curve: what one task costs per run once its one-time cost is spread
@@ -452,6 +479,13 @@ export function amortizedTokensOverN(
   builds_paid: string[];
   section: GateReportSection;
 } {
+  // Ordering first, exclusion second: the window is "the first N runs", and
+  // dropping rows before sorting would silently slide a later run into the
+  // window. An unmeasured run inside the window makes the whole series
+  // no_data (ADR-0020, #189) rather than a curve missing a term — the
+  // numerator is a *sum*, so one missing repair cost understates every point
+  // after it, and a curve that declines for the wrong reason is exactly the
+  // failure mode #123 was filed about.
   const runs = [...filterRuns(rows)].sort((a, b) =>
     a.recorded_at.localeCompare(b.recorded_at),
   );
@@ -475,6 +509,9 @@ export function amortizedTokensOverN(
     },
   });
   if (limit === 0) return noData();
+  if (runs.slice(0, limit).some((r) => r.repair_cost_measured === false)) {
+    return noData();
+  }
 
   const points: AmortizationPoint[] = [];
   const buildsPaid: string[] = [];
@@ -680,12 +717,42 @@ export function sumRunCosts(runs: readonly RunMetric[]): {
   );
 }
 
+/**
+ * How much of the run pool the §9 cost metrics could actually be computed over
+ * (ADR-0020, #189).
+ *
+ * Published beside the sample floor and the truncation summary, for the same
+ * reason both of those are: a `no_data` or a suspiciously low ratio has to be
+ * explainable from the report itself. Without this line, excluding delegated
+ * rows would be invisible — the honest thing and the silently-dropped thing
+ * look identical in the output.
+ */
+export function repairCostProvenance(rows: readonly MetricRow[]): {
+  runs_total: number;
+  runs_cost_measured: number;
+  runs_cost_unmeasured: number;
+} {
+  const total = filterRuns(rows).length;
+  const measured = filterCostMeasuredRuns(rows).length;
+  return {
+    runs_total: total,
+    runs_cost_measured: measured,
+    runs_cost_unmeasured: total - measured,
+  };
+}
+
 export function buildGateReport(rows: readonly MetricRow[]): {
   prd_section: "§9";
   generated_at: string;
   row_counts: { step: number; run: number };
   sample: ReturnType<typeof section9SampleFloor>;
   truncation: ReturnType<typeof truncationSummary>;
+  /**
+   * Which run rows the cost metrics were computed over. `runs_cost_unmeasured`
+   * counts delegated-repair rows excluded by ADR-0020 — not failures, just runs
+   * whose repair cost nobody could observe.
+   */
+  cost_provenance: ReturnType<typeof repairCostProvenance>;
   metrics: GateReportSection[];
   per_version: VersionBreakdown[];
   amortized_points: AmortizationPoint[];
@@ -722,6 +789,8 @@ export function buildGateReport(rows: readonly MetricRow[]): {
     // Beside the sample floor, for the same reason: both say what the numbers
     // below them are and are not computed over.
     truncation: truncationSummary(rows),
+    // Third of the three "what these numbers are computed over" blocks.
+    cost_provenance: repairCostProvenance(rows),
     metrics: [
       stepReplayValidity(rows),
       taskSuccessLe2Repairs(rows),

@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { serializeRepairContext } from "../../src/runner/repair-egress.js";
+import { DelegatedRepairModelClient } from "../../src/runner/repair-delegated.js";
 import { emptyPageState } from "../../src/runner/page-state.js";
 import type { RepairContext } from "../../src/runner/types.js";
 
@@ -135,6 +136,45 @@ describe("repair egress: only the authorized shape leaves (#125)", () => {
   it("records the context level, so a self-heal rate is reproducible", () => {
     // Two runs with the same model and different levels are not comparable.
     expect(serializeRepairContext(contextWithEverything()).context_level).toBe("interactive");
+  });
+});
+
+describe("delegation does not widen the boundary (#189)", () => {
+  /**
+   * `DelegatedRepairModelClient` hands the repair request to the *calling
+   * agent* instead of to an API. That is still egress — a host agent is a third
+   * party the same way the Anthropic API is, and it is one a reader is more
+   * likely to think of as "inside", which is exactly why it is asserted here
+   * rather than only in the unit suite.
+   */
+  it("hands the host the authorized payload, not the context", async () => {
+    let seen: unknown;
+    const client = new DelegatedRepairModelClient({
+      handler: async (request) => {
+        seen = request;
+        return null;
+      },
+    });
+    await client.propose(contextWithEverything());
+
+    const sent = JSON.stringify(seen);
+    for (const [label, value] of Object.entries(CANARY)) {
+      expect(sent, `delegated payload carried ${label}`).not.toContain(value);
+    }
+    expect(sent).not.toContain("password");
+    // Counter-check, same as above: the payload is non-empty.
+    expect(sent).toContain("127.0.0.1");
+  });
+
+  it("reports zero tokens flagged unmeasured, never estimated (ADR-0020)", async () => {
+    // Egress-adjacent and cheap to assert here: the reason a delegated repair
+    // is safe to ship is that its unobservable cost is excluded from §9 rather
+    // than folded in as a zero.
+    const client = new DelegatedRepairModelClient({ handler: async () => null });
+    const proposal = await client.propose(contextWithEverything());
+    expect(proposal.tokens_in).toBe(0);
+    expect(proposal.tokens_out).toBe(0);
+    expect(proposal.cost_measured).toBe(false);
   });
 });
 

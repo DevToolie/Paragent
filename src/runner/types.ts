@@ -189,6 +189,17 @@ export interface RepairProposal {
   corrected_action: CompiledAction | null;
   tokens_in: number;
   tokens_out: number;
+  /**
+   * `false` when this client cannot observe what the repair cost (ADR-0020,
+   * #189) — a delegated repair, where the host paid and does not report usage.
+   *
+   * Absent means measured. Every client that runs inference reports a real
+   * `usage` block, and `StubRepairModelClient`'s zeros are a true statement
+   * (no model ran) rather than a placeholder. The flag exists because those two
+   * zeros are indistinguishable in a `Cost`, and folding an unmeasured one into
+   * `mean(cost_repair)` would deflate the §9 ratio toward a false pass.
+   */
+  cost_measured?: boolean;
   model_id?: string;
   notes?: string;
 }
@@ -284,4 +295,9 @@ export interface RunResult {
   program_build_id?: string;
   cost_replay: Cost;
   cost_repair: Cost;
+  /**
+   * `false` when any repair in this run came from a client that cannot observe
+   * its own cost (ADR-0020, #189). Absent means measured.
+   */
+  repair_cost_measured?: boolean;
 }

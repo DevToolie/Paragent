@@ -24,8 +24,10 @@ import {
   MissingAnthropicKeyError,
   REPAIR_OUTPUT_SCHEMA,
   billedInputTokens,
-  sanitizeProposedAction,
 } from "../../src/runner/repair-anthropic.js";
+// Moved to the client-contract module in #189 so a second client can reuse it
+// without loading the Anthropic SDK. Same function, same guarantees.
+import { sanitizeProposedAction } from "../../src/runner/repair.js";
 import { emptyPageState } from "../../src/runner/page-state.js";
 import type { RepairContext } from "../../src/runner/types.js";
 
